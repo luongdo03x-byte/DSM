@@ -14,12 +14,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Extract DSM V1 source
-        run: tar -xJf .bootstrap/dsm-source.tar.xz -C .
+        run: tar --exclude='.github/workflows/*' -xJf .bootstrap/dsm-source.tar.xz -C .
       - name: Clean bootstrap and commit source
         run: |
           rm -rf .bootstrap
           rm -f dropship-social-v1-source.zip
-          rm -f .github/workflows/bootstrap-source.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
