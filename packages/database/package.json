@@ -1,0 +1,1 @@
+{"name":"@app/database","private":true,"type":"module","scripts":{"prisma":"prisma","generate":"prisma generate","migrate":"prisma migrate dev","migrate:deploy":"prisma migrate deploy"},"dependencies":{"@prisma/adapter-pg":"^7.10.0","pg":"^8.16.3"},"devDependencies":{"prisma":"^7.10.0"}}

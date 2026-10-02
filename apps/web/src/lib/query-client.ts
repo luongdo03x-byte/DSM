@@ -1,0 +1,1 @@
+export class QueryCache { private values=new Map<string,unknown>(); get<T>(key:string){return this.values.get(key) as T|undefined} set<T>(key:string,value:T){this.values.set(key,value)} invalidate(prefix:string){for(const k of this.values.keys())if(k.startsWith(prefix))this.values.delete(k)} }

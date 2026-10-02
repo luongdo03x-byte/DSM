@@ -1,0 +1,6 @@
+import type {AuditLog,AuthSession,Brand,Campaign,ContentItem,ContentVariant,MediaAsset,Product,User,Workspace,WorkspaceMember,SocialAccount,EncryptedCredential,BrowserNode,BrowserProfile,BrowserRegistration,PublishBatch,PublishJob,PublishAttempt,PublishedPost,PostMetric,TrackedLink,ClickEvent} from './domain.ts';
+export class MemoryStore {
+ users=new Map<string,User>(); workspaces=new Map<string,Workspace>(); memberships:WorkspaceMember[]=[]; brands=new Map<string,Brand>();
+ products=new Map<string,Product>(); media=new Map<string,MediaAsset>(); contents=new Map<string,ContentItem>(); variants=new Map<string,ContentVariant>(); campaigns=new Map<string,Campaign>();
+ authSessions=new Map<string,AuthSession>(); audit:AuditLog[]=[]; socialAccounts=new Map<string,SocialAccount>(); credentials=new Map<string,EncryptedCredential>(); browserNodes=new Map<string,BrowserNode>(); browserProfiles=new Map<string,BrowserProfile>(); browserRegistrations=new Map<string,BrowserRegistration>(); publishBatches=new Map<string,PublishBatch>(); publishJobs=new Map<string,PublishJob>(); publishAttempts:PublishAttempt[]=[]; publishedPosts=new Map<string,PublishedPost>(); postMetrics:PostMetric[]=[]; trackedLinks=new Map<string,TrackedLink>(); clickEvents:ClickEvent[]=[];
+}

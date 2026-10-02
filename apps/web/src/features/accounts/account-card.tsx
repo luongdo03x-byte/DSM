@@ -1,0 +1,1 @@
+export function AccountCard({platform,status,username,mode}:{platform:string;status:string;username?:string;mode:string}){return <article><h3>{platform}</h3><p>{username??'Not connected'}</p><p>{status} · {mode}</p><button>{status==='EXPIRED'?'Reconnect':status==='CONNECTED'?'Settings':'Connect'}</button></article>}

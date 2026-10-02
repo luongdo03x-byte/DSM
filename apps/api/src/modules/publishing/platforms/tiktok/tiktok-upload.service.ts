@@ -1,0 +1,4 @@
+import type {TikTokHttpClient} from '../../../../integrations/tiktok/tiktok-http.client.ts';
+export interface Chunk{start:number;end:number;size:number}
+export function planChunks(total:number,chunkSize=10*1024*1024):Chunk[]{if(total<=chunkSize)return[{start:0,end:total-1,size:total}];const count=Math.floor(total/chunkSize),out:Chunk[]=[];for(let i=0;i<count;i++){const start=i*chunkSize,end=i===count-1?total-1:start+chunkSize-1;out.push({start,end,size:end-start+1})}return out}
+export class TikTokUploadService{private h:TikTokHttpClient;constructor(h:TikTokHttpClient){this.h=h}async upload(uploadUrl:string,data:Uint8Array,chunkSize=10*1024*1024,retries=2){for(const ch of planChunks(data.byteLength,chunkSize)){let last;for(let a=0;a<=retries;a++){try{await this.h.upload(uploadUrl,data.slice(ch.start,ch.end+1),ch.start,ch.end,data.byteLength);last=undefined;break}catch(e){last=e}}if(last)throw last}}}

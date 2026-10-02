@@ -1,0 +1,2 @@
+export const PUBLISH_API_QUEUE='publish-api',PUBLISH_BROWSER_QUEUE='publish-browser',ANALYTICS_QUEUE='analytics',MAINTENANCE_QUEUE='maintenance';
+export class InMemoryQueue{private entries=new Map<string,{jobId:string,dueAt:number}>();enqueue(jobId:string,dueAt=Date.now()){this.entries.set(jobId,{jobId,dueAt})}remove(jobId:string){this.entries.delete(jobId)}has(jobId:string){return this.entries.has(jobId)}due(now=Date.now()){return[...this.entries.values()].filter(x=>x.dueAt<=now)}size(){return this.entries.size}}

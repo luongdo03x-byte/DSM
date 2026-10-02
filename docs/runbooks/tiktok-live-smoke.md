@@ -1,0 +1,2 @@
+# TikTok live smoke
+Prerequisites: dedicated test creator, `video.publish` scope, Direct Post audit/approval for public visibility, and verified media domain/prefix for `PULL_FROM_URL` photos/videos. Run with `LIVE_TIKTOK_SMOKE=1`. Query Creator Info immediately before publish, record sanitized `publish_id`, poll status, and record whether visibility is public or restricted. Unapproved clients must be reported as private/restricted, never as public-ready.

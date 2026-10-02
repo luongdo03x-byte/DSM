@@ -1,0 +1,2 @@
+import {runBrowserPublish,type PageDriver} from '../page-driver.ts';
+export class FacebookBrowserPublisher{private d:PageDriver;constructor(d:PageDriver){this.d=d}publish(input:{mediaUrl?:string;text?:string},onStep?:(step:'UPLOADING'|'SUBMITTING'|'VERIFYING')=>void){return runBrowserPublish(this.d,{platform:'FACEBOOK',url:'https://www.facebook.com',...input,selectors:{media:['input[type=file]','[data-testid=upload] input'],text:['textarea','[contenteditable=true]'],submit:['button[type=submit]','[data-testid=submit]']}},onStep)}}

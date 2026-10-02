@@ -1,0 +1,2 @@
+import type {MemoryStore} from '../../../../../packages/shared/src/store.ts';
+export class BrandAccessService{private store:MemoryStore;constructor(store:MemoryStore){this.store=store} assertAccess(userId:string,brandId:string){const brand=this.store.brands.get(brandId);if(!brand)throw new Error('BRAND_NOT_FOUND');const m=this.store.memberships.find(x=>x.userId===userId&&x.workspaceId===brand.workspaceId);if(!m)throw new Error('BRAND_NOT_FOUND');return {workspaceId:brand.workspaceId,brandId,role:m.role}}}

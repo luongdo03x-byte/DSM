@@ -1,0 +1,29 @@
+name: Browser and live platform smoke
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * 2'
+jobs:
+  windows-smoke:
+    runs-on: [self-hosted, Windows]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '24'}
+      - uses: pnpm/action-setup@v4
+        with: {version: '10.17.1'}
+      - run: pnpm install --no-frozen-lockfile
+      - name: GPMLogin/TikTok smoke
+        shell: powershell
+        env:
+          LIVE_TIKTOK_SMOKE: '1'
+          TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
+          TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+        run: node scripts/smoke/tiktok-publish.mjs
+      - name: Meta smoke
+        shell: powershell
+        env:
+          LIVE_META_SMOKE: '1'
+          META_APP_ID: ${{ secrets.META_APP_ID }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: node scripts/smoke/meta-publish.mjs

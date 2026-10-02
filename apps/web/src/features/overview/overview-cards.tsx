@@ -1,0 +1,2 @@
+import {formatCtr} from '../analytics/view-model';
+export function OverviewCards({posts,views,clicks,ctr}:{posts:number;views:number;clicks:number;ctr:number|null}){return <div><article><strong>Posts</strong><p>{posts}</p></article><article><strong>Views</strong><p>{views}</p></article><article><strong>Clicks</strong><p>{clicks}</p></article><article><strong>CTR</strong><p>{formatCtr(ctr)}</p></article></div>}

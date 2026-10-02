@@ -1,0 +1,27 @@
+import type {MemoryStore} from '../../../../../packages/shared/src/store.ts';import type {ContentType,PublishJob,Platform} from '../../../../../packages/shared/src/domain.ts';import {id} from '../../../../../packages/shared/src/ids.ts';import {sha256} from '../../../../../packages/shared/src/security.ts';import {PublisherRegistry} from './publisher-registry.ts';import {StrategyResolver} from './strategy-resolver.ts';
+export class PublishingService{
+  private store:MemoryStore;private registry:PublisherRegistry;private resolver:StrategyResolver;
+  constructor(store:MemoryStore,registry:PublisherRegistry,resolver:StrategyResolver){this.store=store;this.registry=registry;this.resolver=resolver}
+  async validateTargets(input:{brandId:string;contentId:string;socialAccountIds:string[];apiHealth?:Record<string,boolean>;browserHealth?:Record<string,boolean>}){
+    const c=this.store.contents.get(input.contentId);if(!c||c.brandId!==input.brandId)throw new Error('CONTENT_NOT_FOUND');const results=[];
+    for(const aid of input.socialAccountIds){const a=this.store.socialAccounts.get(aid);if(!a||a.brandId!==input.brandId){results.push({socialAccountId:aid,platform:'TIKTOK' as Platform,valid:false,errors:['ACCOUNT_NOT_FOUND'],warnings:[]});continue}
+      const v=[...this.store.variants.values()].find(x=>x.contentItemId===c.id&&x.platform===a.platform);if(!v||v.status!=='READY'){results.push({socialAccountId:aid,platform:a.platform,valid:false,errors:['VARIANT_NOT_READY'],warnings:[]});continue}
+      const pubApi=this.tryPublisher(a.platform,'API'),pubBrowser=this.tryPublisher(a.platform,'BROWSER'),contentType=c.type as ContentType;
+      const apiVal=pubApi?await pubApi.validate(this.toInput(input.brandId,a.id,v.id,a.platform,contentType,v)):undefined,browserVal=pubBrowser?await pubBrowser.validate(this.toInput(input.brandId,a.id,v.id,a.platform,contentType,v)):undefined;
+      if(a.publishMode==='API'&&apiVal&&!apiVal.valid){results.push({socialAccountId:aid,platform:a.platform,valid:false,errors:apiVal.errors,warnings:apiVal.warnings});continue}
+      if(a.publishMode==='BROWSER'&&browserVal&&!browserVal.valid){results.push({socialAccountId:aid,platform:a.platform,valid:false,errors:browserVal.errors,warnings:browserVal.warnings});continue}
+      if(a.publishMode==='HYBRID'&&apiVal&&!apiVal.valid&&browserVal&&!browserVal.valid){results.push({socialAccountId:aid,platform:a.platform,valid:false,errors:[...new Set([...apiVal.errors,...browserVal.errors])],warnings:[...new Set([...apiVal.warnings,...browserVal.warnings])]});continue}
+      if(a.publishMode==='HYBRID'&&apiVal&&!apiVal.valid&&!browserVal){results.push({socialAccountId:aid,platform:a.platform,valid:false,errors:apiVal.errors,warnings:apiVal.warnings});continue}
+      if(a.publishMode==='HYBRID'&&browserVal&&!browserVal.valid&&!apiVal){results.push({socialAccountId:aid,platform:a.platform,valid:false,errors:browserVal.errors,warnings:browserVal.warnings});continue}
+      let strategy:'API'|'BROWSER';try{strategy=this.resolver.resolve({publishMode:a.publishMode,contentType,apiCredentialHealthy:input.apiHealth?.[a.id]??a.status==='CONNECTED',apiCapability:!!pubApi&&!!apiVal?.valid,browserCapability:!!pubBrowser&&!!browserVal?.valid,browserNodeHealthy:input.browserHealth?.[a.id]??!!a.browserProfileId})}catch(e:any){results.push({socialAccountId:aid,platform:a.platform,valid:false,errors:[e.code??String(e.message??'VALIDATION')],warnings:[]});continue}
+      const selected=strategy==='API'?apiVal:browserVal;results.push({socialAccountId:aid,platform:a.platform,valid:true,errors:[],warnings:selected?.warnings??[],strategy,contentVariantId:v.id});
+    }return results;
+  }
+  async createBatch(input:{brandId:string;contentId:string;createdBy:string;socialAccountIds:string[];scheduledAt?:number;apiHealth?:Record<string,boolean>;browserHealth?:Record<string,boolean>}){
+    const c=this.store.contents.get(input.contentId);if(!c||c.brandId!==input.brandId)throw new Error('CONTENT_NOT_FOUND');const validation=await this.validateTargets(input);const batch={id:id('batch'),brandId:input.brandId,contentItemId:c.id,createdBy:input.createdBy,createdAt:Date.now()};this.store.publishBatches.set(batch.id,batch);const results=[];
+    for(const r of validation){if(!r.valid||!r.strategy||!r.contentVariantId){results.push(r);continue}const scheduledAt=input.scheduledAt??Date.now(),key=await sha256(`${input.brandId}|${r.socialAccountId}|${r.contentVariantId}|${new Date(scheduledAt).toISOString()}`);const existing=[...this.store.publishJobs.values()].find(j=>j.idempotencyKey===key);const job:PublishJob=existing??{id:id('job'),batchId:batch.id,brandId:input.brandId,socialAccountId:r.socialAccountId,contentVariantId:r.contentVariantId,platform:r.platform,strategy:r.strategy,scheduledAt,status:'QUEUED',attemptCount:0,maxAttempts:4,idempotencyKey:key};if(!existing)this.store.publishJobs.set(job.id,job);results.push({socialAccountId:r.socialAccountId,platform:r.platform,valid:true,errors:[],warnings:r.warnings,jobId:job.id})}
+    return{batchId:batch.id,results};
+  }
+  private tryPublisher(platform:Platform,strategy:'API'|'BROWSER'){try{return this.registry.get(platform,strategy)}catch{return undefined}}
+  private toInput(brandId:string,socialAccountId:string,contentVariantId:string,platform:Platform,contentType:ContentType,v:any){return{brandId,socialAccountId,contentVariantId,platform,contentType,...(v.caption?{caption:v.caption}:{}),...(v.body?{body:v.body}:{})}}
+}

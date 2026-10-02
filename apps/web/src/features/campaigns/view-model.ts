@@ -1,0 +1,2 @@
+import type {Campaign} from '../../../../../packages/shared/src/domain.ts';
+export function campaignViewModel(campaign:Campaign,performance:{views:number;clicks:number;ctr:number|null;posts:number;content:unknown[]}){return{id:campaign.id,name:campaign.name,status:campaign.status,productId:campaign.productId,views:performance.views,clicks:performance.clicks,ctr:performance.ctr,posts:performance.posts,content:performance.content}}

@@ -1,0 +1,2 @@
+import {runBrowserPublish,type PageDriver} from '../page-driver.ts';
+export class TikTokBrowserPublisher{private d:PageDriver;constructor(d:PageDriver){this.d=d}publish(i:{mediaUrl?:string;text?:string},onStep?:(step:'UPLOADING'|'SUBMITTING'|'VERIFYING')=>void){return runBrowserPublish(this.d,{platform:'TIKTOK',url:'https://www.tiktok.com/tiktokstudio/upload',...i,selectors:{media:['input[type=file]','input[accept*=video]'],text:['[contenteditable=true]','textarea'],submit:['button[data-e2e=post_video_button]','button[type=submit]']}},onStep)}}

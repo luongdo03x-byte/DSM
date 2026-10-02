@@ -1,0 +1,9 @@
+export type BrowserTaskType='PUBLISH'|'OPEN_PROFILE'|'STOP_PROFILE';
+export type BrowserTaskState='QUEUED'|'STARTING_PROFILE'|'CONNECTING_BROWSER'|'NAVIGATING'|'UPLOADING'|'SUBMITTING'|'VERIFYING'|'DONE'|'FAILED';
+export interface CreateBrowserProfileInput{name:string;groupId?:string;rawProxy?:string;providerMetadata?:Record<string,unknown>}
+export interface BrowserProfileRef{id:string;name:string;providerMetadata?:Record<string,unknown>}
+export interface BrowserSession{profileId:string;remoteDebuggingPort?:number;websocketDebuggingUrl?:string;providerMetadata?:Record<string,unknown>}
+export interface BrowserProvider{createProfile(input:CreateBrowserProfileInput):Promise<BrowserProfileRef>;startProfile(profileId:string):Promise<BrowserSession>;stopProfile(profileId:string):Promise<void>;getProfile(profileId:string):Promise<BrowserProfileRef>}
+export interface CreateBrowserTaskRequest{type:BrowserTaskType;profileId:string;platform?:string;payload?:Record<string,unknown>;correlationId?:string}
+export interface BrowserTaskResult{taskId:string;state:BrowserTaskState;result?:Record<string,unknown>;error?:{code:string;message:string;retryable:boolean};debugArtifact?:string}
+export interface NodeHealth{status:'ONLINE'|'DEGRADED'|'OFFLINE';activeTasks:number;capacity:number;gpmLoginHealthy:boolean;lastHeartbeatAt:number}

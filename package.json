@@ -1,0 +1,26 @@
+{
+  "name": "dropship-social-v1",
+  "private": true,
+  "version": "1.0.0",
+  "packageManager": "pnpm@10.17.1",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "test": "node scripts/run-tests.mjs",
+    "test:integration": "node scripts/run-tests.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "node scripts/build.mjs",
+    "lint": "node scripts/lint.mjs",
+    "verify": "npm run lint && npm run typecheck && npm test && npm run build && node scripts/verify-v1.mjs",
+    "dev": "corepack pnpm --parallel --filter api --filter web dev",
+    "dev:gateway": "corepack pnpm --filter browser-gateway dev",
+    "dev:worker": "corepack pnpm --filter worker dev",
+    "dev:all": "corepack pnpm --parallel --filter api --filter worker --filter web --filter browser-gateway dev"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.3"
+  },
+  "type": "module"
+}

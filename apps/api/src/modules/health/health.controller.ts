@@ -1,0 +1,2 @@
+export type HealthCheck=()=>Promise<boolean>;
+export class HealthController{private checks:Record<string,HealthCheck>;constructor(checks:Record<string,HealthCheck>){this.checks=checks}async get(){const dependencies:Record<string,boolean>={};for(const [name,check] of Object.entries(this.checks)){try{dependencies[name]=await check()}catch{dependencies[name]=false}}return{status:Object.values(dependencies).every(Boolean)?'HEALTHY':'DEGRADED',dependencies}}}

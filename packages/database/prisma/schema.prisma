@@ -1,0 +1,399 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  importFileExtension = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum WorkspaceRole { OWNER ADMIN EDITOR OPERATOR VIEWER }
+enum Platform { FACEBOOK INSTAGRAM THREADS TIKTOK }
+enum PublishMode { API BROWSER HYBRID }
+enum ContentType { VIDEO IMAGE TEXT }
+enum AccountStatus { CONNECTED EXPIRED DISCONNECTED ERROR }
+enum JobStatus { QUEUED PROCESSING RETRYING PUBLISHED FAILED CANCELLED }
+
+model User {
+  id           String            @id @default(uuid())
+  email        String            @unique
+  passwordHash String
+  status       String            @default("ACTIVE")
+  memberships  WorkspaceMember[]
+  sessions     AuthSession[]
+  auditLogs    AuditLog[]
+}
+
+model Workspace {
+  id           String            @id @default(uuid())
+  name         String
+  members      WorkspaceMember[]
+  brands       Brand[]
+  browserNodes BrowserNode[]
+  auditLogs    AuditLog[]
+}
+
+model WorkspaceMember {
+  workspaceId String
+  userId      String
+  role        WorkspaceRole
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, userId])
+}
+
+model Brand {
+  id             String          @id @default(uuid())
+  workspaceId    String
+  name           String
+  slug           String
+  language       String
+  timezone       String
+  currency       String
+  status         String
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  products       Product[]
+  socialAccounts SocialAccount[]
+  browserProfiles BrowserProfile[]
+  media          MediaAsset[]
+  content        ContentItem[]
+  campaigns      Campaign[]
+  publishBatches PublishBatch[]
+  trackedLinks   TrackedLink[]
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId])
+}
+
+model Product {
+  id            String       @id @default(uuid())
+  brandId       String
+  name          String
+  slug          String
+  description   String?
+  imageAssetId  String?
+  supplierUrl   String?
+  landingUrl    String?
+  cost          Decimal?     @db.Decimal(18, 4)
+  sellingPrice  Decimal?     @db.Decimal(18, 4)
+  currency      String
+  status        String
+  brand         Brand        @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  content       ContentItem[]
+  campaigns     Campaign[]
+  trackedLinks  TrackedLink[]
+
+  @@unique([brandId, slug])
+  @@index([brandId, status])
+}
+
+model SocialAccount {
+  id                String            @id @default(uuid())
+  brandId           String
+  platform          Platform
+  username          String?
+  displayName       String?
+  platformAccountId String?
+  publishMode       PublishMode
+  status            AccountStatus
+  brand             Brand             @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  credential        SocialCredential?
+  browserProfile    BrowserProfile?
+  variants          ContentVariant[]
+  publishJobs       PublishJob[]
+  publishedPosts    PublishedPost[]
+
+  @@index([brandId, platform])
+}
+
+model SocialCredential {
+  id                    String        @id @default(uuid())
+  socialAccountId       String        @unique
+  provider              String
+  encryptedAccessToken  String
+  encryptedRefreshToken String?
+  iv                    String
+  authTag               String
+  expiresAt             DateTime?
+  scopes                Json?
+  account               SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+}
+
+model BrowserNode {
+  id             String           @id @default(uuid())
+  workspaceId    String
+  name           String
+  host           String
+  port           Int
+  status         String
+  provider       String
+  lastSeenAt     DateTime?
+  maxConcurrency Int              @default(2)
+  encryptedNodeKey String?
+  workspace      Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  profiles       BrowserProfile[]
+
+  @@index([workspaceId, status])
+}
+
+model BrowserProfile {
+  id                String         @id @default(uuid())
+  brandId           String
+  browserNodeId     String
+  socialAccountId   String?        @unique
+  provider          String
+  providerProfileId String
+  name              String
+  status            String
+  metadata          Json?
+  brand             Brand          @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  node              BrowserNode    @relation(fields: [browserNodeId], references: [id], onDelete: Restrict)
+  account           SocialAccount? @relation(fields: [socialAccountId], references: [id], onDelete: SetNull)
+
+  @@unique([browserNodeId, providerProfileId])
+  @@index([brandId])
+}
+
+model MediaAsset {
+  id              String   @id @default(uuid())
+  brandId         String
+  workspaceId     String
+  type            String
+  storageProvider String
+  storageKey      String
+  mimeType        String
+  sizeBytes       BigInt?
+  width           Int?
+  height          Int?
+  durationMs      Int?
+  brand           Brand    @relation(fields: [brandId], references: [id], onDelete: Restrict)
+
+  @@unique([storageProvider, storageKey])
+  @@index([brandId])
+}
+
+model ContentItem {
+  id            String            @id @default(uuid())
+  brandId       String
+  productId     String?
+  type          ContentType
+  title         String
+  hook          String?
+  body          String?
+  cta           String?
+  masterAssetId String?
+  status        String
+  brand         Brand             @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  product       Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variants      ContentVariant[]
+  campaignLinks CampaignContent[]
+  publishBatches PublishBatch[]
+  trackedLinks  TrackedLink[]
+
+  @@index([brandId, status])
+  @@index([productId])
+}
+
+model ContentVariant {
+  id              String         @id @default(uuid())
+  contentItemId   String
+  socialAccountId String?
+  platform        Platform
+  caption         String?
+  body            String?
+  hashtags        Json?
+  cta             String?
+  assetId         String?
+  status          String
+  content         ContentItem    @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+  socialAccount   SocialAccount? @relation(fields: [socialAccountId], references: [id], onDelete: SetNull)
+  publishJobs     PublishJob[]
+  publishedPosts  PublishedPost[]
+
+  @@index([contentItemId, platform])
+  @@index([socialAccountId])
+}
+
+model Campaign {
+  id          String            @id @default(uuid())
+  brandId     String
+  productId   String?
+  name        String
+  description String?
+  startAt     DateTime?
+  endAt       DateTime?
+  status      String
+  brand       Brand             @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  product     Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
+  contents    CampaignContent[]
+
+  @@index([brandId, status])
+}
+
+model CampaignContent {
+  campaignId  String
+  contentItemId String
+  campaign    Campaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  content     ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+
+  @@id([campaignId, contentItemId])
+}
+
+model PublishBatch {
+  id            String       @id @default(uuid())
+  brandId       String
+  contentItemId String
+  status        String
+  createdBy     String
+  createdAt     DateTime     @default(now())
+  brand         Brand        @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  content       ContentItem  @relation(fields: [contentItemId], references: [id], onDelete: Restrict)
+  jobs          PublishJob[]
+
+  @@index([brandId, createdAt])
+}
+
+model PublishJob {
+  id                  String          @id @default(uuid())
+  batchId             String
+  brandId             String
+  socialAccountId     String
+  contentVariantId    String
+  platform            Platform
+  strategy            String
+  scheduledAt         DateTime
+  status              JobStatus
+  attemptCount        Int             @default(0)
+  maxAttempts         Int             @default(4)
+  idempotencyKey      String          @unique
+  remoteCorrelationId String?
+  errorCode           String?
+  errorMessage        String?
+  batch               PublishBatch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  socialAccount       SocialAccount   @relation(fields: [socialAccountId], references: [id], onDelete: Restrict)
+  contentVariant      ContentVariant  @relation(fields: [contentVariantId], references: [id], onDelete: Restrict)
+  attempts            PublishAttempt[]
+  publishedPost       PublishedPost?
+
+  @@index([status, scheduledAt])
+  @@index([brandId, scheduledAt])
+  @@index([socialAccountId])
+}
+
+model PublishAttempt {
+  id            String     @id @default(uuid())
+  publishJobId  String
+  attemptNumber Int
+  strategy      String
+  startedAt     DateTime
+  finishedAt    DateTime?
+  status        String
+  errorType     String?
+  errorCode     String?
+  errorMessage  String?
+  metadata      Json?
+  job           PublishJob @relation(fields: [publishJobId], references: [id], onDelete: Cascade)
+
+  @@unique([publishJobId, attemptNumber])
+}
+
+model PublishedPost {
+  id               String         @id @default(uuid())
+  brandId          String
+  publishJobId     String         @unique
+  socialAccountId  String
+  contentVariantId String
+  platform         Platform
+  platformPostId   String
+  platformPostUrl  String?
+  publishedAt      DateTime
+  job              PublishJob     @relation(fields: [publishJobId], references: [id], onDelete: Cascade)
+  account          SocialAccount  @relation(fields: [socialAccountId], references: [id], onDelete: Restrict)
+  contentVariant   ContentVariant @relation(fields: [contentVariantId], references: [id], onDelete: Restrict)
+  metrics          PostMetric[]
+  trackedLinks     TrackedLink[]
+
+  @@index([brandId, publishedAt])
+  @@index([socialAccountId])
+}
+
+model PostMetric {
+  id              String        @id @default(uuid())
+  publishedPostId String
+  capturedAt      DateTime
+  captureKey      String
+  views           BigInt?
+  likes           BigInt?
+  comments        BigInt?
+  shares          BigInt?
+  saves           BigInt?
+  clicks          BigInt?
+  rawMetrics      Json?
+  post            PublishedPost @relation(fields: [publishedPostId], references: [id], onDelete: Cascade)
+
+  @@unique([publishedPostId, captureKey])
+  @@index([publishedPostId, capturedAt])
+}
+
+model TrackedLink {
+  id              String         @id @default(uuid())
+  brandId         String
+  productId       String?
+  contentItemId   String?
+  publishedPostId String?
+  code            String         @unique
+  targetUrl       String
+  utmSource       String?
+  utmMedium       String?
+  utmCampaign     String?
+  utmContent      String?
+  brand           Brand          @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  product         Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
+  content         ContentItem?   @relation(fields: [contentItemId], references: [id], onDelete: SetNull)
+  publishedPost   PublishedPost? @relation(fields: [publishedPostId], references: [id], onDelete: SetNull)
+  clicks          ClickEvent[]
+
+  @@index([brandId])
+}
+
+model ClickEvent {
+  id            String      @id @default(uuid())
+  trackedLinkId String
+  timestamp     DateTime    @default(now())
+  referrer      String?
+  userAgent     String?
+  country       String?
+  deviceType    String?
+  link          TrackedLink @relation(fields: [trackedLinkId], references: [id], onDelete: Cascade)
+
+  @@index([trackedLinkId, timestamp])
+}
+
+model AuthSession {
+  id               String    @id @default(uuid())
+  userId           String
+  refreshTokenHash String
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model AuditLog {
+  id          String    @id @default(uuid())
+  workspaceId String
+  userId      String?
+  action      String
+  entityType  String
+  entityId    String?
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+}

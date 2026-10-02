@@ -1,0 +1,1 @@
+export function PublishActivity({items}:{items:Array<{id:string;platform:string;status:string;error?:string}>}){return <section><h2>Publishing Activity</h2>{items.map(x=><article key={x.id}><strong>{x.platform}</strong> {x.status}{x.error?<p>{x.error}</p>:null}</article>)}</section>}

@@ -1,0 +1,1 @@
+export function NodeCard({name,status,active,max,gpm}:{name:string;status:string;active:number;max:number;gpm:boolean}){return <article><h3>{name}</h3><p>{status}</p><p>{active}/{max} active</p><p>GPMLogin: {gpm?'Healthy':'Unhealthy'}</p></article>}

@@ -1,0 +1,8 @@
+const enc=new TextEncoder();
+function b64url(bytes:Uint8Array){return Buffer.from(bytes).toString('base64url')}
+export async function sha256(input:string){const h=await crypto.subtle.digest('SHA-256',enc.encode(input));return b64url(new Uint8Array(h))}
+export async function hmac(secret:string,input:string){const key=await crypto.subtle.importKey('raw',enc.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);const sig=await crypto.subtle.sign('HMAC',key,enc.encode(input));return b64url(new Uint8Array(sig))}
+export async function signToken(payload:Record<string,unknown>,secret:string,ttlSec:number){const body=b64url(enc.encode(JSON.stringify({...payload,exp:Math.floor(Date.now()/1000)+ttlSec})));return `${body}.${await hmac(secret,body)}`}
+export async function verifyToken<T=Record<string,unknown>>(token:string,secret:string):Promise<T>{const [body,sig]=token.split('.');if(!body||!sig||await hmac(secret,body)!==sig)throw new Error('INVALID_TOKEN');const data=JSON.parse(Buffer.from(body,'base64url').toString()) as any;if(data.exp<Math.floor(Date.now()/1000))throw new Error('EXPIRED_TOKEN');return data as T}
+export function randomToken(bytes=32){const a=new Uint8Array(bytes);crypto.getRandomValues(a);return b64url(a)}
+export function redact(value:unknown):unknown {const secret=/authorization|cookie|access_token|refresh_token|password|secret|nodekey/i;if(Array.isArray(value))return value.map(redact);if(value&&typeof value==='object'){const out:Record<string,unknown>={};for(const [k,v] of Object.entries(value as any))out[k]=secret.test(k)?'[REDACTED]':redact(v);return out}return value}

@@ -1,0 +1,2 @@
+const platforms=['FACEBOOK','TIKTOK','INSTAGRAM','THREADS'];
+export function ContentEditor(){return <section><h2>Master Content</h2><label>Title<input name="title"/></label><label>Hook<textarea name="hook"/></label><label>Body<textarea name="body"/></label><label>CTA<input name="cta"/></label><button type="button">Copy master to all platforms</button><div>{platforms.map(p=><article key={p}><h3>{p}</h3><textarea aria-label={`${p} caption`}/></article>)}</div></section>}

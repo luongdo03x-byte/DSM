@@ -1,0 +1,2 @@
+import type {Platform,PublishStrategy} from '../../../../../packages/shared/src/domain.ts';import type {PlatformPublisher} from '../../../../../packages/platform-contracts/src/index.ts';
+export class PublisherRegistry{private map=new Map<string,PlatformPublisher>();register(platform:Platform,strategy:PublishStrategy,publisher:PlatformPublisher){this.map.set(`${platform}:${strategy}`,publisher)}get(platform:Platform,strategy:PublishStrategy){const p=this.map.get(`${platform}:${strategy}`);if(!p)throw new Error(`PUBLISHER_NOT_REGISTERED:${platform}:${strategy}`);return p}}

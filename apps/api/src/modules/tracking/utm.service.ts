@@ -1,0 +1,1 @@
+export class UtmService{build(targetUrl:string,p:{source:string;medium:string;campaign?:string;content?:string}){const u=new URL(targetUrl);u.searchParams.set('utm_source',p.source);u.searchParams.set('utm_medium',p.medium);if(p.campaign)u.searchParams.set('utm_campaign',p.campaign);if(p.content)u.searchParams.set('utm_content',p.content);return u.toString()}}

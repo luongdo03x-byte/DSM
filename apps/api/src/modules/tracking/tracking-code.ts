@@ -1,0 +1,1 @@
+const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';export function trackingCode(length=8){const a=crypto.getRandomValues(new Uint8Array(length));return [...a].map(x=>alphabet[x%alphabet.length]).join('')}
