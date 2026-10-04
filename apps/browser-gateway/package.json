@@ -1,5 +1,5 @@
 {
   "name":"browser-gateway","private":true,"type":"module",
-  "scripts":{"dev":"node --experimental-strip-types src/main.ts","build":"tsc -p ../../tsconfig.json --noEmit","test":"node ../../scripts/run-tests.mjs"},
+  "scripts":{"dev":"node --env-file=../../.env --experimental-strip-types src/entry.ts","build":"tsc -p ../../tsconfig.json --noEmit","test":"node ../../scripts/run-tests.mjs"},
   "dependencies":{"playwright":"^1.55.0"}
 }
