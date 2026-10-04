@@ -10,14 +10,14 @@ services:
     ports: ["6379:6379"]
     healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 5s, timeout: 3s, retries: 10 }
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/aistor/minio:latest
     command: server /data --console-address :9001
     environment: { MINIO_ROOT_USER: minio, MINIO_ROOT_PASSWORD: minio123 }
     ports: ["9000:9000", "9001:9001"]
     healthcheck: { test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"], interval: 5s, timeout: 3s, retries: 10 }
     volumes: ["minio_data:/data"]
   minio-init:
-    image: minio/mc:latest
+    image: quay.io/minio/aistor/mc:latest
     depends_on:
       minio:
         condition: service_healthy
