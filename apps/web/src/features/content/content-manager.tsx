@@ -27,7 +27,7 @@ export function ContentManager({brandId}:{brandId:string}){
   const [success,setSuccess]=useState('');
   async function load(){
     setLoading(true);setError('');
-    try{setItems(await browserApi.request<ContentItem[]>('/brands/'+brandId+'/content'))}
+    try{const rows=await browserApi.request<ContentItem[]>('/brands/'+brandId+'/content');setItems(rows);const loaded=await Promise.all(rows.map(async item=>{try{return [item.id,await browserApi.request<Variant[]>('/brands/'+brandId+'/content/'+item.id+'/variants')] as const}catch{return [item.id,[] as Variant[]] as const}}));setVariants(Object.fromEntries(loaded))}
     catch{setError('Không thể tải thư viện nội dung. Vui lòng thử lại.')}
     finally{setLoading(false)}
   }
