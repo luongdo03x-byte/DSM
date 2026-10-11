@@ -52,8 +52,9 @@ export function ContentManager({brandId}:{brandId:string}){
     const type=String(data.get('type')??'TEXT');
     try{
       const file=data.get('media');
+      if((type==='IMAGE'||type==='VIDEO')&&(!(file instanceof File)||file.size===0)){setError('Hãy chọn tệp hình ảnh hoặc video trước khi tạo nội dung.');return;}
       let masterAssetId:string|undefined;
-      if((type==='IMAGE'||type==='VIDEO')&&file instanceof File&&file.size>0)masterAssetId=await uploadMediaAsset(browserApi,brandId,file);
+      if((type==='IMAGE'||type==='VIDEO')&&file instanceof File)masterAssetId=await uploadMediaAsset(browserApi,brandId,file);
       const payload={type,title:String(data.get('title')??'').trim(),...(String(data.get('body')??'').trim()?{body:String(data.get('body')).trim()}:{}),...(String(data.get('cta')??'').trim()?{cta:String(data.get('cta')).trim()}:{}),...(masterAssetId?{masterAssetId}:{})};
       const item=await browserApi.request<ContentItem>('/brands/'+brandId+'/content',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
       form.reset();setShowForm(false);await load();await prepare(item.id);setSuccess('Đã tạo nội dung. Kiểm tra trạng thái từng biến thể trước khi đăng.');
