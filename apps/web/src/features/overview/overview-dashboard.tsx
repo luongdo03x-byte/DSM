@@ -37,8 +37,8 @@ export function OverviewDashboard({brandId}:{brandId:string}){
     <PageHeader title="Tổng quan" description="Theo dõi hoạt động xuất bản và tình trạng các kênh của thương hiệu." actions={<Button variant="secondary" onClick={()=>void load()}>Làm mới dữ liệu</Button>}/>
     <div className="stats-grid">
       <StatCard label="Bài đã đăng" value={formatMetric(k.publishedPosts)} detail="Bài đăng đã xuất bản"/>
-      <StatCard label="Lượt xem" value={formatMetric(k.views)} detail="Từ dữ liệu đo lường hiện có"/>
-      <StatCard label="Đang chờ đăng" value={formatMetric(k.scheduledJobs)} detail="Công việc trong hàng đợi"/>
+      <StatCard label="Đã lên lịch" value={formatMetric(k.scheduledJobs)} detail="Công việc trong hàng đợi"/>
+      <StatCard label="Tài khoản hoạt động" value={formatMetric(k.activeAccounts)} detail="Tài khoản có trạng thái kết nối"/>
       <StatCard label="Công việc lỗi" value={formatMetric(k.failedJobs)} detail={k.failedJobs?'Cần kiểm tra và thử lại':'Không có công việc lỗi'}/>
     </div>
     <div className="overview-grid">

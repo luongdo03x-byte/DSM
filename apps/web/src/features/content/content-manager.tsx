@@ -17,7 +17,7 @@ type Variant=ContentVariantSnapshot&{caption?:string;body?:string;hashtags?:stri
 
 export function ContentManager({brandId}:{brandId:string}){
   const [items,setItems]=useState<ContentItem[]>([]);
-  const [variants,setVariants]=useState<Record<string,Variant[]>>({});
+  const [variants,setVariants]=useState<Record<string,Variant[]|null>>({});
   const [expanded,setExpanded]=useState<Record<string,boolean>>({});
   const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false);
@@ -27,7 +27,7 @@ export function ContentManager({brandId}:{brandId:string}){
   const [success,setSuccess]=useState('');
   async function load(){
     setLoading(true);setError('');
-    try{const rows=await browserApi.request<ContentItem[]>('/brands/'+brandId+'/content');setItems(rows);const loaded=await Promise.all(rows.map(async item=>{try{return [item.id,await browserApi.request<Variant[]>('/brands/'+brandId+'/content/'+item.id+'/variants')] as const}catch{return [item.id,[] as Variant[]] as const}}));setVariants(Object.fromEntries(loaded))}
+    try{const rows=await browserApi.request<ContentItem[]>('/brands/'+brandId+'/content');setItems(rows);const loaded=await Promise.all(rows.map(async item=>{try{return [item.id,await browserApi.request<Variant[]>('/brands/'+brandId+'/content/'+item.id+'/variants')] as const}catch{return [item.id,null] as const}}));setVariants(Object.fromEntries(loaded))}
     catch{setError('Không thể tải thư viện nội dung. Vui lòng thử lại.')}
     finally{setLoading(false)}
   }
@@ -84,12 +84,13 @@ export function ContentManager({brandId}:{brandId:string}){
       <div className="section-toolbar"><input className="section-toolbar__search" aria-label="Tìm nội dung" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Tìm tiêu đề hoặc loại nội dung..."/><Button variant="ghost" onClick={()=>void load()} disabled={loading}>Làm mới</Button></div>
       {loading?<LoadingState label="Đang tải nội dung..."/>:filtered.length===0?<EmptyState title={query?'Không tìm thấy nội dung':'Thư viện đang trống'} description={query?'Thử từ khóa khác.':'Tạo nội dung gốc để chuẩn bị các biến thể theo nền tảng.'}/>:<div className="section-stack">{filtered.map(item=>{
         const itemVariants=variants[item.id]??[];
+        const variantsLoaded=Object.prototype.hasOwnProperty.call(variants,item.id)&&variants[item.id]!==null;
         const readiness=variantReadiness(itemVariants);
         return <article className="content-card" key={item.id}>
           <div className="content-card__top"><div><h2>{item.title}</h2><div className="content-card__meta">{item.type==='TEXT'?'Văn bản':item.type==='IMAGE'?'Hình ảnh':'Video'} · {statusLabel(item.status)}{item.createdAt?' · '+formatDateTime(item.createdAt):''}</div></div><Badge tone={statusTone(item.status)}>{statusLabel(item.status)}</Badge></div>
           {item.body?<p>{item.body}</p>:null}
           <div className="panel__header" style={{marginTop:16}}><h2>Biến thể nền tảng</h2><div className="row-actions"><Button variant="secondary" size="sm" onClick={()=>void showVariants(item.id)}>{expanded[item.id]?'Ẩn biến thể':'Chỉnh sửa biến thể'}</Button><Button size="sm" onClick={()=>void prepare(item.id)}>Tạo/đồng bộ 4 biến thể</Button></div></div>
-          <div className="platform-grid">{readiness.map(row=><div className="platform-tile" key={row.platform}><strong>{platformLabel(row.platform)}</strong><Badge tone={row.ready?'success':row.exists?'warning':'neutral'}>{row.ready?'Sẵn sàng':row.exists?'Bản nháp':'Chưa tạo'}</Badge></div>)}</div>
+          {variantsLoaded?<div className="platform-grid">{readiness.map(row=><div className="platform-tile" key={row.platform}><strong>{platformLabel(row.platform)}</strong><Badge tone={row.ready?'success':row.exists?'warning':'neutral'}>{row.ready?'Sẵn sàng':row.exists?'Bản nháp':'Chưa tạo'}</Badge></div>)}</div>:<p className="muted">Chưa tải trạng thái biến thể từ API. Chọn “Chỉnh sửa biến thể” để xem trạng thái thực tế.</p>}
           {expanded[item.id]?<div className="variant-grid">{itemVariants.map(variant=><form className="variant-card" key={variant.id} onSubmit={event=>void update(item.id,variant,event)}>
             <div className="variant-card__head"><strong>{platformLabel(variant.platform)}</strong><Badge tone={variant.status==='READY'?'success':'warning'}>{statusLabel(variant.status)}</Badge></div>
             <div className="field"><label htmlFor={'caption-'+variant.id}>Caption</label><textarea id={'caption-'+variant.id} name="caption" defaultValue={variant.caption??''}/></div>

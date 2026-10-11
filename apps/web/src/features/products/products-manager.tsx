@@ -39,7 +39,7 @@ export function ProductsManager({brandId}:{brandId:string}){
       ...(String(data.get('cost')??'').trim()?{cost:String(data.get('cost')).trim()}:{}),
       ...(String(data.get('sellingPrice')??'').trim()?{sellingPrice:String(data.get('sellingPrice')).trim()}:{}),
       ...(String(data.get('supplierUrl')??'').trim()?{supplierUrl:String(data.get('supplierUrl')).trim()}:{}),
-      ...(String(data.get('landingUrl')??'').trim()?{landingUrl:String(data.get('landingUrl')).trim()}:{}),status:'ACTIVE'
+      ...(String(data.get('landingUrl')??'').trim()?{landingUrl:String(data.get('landingUrl')).trim()}:{}),status:String(data.get('status')??'DRAFT')
     };
     try{
       await browserApi.request('/brands/'+brandId+'/products',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
@@ -61,6 +61,7 @@ export function ProductsManager({brandId}:{brandId:string}){
         <div className="field"><label htmlFor="product-name">Tên sản phẩm</label><input id="product-name" name="name" placeholder="Ví dụ: Áo linen" required/></div>
         <div className="field"><label htmlFor="product-slug">Slug</label><input id="product-slug" name="slug" placeholder="ao-linen" required/></div>
         <div className="field"><label htmlFor="product-currency">Tiền tệ</label><select id="product-currency" name="currency" defaultValue="VND"><option value="VND">VND — Đồng Việt Nam</option><option value="USD">USD — Đô la Mỹ</option><option value="EUR">EUR — Euro</option></select></div>
+        <div className="field"><label htmlFor="product-status">Trạng thái</label><select id="product-status" name="status" defaultValue="DRAFT"><option value="DRAFT">Bản nháp</option><option value="ACTIVE">Đang hoạt động</option></select></div>
         <div className="field"><label htmlFor="product-cost">Giá vốn</label><input id="product-cost" name="cost" type="number" min="0" step="0.0001" placeholder="0"/></div>
         <div className="field"><label htmlFor="product-price">Giá bán</label><input id="product-price" name="sellingPrice" type="number" min="0" step="0.0001" placeholder="0"/></div>
         <div className="field"><label htmlFor="product-supplier">URL nhà cung cấp</label><input id="product-supplier" name="supplierUrl" type="url" placeholder="https://..."/></div>
