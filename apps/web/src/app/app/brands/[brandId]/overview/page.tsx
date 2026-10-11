@@ -1,2 +1,6 @@
-import {BrandSectionClient} from '../../../../../features/runtime/brand-section-client.tsx';
-export default async function Page({params}:any){const {brandId}=await params;return <BrandSectionClient brandId={brandId} section="overview"/>}
+import {OverviewDashboard} from '../../../../../features/overview/overview-dashboard.tsx';
+
+export default async function Page({params}:{params:Promise<{brandId:string}>}){
+  const {brandId}=await params;
+  return <OverviewDashboard brandId={brandId}/>;
+}
