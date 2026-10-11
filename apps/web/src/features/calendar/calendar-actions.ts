@@ -1,0 +1,4 @@
+export type CalendarJob={id:string;status:string;scheduledAt:number;platform?:string;errorMessage?:string;errorCode?:string};
+export function jobActionsForStatus(status:string){return{canRetry:status==='FAILED'||status==='RETRYING',canReschedule:status==='QUEUED'||status==='FAILED'||status==='RETRYING',canCancel:status==='QUEUED'||status==='FAILED'||status==='RETRYING'}}
+function localDayKey(timestamp:number){const date=new Date(timestamp);return String(date.getFullYear())+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0')}
+export function groupJobsByDay<T extends CalendarJob>(jobs:T[]){const groups=new Map<string,T[]>();for(const job of [...jobs].sort((a,b)=>a.scheduledAt-b.scheduledAt)){const key=localDayKey(job.scheduledAt),group=groups.get(key)??[];group.push(job);groups.set(key,group)}return [...groups.entries()].map(([date,items])=>({date,jobs:items}))}

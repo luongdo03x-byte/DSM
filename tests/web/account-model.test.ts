@@ -1,0 +1,7 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {accountHealth,browserProfileState,publishModeLabel} from '../../apps/web/src/features/accounts/account-model.ts';
+test('publishing modes are localized',()=>{assert.equal(publishModeLabel('API'),'API');assert.equal(publishModeLabel('BROWSER'),'Trình duyệt');assert.equal(publishModeLabel('HYBRID'),'Kết hợp')});
+test('missing browser profile or node is never treated as browser ready',()=>{const account={id:'a',platform:'TIKTOK',status:'CONNECTED',publishMode:'BROWSER'};assert.equal(accountHealth(account,[]).browserReady,false);assert.equal(accountHealth({...account,browserProfileId:'profile'},[]).browserReady,false);assert.equal(browserProfileState({...account,browserProfileId:'profile'},[]).ready,false)});
+test('offline node produces a warning when profile is attached',()=>{const account={id:'a',platform:'TIKTOK',status:'CONNECTED',publishMode:'BROWSER',browserProfileId:'profile',browserNodeId:'node-1'};const health=accountHealth(account,[{id:'node-1',status:'OFFLINE'}]);assert.equal(health.browserReady,false);assert.equal(health.browserWarning,true);assert.equal(health.browserMessage,'Browser Node ngoại tuyến')});
+test('connected credentials do not imply browser readiness for hybrid mode',()=>{const account={id:'a',platform:'FACEBOOK',status:'CONNECTED',publishMode:'HYBRID'};const health=accountHealth(account,[]);assert.equal(health.apiReady,true);assert.equal(health.browserReady,false);assert.equal(health.browserWarning,true)});
