@@ -22,7 +22,7 @@ export function buildOverviewModel(input:{analytics?:AnalyticsSnapshot|null;acco
       failedJobs:jobs.filter(job=>job.status==='FAILED').length,
       activeAccounts:accounts.filter(account=>account.status==='CONNECTED').length
     },
-    platforms:(analytics.platforms??[]).map(row=>({platform:platformLabel(row.platform),posts:count(row.posts),views:count(row.views),clicks:count(row.clicks),ctr:typeof row.ctr==='number'&&Number.isFinite(row.ctr)?row.ctr:null})),
+    platforms:(analytics.platforms??[]).map(row=>({platform:platformLabel(row.platform),posts:count(row.posts),views:count(row.views),clicks:count(row.clicks),ctr:typeof row.ctr==='number'&&Number.isFinite(row.ctr)&&row.ctr>=0?row.ctr:null})),
     accountHealth:accounts.map(account=>({
       id:account.id,
       platform:platformLabel(account.platform),
