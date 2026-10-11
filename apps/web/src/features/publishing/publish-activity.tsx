@@ -1,1 +1,3 @@
-export function PublishActivity({items}:{items:Array<{id:string;platform:string;status:string;error?:string}>}){return <section><h2>Publishing Activity</h2>{items.map(x=><article key={x.id}><strong>{x.platform}</strong> {x.status}{x.error?<p>{x.error}</p>:null}</article>)}</section>}
+import {Badge} from '../../components/ui/badge.tsx';
+import {platformLabel,statusLabel,statusTone} from '../../lib/ui/status.ts';
+export function PublishActivity({items}:{items:Array<{id:string;platform:string;status:string;error?:string}>}){return <section className="ui-card"><h2>Hoạt động xuất bản</h2>{items.length===0?<p className="muted">Chưa có hoạt động xuất bản.</p>:items.map(item=><article className="panel-list__item" key={item.id}><div><strong>{platformLabel(item.platform)}</strong>{item.error?<small>{item.error}</small>:null}</div><Badge tone={statusTone(item.status)}>{statusLabel(item.status)}</Badge></article>)}</section>}
