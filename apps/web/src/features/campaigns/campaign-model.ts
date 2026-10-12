@@ -1,0 +1,6 @@
+export type CampaignSnapshot={id:string;name:string;status:string;productId?:string;description?:string;contentIds?:string[]};
+export type CampaignPerformance={views?:number|null;clicks?:number|null;ctr?:number|null;posts?:number|null};
+function metric(value:number|null|undefined){return typeof value==='number'&&Number.isFinite(value)&&value>=0?value:0}
+export function campaignViewModel(campaign:CampaignSnapshot,performance?:CampaignPerformance|null){const p=performance??null;return{id:campaign.id,name:campaign.name,status:campaign.status,productId:campaign.productId,description:campaign.description,contentCount:campaign.contentIds?.length??0,views:p?metric(p.views):null,clicks:p?metric(p.clicks):null,ctr:p&&typeof p.ctr==='number'&&Number.isFinite(p.ctr)&&p.ctr>=0?p.ctr:null,posts:p?metric(p.posts):null,hasPerformance:!!p}}
+export function filterCampaigns<T extends CampaignSnapshot>(campaigns:T[],query:string){const q=query.trim().toLocaleLowerCase('vi-VN');return q?campaigns.filter(c=>(c.name+' '+(c.description??'')).toLocaleLowerCase('vi-VN').includes(q)):[...campaigns]}
+export function campaignStats(campaigns:CampaignSnapshot[]){return{total:campaigns.length,draft:campaigns.filter(x=>x.status==='DRAFT').length,active:campaigns.filter(x=>x.status==='ACTIVE').length,completed:campaigns.filter(x=>x.status==='COMPLETED').length}}

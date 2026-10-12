@@ -1,1 +1,2 @@
-export default function SystemStatusPage(){return <section><h1>System Status</h1><p>API · Database · Redis · Object Storage · Worker · Browser Nodes</p></section>}
+import {Card} from '../../../../../../components/ui/card.tsx';
+export default function SystemStatusPage(){return <section className="section-stack"><h1>Trạng thái hệ thống</h1><Card><h2>Thông tin giám sát</h2><p className="muted">API hiện chưa cung cấp một endpoint tổng hợp sức khỏe của API, cơ sở dữ liệu, hàng đợi và object storage cho màn hình này.</p><p>Để kiểm tra Browser Node, hãy mở mục <a href="../browser-nodes">Browser Node / GPMLogin</a>.</p></Card></section>}

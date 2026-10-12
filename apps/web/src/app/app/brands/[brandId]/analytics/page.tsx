@@ -1,2 +1,2 @@
-import {BrandSectionClient} from '../../../../../features/runtime/brand-section-client.tsx';
-export default async function Page({params}:any){const {brandId}=await params;return <BrandSectionClient brandId={brandId} section="analytics"/>}
+import {AnalyticsDashboard} from '../../../../../features/analytics/analytics-dashboard.tsx';
+export default async function Page({params}:{params:Promise<{brandId:string}>}){const {brandId}=await params;return <AnalyticsDashboard brandId={brandId}/>;}

@@ -1,0 +1,13 @@
+'use client';
+import {useEffect,useState} from 'react';
+import {browserApi} from '../../lib/browser-runtime.ts';
+import {statusLabel,statusTone} from '../../lib/ui/status.ts';
+import {Badge} from '../../components/ui/badge.tsx';
+import {Card} from '../../components/ui/card.tsx';
+import {ErrorState,LoadingState} from '../../components/ui/page-state.tsx';
+import {PageHeader} from '../../components/ui/page-header.tsx';
+export function SettingsDashboard({brandId}:{brandId:string}){
+ const [summary,setSummary]=useState<{accounts:any[];nodes:any[]}|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState('');
+ useEffect(()=>{let live=true;void Promise.all([browserApi.request<any[]>('/brands/'+brandId+'/accounts'),browserApi.request<any[]>('/brands/'+brandId+'/browser-nodes')]).then(([accounts,nodes])=>{if(live)setSummary({accounts,nodes})}).catch(()=>{if(live)setError('Không thể tải trạng thái cấu hình của thương hiệu.')}).finally(()=>{if(live)setLoading(false)});return()=>{live=false}},[brandId]);
+ return <div className="section-stack"><PageHeader title="Cài đặt" description="Tổng quan cấu hình đang có. Các mục không được backend hỗ trợ sẽ không hiển thị như tính năng khả dụng."/>{loading?<LoadingState label="Đang tải cấu hình..."/>:null}{error?<ErrorState message={error}/>:null}<div className="settings-grid"><Card className="settings-card"><h2>Tài khoản mạng xã hội</h2><p>Quản lý thông tin kết nối, chế độ xuất bản và hồ sơ trình duyệt theo từng nền tảng.</p><p>{summary?summary.accounts.length+' tài khoản đã cấu hình':'Chưa có dữ liệu'}</p><a href={'/app/brands/'+brandId+'/accounts'}>Mở quản lý tài khoản →</a></Card><Card className="settings-card"><h2>Browser Node / GPMLogin</h2><p>Đăng ký node, xem heartbeat và quản lý thông tin đăng ký một lần.</p><p>{summary?summary.nodes.length+' node trong workspace':'Chưa có dữ liệu'}</p><a href={'/app/brands/'+brandId+'/settings/browser-nodes'}>Mở Browser Node →</a></Card><Card className="settings-card"><h2>Trạng thái Browser Node</h2>{summary?.nodes.length?summary.nodes.map(node=><div className="panel-list__item" key={node.id}><div><strong>{node.name??node.id}</strong><small>{node.host??'Chưa có host'}{node.port?':'+node.port:''}</small></div><Badge tone={statusTone(node.status)}>{statusLabel(node.status)}</Badge></div>):<p>Chưa có Browser Node để theo dõi.</p>}</Card><Card className="settings-card"><h2>Phiên làm việc</h2><p>DSM giữ access token trong bộ nhớ phiên trình duyệt và dùng cookie HttpOnly cho refresh token. Không có chức năng đăng ký tài khoản hoặc đặt lại mật khẩu trong giao diện này.</p></Card></div></div>;
+}
