@@ -3,19 +3,32 @@ export type FetchResponse={status:number;json:()=>Promise<any>};
 export type Fetcher=(url:string,init?:{method?:string;headers?:Record<string,string>;body?:string;credentials?:'include'|'omit'|'same-origin'})=>Promise<FetchResponse>;
 export class ApiClient{
   private session:MemorySession; private fetcher:Fetcher; private csrfTokenResolver:()=>string|undefined;
+  private refreshPromise:Promise<void>|undefined;
   constructor(input:{session:MemorySession;fetcher:Fetcher;csrfTokenResolver?:()=>string|undefined}){this.session=input.session;this.fetcher=input.fetcher;this.csrfTokenResolver=input.csrfTokenResolver??(()=>undefined)}
   async request<T=unknown>(url:string,init?:{method?:string;headers?:Record<string,string>;body?:string;credentials?:'include'|'omit'|'same-origin'}):Promise<T>{
+    const tokenAtSend=this.session.getAccessToken();
     const first=await this.send(url,init);
     if(first.status!==401)return this.parse<T>(first);
-    const csrf=this.csrfTokenResolver();const headers=csrf?{'x-csrf-token':csrf}:{};
-    const refreshed=await this.fetcher('/auth/refresh',{method:'POST',headers,credentials:'include'});
-    if(refreshed.status!==200){this.session.clear();throw new Error('UNAUTHORIZED')}
-    const body=await refreshed.json();
-    if(!body?.accessToken){this.session.clear();throw new Error('UNAUTHORIZED')}
-    this.session.setAccessToken(body.accessToken);
+    // Another request may already have rotated the access token while this request was in flight.
+    if(tokenAtSend===this.session.getAccessToken())await this.refreshOnce();
     const second=await this.send(url,init);
     if(second.status===401){this.session.clear();throw new Error('UNAUTHORIZED')}
     return this.parse<T>(second);
+  }
+  private refreshOnce():Promise<void>{
+    if(!this.refreshPromise){
+      const pending=(async()=>{
+        const csrf=this.csrfTokenResolver();const headers=csrf?{'x-csrf-token':csrf}:{};
+        const refreshed=await this.fetcher('/auth/refresh',{method:'POST',headers,credentials:'include'});
+        if(refreshed.status!==200){this.session.clear();throw new Error('UNAUTHORIZED')}
+        const body=await refreshed.json();
+        if(!body?.accessToken){this.session.clear();throw new Error('UNAUTHORIZED')}
+        this.session.setAccessToken(body.accessToken);
+      })();
+      this.refreshPromise=pending;
+      void pending.then(()=>{if(this.refreshPromise===pending)this.refreshPromise=undefined},()=>{if(this.refreshPromise===pending)this.refreshPromise=undefined});
+    }
+    return this.refreshPromise;
   }
   private send(url:string,init?:{method?:string;headers?:Record<string,string>;body?:string;credentials?:'include'|'omit'|'same-origin'}){
     const token=this.session.getAccessToken(); const headers={...(init?.headers??{}),...(token?{authorization:`Bearer ${token}`}:{})};

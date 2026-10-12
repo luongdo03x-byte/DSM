@@ -18,9 +18,9 @@ function normalizeHeaders(input:Record<string,unknown>):Record<string,string>{
 function parseCookies(raw:string|undefined){const out:Record<string,string>={};for(const item of (raw??'').split(';')){const i=item.indexOf('=');if(i<1)continue;out[item.slice(0,i).trim()]=decodeURIComponent(item.slice(i+1).trim())}return out}
 function authCookies(refreshToken:string,csrfToken:string){
   const secure=process.env.COOKIE_SECURE==='true'?'; Secure':'';
-  return [`refresh_token=${encodeURIComponent(refreshToken)}; HttpOnly; SameSite=Lax; Path=/auth; Max-Age=2592000${secure}`,`csrf_token=${encodeURIComponent(csrfToken)}; SameSite=Lax; Path=/auth; Max-Age=2592000${secure}`];
+  return [`refresh_token=${encodeURIComponent(refreshToken)}; HttpOnly; SameSite=Lax; Path=/auth; Max-Age=2592000${secure}`,`csrf_token=${encodeURIComponent(csrfToken)}; SameSite=Lax; Path=/; Max-Age=2592000${secure}`];
 }
-function clearAuthCookies(){const secure=process.env.COOKIE_SECURE==='true'?'; Secure':'';return [`refresh_token=; HttpOnly; SameSite=Lax; Path=/auth; Max-Age=0${secure}`,`csrf_token=; SameSite=Lax; Path=/auth; Max-Age=0${secure}`]}
+function clearAuthCookies(){const secure=process.env.COOKIE_SECURE==='true'?'; Secure':'';return [`refresh_token=; HttpOnly; SameSite=Lax; Path=/auth; Max-Age=0${secure}`,`csrf_token=; SameSite=Lax; Path=/; Max-Age=0${secure}`]}
 async function bodyOf(req:any):Promise<unknown>{
   if(req.method==='GET'||req.method==='HEAD')return undefined;
   const chunks:any[]=[];for await(const chunk of req)chunks.push(chunk);
