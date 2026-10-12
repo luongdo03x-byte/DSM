@@ -26,3 +26,16 @@ export function contentStatusLabel(status:string|undefined){
   if(status==='MISSING')return 'Chưa tạo';
   return 'Bản nháp';
 }
+
+export function contentPreview(
+  master:{body?:string|null},
+  variants:ContentVariantSnapshot[],
+  platform:string
+){
+  const variant=platformVariant(variants,platform);
+  return {
+    text:variant?.caption?.trim()||variant?.body?.trim()||master.body?.trim()||'',
+    hasVariant:!!variant,
+    ready:variant?.status==='READY'
+  };
+}

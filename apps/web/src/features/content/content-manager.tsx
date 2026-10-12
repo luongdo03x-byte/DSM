@@ -10,7 +10,7 @@ import {Button} from '../../components/ui/button.tsx';
 import {Card} from '../../components/ui/card.tsx';
 import {EmptyState,ErrorState,LoadingState} from '../../components/ui/page-state.tsx';
 import {PageHeader} from '../../components/ui/page-header.tsx';
-import {CONTENT_PLATFORMS,variantReadiness,type ContentVariantSnapshot} from './content-model.ts';
+import {CONTENT_PLATFORMS,contentPreview,platformVariant,variantReadiness,type ContentPlatform,type ContentVariantSnapshot} from './content-model.ts';
 
 type ContentItem={id:string;title:string;type:string;status?:string;createdAt?:number;body?:string};
 type Variant=ContentVariantSnapshot&{caption?:string;body?:string;hashtags?:string[];cta?:string};
@@ -18,7 +18,8 @@ type Variant=ContentVariantSnapshot&{caption?:string;body?:string;hashtags?:stri
 export function ContentManager({brandId}:{brandId:string}){
   const [items,setItems]=useState<ContentItem[]>([]);
   const [variants,setVariants]=useState<Record<string,Variant[]|null>>({});
-  const [expanded,setExpanded]=useState<Record<string,boolean>>({});
+  const [selectedId,setSelectedId]=useState('');
+  const [activePlatform,setActivePlatform]=useState<ContentPlatform>('FACEBOOK');
   const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false);
   const [showForm,setShowForm]=useState(false);
@@ -33,19 +34,27 @@ export function ContentManager({brandId}:{brandId:string}){
   }
   useEffect(()=>{void load()},[brandId]);
   const filtered=useMemo(()=>items.filter(item=>[item.title,item.type,item.status??''].some(value=>value.toLocaleLowerCase('vi-VN').includes(query.trim().toLocaleLowerCase('vi-VN')))),[items,query]);
+  const selected=filtered.find(item=>item.id===selectedId)??filtered[0];
+  const selectedVariants=selected?(variants[selected.id]??[]):[];
+  const variantsLoaded=!!selected&&Object.prototype.hasOwnProperty.call(variants,selected.id)&&variants[selected.id]!==null;
+  const readiness=variantReadiness(selectedVariants);
+  const activeVariant=platformVariant(selectedVariants,activePlatform);
+  const preview=selected?contentPreview(selected,selectedVariants,activePlatform):null;
   async function prepare(id:string){
-    setError('');setSuccess('');
+    setError('');setSuccess('');setSaving(true);
     try{
       const rows=await browserApi.request<Variant[]>('/brands/'+brandId+'/content/'+id+'/variants/copy',{method:'POST'});
-      setVariants(current=>({...current,[id]:rows}));setExpanded(current=>({...current,[id]:true}));setSuccess('Đã tạo hoặc đồng bộ biến thể nền tảng.');
+      setVariants(current=>({...current,[id]:rows}));setSuccess('Đã tạo hoặc đồng bộ biến thể nền tảng.');
     }catch{setError('Không thể tạo biến thể. Vui lòng thử lại.')}
+    finally{setSaving(false)}
   }
   async function showVariants(id:string){
-    setError('');
+    setError('');setSaving(true);
     try{
       const rows=await browserApi.request<Variant[]>('/brands/'+brandId+'/content/'+id+'/variants');
-      setVariants(current=>({...current,[id]:rows}));setExpanded(current=>({...current,[id]:!current[id]}));
+      setVariants(current=>({...current,[id]:rows}));
     }catch{setError('Không thể tải biến thể nội dung. Vui lòng thử lại.')}
+    finally{setSaving(false)}
   }
   async function create(event:FormEvent<HTMLFormElement>){
     event.preventDefault();const form=event.currentTarget;const data=new FormData(form);setSaving(true);setError('');setSuccess('');
@@ -57,16 +66,17 @@ export function ContentManager({brandId}:{brandId:string}){
       if((type==='IMAGE'||type==='VIDEO')&&file instanceof File)masterAssetId=await uploadMediaAsset(browserApi,brandId,file);
       const payload={type,title:String(data.get('title')??'').trim(),...(String(data.get('body')??'').trim()?{body:String(data.get('body')).trim()}:{}),...(String(data.get('cta')??'').trim()?{cta:String(data.get('cta')).trim()}:{}),...(masterAssetId?{masterAssetId}:{})};
       const item=await browserApi.request<ContentItem>('/brands/'+brandId+'/content',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
-      form.reset();setShowForm(false);await load();await prepare(item.id);setSuccess('Đã tạo nội dung. Kiểm tra trạng thái từng biến thể trước khi đăng.');
+      form.reset();setShowForm(false);setSelectedId(item.id);setActivePlatform('FACEBOOK');await load();await prepare(item.id);setSuccess('Đã tạo nội dung. Kiểm tra trạng thái từng biến thể trước khi đăng.');
     }catch{setError(type!=='TEXT'?'Không thể tạo nội dung hoặc tải media. Hãy kiểm tra loại tệp và thử lại.':'Không thể tạo nội dung. Vui lòng kiểm tra thông tin.')}
     finally{setSaving(false)}
   }
   async function update(contentId:string,variant:Variant,event:FormEvent<HTMLFormElement>){
-    event.preventDefault();const form=event.currentTarget;const data=new FormData(form);setError('');setSuccess('');
+    event.preventDefault();const form=event.currentTarget;const data=new FormData(form);setError('');setSuccess('');setSaving(true);
     try{
       await browserApi.request('/brands/'+brandId+'/content/'+contentId+'/variants/'+variant.id,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({caption:String(data.get('caption')??''),body:String(data.get('body')??''),cta:String(data.get('cta')??''),status:String(data.get('status')??'DRAFT')})});
       const rows=await browserApi.request<Variant[]>('/brands/'+brandId+'/content/'+contentId+'/variants');setVariants(current=>({...current,[contentId]:rows}));setSuccess('Đã lưu biến thể '+platformLabel(variant.platform)+'.');
     }catch{setError('Không thể lưu biến thể. Vui lòng thử lại.')}
+    finally{setSaving(false)}
   }
   return <div className="section-stack">
     <PageHeader title="Nội dung" description="Tạo nội dung gốc, biên tập từng biến thể và kiểm tra trạng thái trước khi xuất bản." actions={<Button onClick={()=>setShowForm(value=>!value)}>{showForm?'Đóng biểu mẫu':'＋ Tạo nội dung'}</Button>}/>
@@ -81,27 +91,82 @@ export function ContentManager({brandId}:{brandId:string}){
       </div>
       <div className="form-actions"><Button variant="ghost" type="button" onClick={()=>setShowForm(false)}>Hủy</Button><Button type="submit" disabled={saving}>{saving?'Đang tạo...':'Tạo nội dung'}</Button></div>
     </form></Card>:null}
-    <Card>
-      <div className="section-toolbar"><input className="section-toolbar__search" aria-label="Tìm nội dung" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Tìm tiêu đề hoặc loại nội dung..."/><Button variant="ghost" onClick={()=>void load()} disabled={loading}>Làm mới</Button></div>
-      {loading?<LoadingState label="Đang tải nội dung..."/>:filtered.length===0?<EmptyState title={query?'Không tìm thấy nội dung':'Thư viện đang trống'} description={query?'Thử từ khóa khác.':'Tạo nội dung gốc để chuẩn bị các biến thể theo nền tảng.'}/>:<div className="section-stack">{filtered.map(item=>{
-        const itemVariants=variants[item.id]??[];
-        const variantsLoaded=Object.prototype.hasOwnProperty.call(variants,item.id)&&variants[item.id]!==null;
-        const readiness=variantReadiness(itemVariants);
-        return <article className="content-card" key={item.id}>
-          <div className="content-card__top"><div><h2>{item.title}</h2><div className="content-card__meta">{item.type==='TEXT'?'Văn bản':item.type==='IMAGE'?'Hình ảnh':'Video'} · {statusLabel(item.status)}{item.createdAt?' · '+formatDateTime(item.createdAt):''}</div></div><Badge tone={statusTone(item.status)}>{statusLabel(item.status)}</Badge></div>
-          {item.body?<p>{item.body}</p>:null}
-          <div className="panel__header" style={{marginTop:16}}><h2>Biến thể nền tảng</h2><div className="row-actions"><Button variant="secondary" size="sm" onClick={()=>void showVariants(item.id)}>{expanded[item.id]?'Ẩn biến thể':'Chỉnh sửa biến thể'}</Button><Button size="sm" onClick={()=>void prepare(item.id)}>Tạo/đồng bộ 4 biến thể</Button></div></div>
-          {variantsLoaded?<div className="platform-grid">{readiness.map(row=><div className="platform-tile" key={row.platform}><strong>{platformLabel(row.platform)}</strong><Badge tone={row.ready?'success':row.exists?'warning':'neutral'}>{row.ready?'Sẵn sàng':row.exists?'Bản nháp':'Chưa tạo'}</Badge></div>)}</div>:<p className="muted">Chưa tải trạng thái biến thể từ API. Chọn “Chỉnh sửa biến thể” để xem trạng thái thực tế.</p>}
-          {expanded[item.id]?<div className="variant-grid">{itemVariants.map(variant=><form className="variant-card" key={variant.id} onSubmit={event=>void update(item.id,variant,event)}>
-            <div className="variant-card__head"><strong>{platformLabel(variant.platform)}</strong><Badge tone={variant.status==='READY'?'success':'warning'}>{statusLabel(variant.status)}</Badge></div>
-            <div className="field"><label htmlFor={'caption-'+variant.id}>Caption</label><textarea id={'caption-'+variant.id} name="caption" defaultValue={variant.caption??''}/></div>
-            <div className="field"><label htmlFor={'body-'+variant.id}>Nội dung</label><textarea id={'body-'+variant.id} name="body" defaultValue={variant.body??''}/></div>
-            <div className="field"><label htmlFor={'cta-'+variant.id}>CTA</label><input id={'cta-'+variant.id} name="cta" defaultValue={variant.cta??''}/></div>
-            <div className="field"><label htmlFor={'status-'+variant.id}>Trạng thái</label><select id={'status-'+variant.id} name="status" defaultValue={variant.status==='READY'?'READY':'DRAFT'}><option value="DRAFT">Bản nháp</option><option value="READY">Sẵn sàng</option></select></div>
-            <div className="form-actions"><Button type="submit" size="sm">Lưu biến thể</Button></div>
-          </form>)}</div>:null}
-        </article>;
-      })}</div>}
-    </Card>
+    <div className="studio-grid">
+      <Card className="studio-library">
+        <div className="panel__header"><h2>Thư viện nội dung</h2><Badge tone="info">{filtered.length} nội dung</Badge></div>
+        <div className="section-toolbar">
+          <input className="section-toolbar__search" aria-label="Tìm nội dung" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Tìm nội dung..."/>
+          <Button variant="ghost" size="sm" type="button" onClick={()=>void load()} disabled={loading}>Làm mới</Button>
+        </div>
+        {loading?<LoadingState label="Đang tải nội dung..."/>:filtered.length===0?
+          <EmptyState title={query?'Không tìm thấy nội dung':'Thư viện đang trống'} description={query?'Thử từ khóa khác.':'Tạo nội dung gốc để bắt đầu.'}/>:
+          <div className="studio-library__list" role="group" aria-label="Chọn nội dung để biên tập">{filtered.map(item=>
+            <button type="button" className={'studio-library__item'+(selected?.id===item.id?' studio-library__item--active':'')} key={item.id} aria-pressed={selected?.id===item.id} onClick={()=>{setSelectedId(item.id);setError('');setSuccess('')}}>
+              <strong>{item.title}</strong>
+              <span>{item.type==='TEXT'?'Văn bản':item.type==='IMAGE'?'Hình ảnh':'Video'} · {statusLabel(item.status)}</span>
+            </button>)}</div>}
+      </Card>
+      <Card className="studio-editor">
+        {!selected?<EmptyState title="Chọn một nội dung" description="Chọn nội dung trong thư viện để biên tập các biến thể."/>:
+          <>
+            <div className="content-card__top">
+              <div>
+                <h2>{selected.title}</h2>
+                <div className="content-card__meta">{selected.type==='TEXT'?'Văn bản':selected.type==='IMAGE'?'Hình ảnh':'Video'}{selected.createdAt?' · '+formatDateTime(selected.createdAt):''}</div>
+              </div>
+              <Badge tone={statusTone(selected.status)}>{statusLabel(selected.status)}</Badge>
+            </div>
+            <div className="studio-master">
+              <strong>Nội dung gốc</strong>
+              <p>{selected.body?.trim()||'Chưa có phần nội dung gốc.'}</p>
+            </div>
+            <div className="panel__header">
+              <h2>Biến thể nền tảng</h2>
+              <div className="row-actions">
+                <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={()=>void showVariants(selected.id)}>Tải lại</Button>
+                <Button type="button" variant="secondary" size="sm" disabled={saving} onClick={()=>void prepare(selected.id)}>Tạo/đồng bộ 4 biến thể</Button>
+              </div>
+            </div>
+            <div className="studio-platform-tabs" role="tablist" aria-label="Chọn nền tảng để biên tập">
+              {CONTENT_PLATFORMS.map(platform=>
+                <button type="button" key={platform} role="tab" aria-selected={activePlatform===platform} onClick={()=>setActivePlatform(platform)}>
+                  {platformLabel(platform)}
+                  {variantsLoaded&&platformVariant(selectedVariants,platform)?.status==='READY'?<span aria-label="Sẵn sàng"> ✓</span>:null}
+                </button>)}
+            </div>
+            {!variantsLoaded?<EmptyState title="Chưa xác minh được biến thể" description="Không thể tải trạng thái biến thể. Chọn Tải lại để kiểm tra từ API."/>:
+              !activeVariant?<EmptyState title={'Chưa có biến thể '+platformLabel(activePlatform)} description="Chọn “Tạo/đồng bộ 4 biến thể” trước khi chỉnh sửa."/>:
+              <form className="studio-variant-form" key={activeVariant.id} onSubmit={event=>void update(selected.id,activeVariant,event)}>
+                <div className="variant-card__head"><strong>{platformLabel(activePlatform)}</strong><Badge tone={activeVariant.status==='READY'?'success':'warning'}>{statusLabel(activeVariant.status)}</Badge></div>
+                <div className="field"><label htmlFor={'caption-'+activeVariant.id}>Caption</label><textarea id={'caption-'+activeVariant.id} name="caption" defaultValue={activeVariant.caption??''} rows={4}/></div>
+                <div className="field"><label htmlFor={'body-'+activeVariant.id}>Nội dung</label><textarea id={'body-'+activeVariant.id} name="body" defaultValue={activeVariant.body??''} rows={5}/></div>
+                <div className="field"><label htmlFor={'cta-'+activeVariant.id}>Lời kêu gọi hành động</label><input id={'cta-'+activeVariant.id} name="cta" defaultValue={activeVariant.cta??''}/></div>
+                <div className="field"><label htmlFor={'status-'+activeVariant.id}>Trạng thái</label><select id={'status-'+activeVariant.id} name="status" defaultValue={activeVariant.status==='READY'?'READY':'DRAFT'}><option value="DRAFT">Bản nháp</option><option value="READY">Sẵn sàng</option></select></div>
+                <div className="form-actions"><Button type="submit" disabled={saving}>{saving?'Đang lưu...':'Lưu biến thể'}</Button></div>
+              </form>}
+          </>}
+      </Card>
+      <Card className="studio-preview">
+        <div className="panel__header"><h2>Xem trước & sẵn sàng</h2></div>
+        {!selected?<EmptyState title="Chưa chọn nội dung"/>:
+          <>
+            <div className="studio-preview__frame">
+              <div className="studio-preview__platform">{platformLabel(activePlatform)} · Bản xem trước</div>
+              <strong>{selected.title}</strong>
+              <p>{preview?.text||'Chưa có nội dung để xem trước.'}</p>
+              {selected.type!=='TEXT'?<span className="muted">Xem trước media chưa khả dụng trong phiên bản này.</span>:null}
+            </div>
+            <p className="muted">Bản xem trước chỉ mô phỏng nội dung, không phải giao diện chính thức của nền tảng.</p>
+            <h3 className="studio-preview__heading">Điều kiện biến thể</h3>
+            {variantsLoaded?<div className="studio-readiness">{readiness.map(row=>
+              <div className="studio-readiness__item" key={row.platform}>
+                <strong>{platformLabel(row.platform)}</strong>
+                <Badge tone={row.ready?'success':row.exists?'warning':'neutral'}>{row.ready?'Sẵn sàng':row.exists?'Bản nháp':'Chưa tạo'}</Badge>
+              </div>)}</div>:
+              <p className="muted">Chưa xác minh được trạng thái từ API. Không thể kết luận sẵn sàng đăng.</p>}
+            <a className="ui-button ui-button--primary studio-publish-link" href="#dsm-publish">Đi tới kiểm tra & đăng bài</a>
+          </>}
+      </Card>
+    </div>
   </div>;
 }

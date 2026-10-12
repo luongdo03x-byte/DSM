@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {platformVariant,publishTargetSummary,variantReadiness} from '../../apps/web/src/features/content/content-model.ts';
+import {contentPreview,platformVariant,publishTargetSummary,variantReadiness} from '../../apps/web/src/features/content/content-model.ts';
 
 test('a missing platform variant is never marked ready',()=>{
   const readiness=variantReadiness([{id:'1',platform:'FACEBOOK',status:'READY'}]);
@@ -18,4 +18,13 @@ test('partial publish validation separates valid and invalid targets',()=>{
   const summary=publishTargetSummary([{socialAccountId:'a',platform:'FACEBOOK',valid:true},{socialAccountId:'b',platform:'TIKTOK',valid:false,errors:['VARIANT_NOT_READY']}]);
   assert.equal(summary.validCount,1);assert.equal(summary.invalidCount,1);assert.equal(summary.canPublish,true);
   assert.equal(summary.invalidTargets[0]?.errors?.[0],'VARIANT_NOT_READY');
+});
+
+test('preview falls back to master content without assuming readiness',()=>{
+  const preview=contentPreview({body:'Nội dung gốc'},[],'FACEBOOK');
+  assert.deepEqual(preview,{text:'Nội dung gốc',hasVariant:false,ready:false});
+});
+test('preview prefers real platform caption and reflects draft status',()=>{
+  const preview=contentPreview({body:'Nội dung gốc'},[{id:'x',platform:'TIKTOK',status:'DRAFT',caption:'Caption riêng'}],'TIKTOK');
+  assert.deepEqual(preview,{text:'Caption riêng',hasVariant:true,ready:false});
 });
