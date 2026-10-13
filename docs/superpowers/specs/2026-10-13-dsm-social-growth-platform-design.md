@@ -1,7 +1,7 @@
 # DSM — Kế hoạch phát triển: nền tảng quản lý & xây kênh mạng xã hội
 
 Ngày: 2026-10-13
-Trạng thái: Đề xuất (brainstorming), chờ duyệt trước khi tách thành các implementation plan
+Trạng thái: Đã duyệt làm khung (13/10/2026); chi tiết chốt trong spec riêng của từng sub-project (mục 13)
 Thay thế: mục 6, 7 và 9 của bản "DSM V1 — Tổng kết tiến độ & định hướng phát triển" (13/10/2026)
 Cập nhật 13/10/2026: bổ sung đăng ảnh (ảnh đơn, album/carousel) bên cạnh video — xem mục 3.1
 
@@ -16,7 +16,7 @@ Cập nhật 13/10/2026: bổ sung đăng ảnh (ảnh đơn, album/carousel) b�
 - **Thứ tự xây dựng:** Facebook + Instagram (cùng một hệ Meta API) → TikTok + YouTube.
 - **Đường găng không nằm ở code mà ở hồ sơ duyệt API** (Meta App Review + Business Verification, TikTok audit, Google OAuth verification + YouTube audit). Hồ sơ phải chạy song song từ tuần đầu.
 - **Lộ trình:** 6 giai đoạn, khoảng 5 tháng cho 1 dev toàn thời gian (ước lượng, chưa phải cam kết).
-- **Đóng băng:** Threads (ngoài danh sách ưu tiên) và Browser Gateway/GPMLogin (rủi ro vi phạm điều khoản nền tảng). Giữ code, tắt bằng feature flag.
+- **Threads và Browser Gateway/GPMLogin:** giữ nguyên như hiện tại (quyết định 13/10/2026). Không thuộc 4 nền tảng ưu tiên nên không đầu tư thêm; rủi ro điều khoản của Browser Gateway được theo dõi ở mục 10.
 - **Nền móng kỹ thuật phải sửa trước:** CI chưa từng chạy, runtime đang là bộ nhớ trong + snapshot JSON (xem bản đánh giá 13/10).
 
 ---
@@ -132,7 +132,7 @@ Ngoài ra:
 ### Không làm
 
 - Buff follow/like/view, seeding bằng nick ảo, quản lý tài khoản không chính chủ.
-- Đăng bài qua trình duyệt antidetect hoặc giả lập người dùng.
+- Mở rộng thêm đường đăng qua trình duyệt antidetect. Browser Gateway hiện có được giữ nguyên, không phát triển thêm.
 - Thu thập dữ liệu trái điều khoản (scraping) của nền tảng.
 - Quản lý đơn hàng/tồn kho (phương án C cũ) cho tới khi có nhu cầu chứng minh được.
 
@@ -285,7 +285,7 @@ flowchart LR
 6. **Token:** giữ mã hóa AES-GCM hiện có; thêm xoay khóa, lịch làm mới, trạng thái sức khỏe.
 7. **Vận hành:** log có cấu trúc, bảng theo dõi hàng đợi, theo dõi lỗi, kiểm tra uptime, backup PostgreSQL hằng ngày lên object storage.
 8. **Triển khai giai đoạn đầu:** 1 VPS chạy Docker Compose (web, api, worker, postgres, redis), object storage bên ngoài. Mở rộng khi có tải thật.
-9. **Feature flag:** `threads`, `browserGateway` mặc định tắt.
+9. **Threads và Browser Gateway:** giữ nguyên hành vi hiện tại; adapter mới không phụ thuộc chúng.
 10. **Chính sách bằng chứng:** CI chạy trên mọi commit; `v1-acceptance.md` chỉ ghi PASS kèm link run CI; `verify-v1.mjs` chạy harness thật thay vì tìm chữ trong markdown.
 
 ### Tận dụng code V1
@@ -294,7 +294,7 @@ flowchart LR
 |---|---|
 | Content: nội dung gốc → biến thể | Đổi bộ biến thể thành FB/IG/TikTok/YouTube, thêm trường riêng cho YouTube (tiêu đề, tag, danh mục, playlist). Mô hình hiện chỉ cho 1 media mỗi nội dung (`masterAssetId`) và 1 media mỗi biến thể (`assetId`), nên phải thêm quan hệ nhiều media có thứ tự để đăng album |
 | Publishing: batch/job, validate, retry/cancel/reschedule | Chuyển lên BullMQ + PostgreSQL, thêm trạng thái PROCESSING và quota |
-| Accounts: credential mã hóa, HYBRID/API | Giữ mã hóa; bỏ HYBRID/BROWSER khỏi giao diện |
+| Accounts: credential mã hóa, API/BROWSER/HYBRID | Giữ mã hóa và các chế độ hiện có |
 | Publisher Facebook/Instagram/TikTok | Viết lại theo hợp đồng adapter, thêm Reels/Story/carousel |
 | Tracking: tracked link, redirect `/r/:id`, click | Nền cho link-in-bio, UTM, affiliate |
 | Analytics null-safe, Campaigns | Mở rộng thành dashboard tăng trưởng và pillar |
@@ -345,7 +345,6 @@ gantt
   - Repository interface → PostgreSQL + BullMQ; worker tách khỏi API.
   - Staging trên VPS: domain, HTTPS, backup hằng ngày.
   - Trang chính sách quyền riêng tư, điều khoản, hướng dẫn xóa dữ liệu.
-  - Tắt Threads và Browser Gateway bằng feature flag.
 - **Điều kiện đóng:** CI xanh trên commit SHA; test chứng minh restart worker không mất job; staging chạy được; trang chính sách công khai.
 
 ### GĐ1 — Facebook + Instagram (4 tuần)
@@ -568,7 +567,7 @@ stateDiagram-v2
 | Hồ sơ duyệt API chậm hoặc bị từ chối (Meta, TikTok, Google) | Cao | Chuẩn bị pháp nhân/domain/chính sách từ GĐ0; dùng Standard Access cho kênh của chính bạn; nộp ngay khi có bản chạy được; ra mắt công khai chỉ sau khi được duyệt |
 | Nền tảng đổi API, chỉ số, giới hạn | Cao | Lớp adapter; giới hạn lưu dạng cấu hình; theo dõi changelog; test hợp đồng cho từng adapter |
 | Công cụ gốc miễn phí đủ dùng với nhiều người | Trung bình | Tập trung đăng chéo, xây kênh, tiếng Việt, giá VND |
-| Khóa tài khoản do tự động hóa | Trung bình | Chỉ API chính thức; tôn trọng quota; đóng băng Browser Gateway |
+| Khóa tài khoản do tự động hóa | Trung bình | Tính năng mới chỉ dùng API chính thức; tôn trọng quota; Browser Gateway giữ ở mức hiện có, chỉ nên dùng cho tài khoản chấp nhận rủi ro |
 | Pháp lý dữ liệu (Luật BVDLCN 2026, Nghị định 147) | Trung bình | Chính sách quyền riêng tư, tối thiểu hóa dữ liệu, mã hóa token, xóa dữ liệu theo yêu cầu; tham vấn luật sư trước khi thu phí |
 | Quota (YouTube 100 upload/ngày/project, IG 100 bài/ngày/tài khoản) | Trung bình | Quota manager, hiển thị quota cho người dùng, xin tăng quota qua audit khi có tải |
 | Bài ảnh TikTok phụ thuộc domain media đã xác minh | Trung bình | Chọn domain media sớm, xác minh ngay khi có TikTok app; thử nghiệm URL có thời hạn trước GĐ2 |
@@ -596,13 +595,20 @@ stateDiagram-v2
 
 ---
 
-## 12. Quyết định cần chốt
+## 12. Quyết định
 
-1. Xác nhận khách hàng đầu tiên là creator/người xây nhiều kênh, hay dùng nội bộ hoàn toàn trước?
+**Đã chốt (13/10/2026):**
+
+1. Spec này được duyệt làm khung cho các sub-project.
+2. Brainstorm SP1 trước, sau đó SP2.
+3. Threads và Browser Gateway/GPMLogin giữ nguyên như hiện tại.
+
+**Còn mở:**
+
+1. Khách hàng đầu tiên là creator/người xây nhiều kênh, hay dùng nội bộ hoàn toàn trước?
 2. Pháp nhân nào đứng tên Meta Business Verification và hồ sơ audit?
-3. Đồng ý đóng băng Threads và Browser Gateway/GPMLogin?
-4. Đổi tên sản phẩm? "Dropship Social Manager" không còn khớp định vị mới.
-5. Ngân sách tháng cho hạ tầng và AI trong giai đoạn beta.
+3. Đổi tên sản phẩm? "Dropship Social Manager" không còn khớp định vị mới.
+4. Ngân sách tháng cho hạ tầng và AI trong giai đoạn beta.
 
 ---
 
