@@ -1,7 +1,7 @@
 # SP1 — Khôi phục CI và cổng nghiệm thu
 
 Ngày: 2026-10-13
-Trạng thái: Thiết kế đã duyệt từng phần (13/10/2026), chờ duyệt bản viết trước khi lập implementation plan
+Trạng thái: Thiết kế đã duyệt từng phần (13/10/2026); bản viết đã qua rà soát đối kháng với code thật (mục 11), chờ duyệt trước khi lập implementation plan
 Thuộc: sub-project SP1 trong `docs/superpowers/specs/2026-10-13-dsm-social-growth-platform-design.md` (mục 13, giai đoạn GĐ0)
 Sub-project kế tiếp: SP2 — runtime bền vững (PostgreSQL + BullMQ), ngoài phạm vi tài liệu này
 
@@ -13,7 +13,7 @@ Có một cổng kiểm tra **không tự nói dối**: chỉ xanh khi code th�
 
 Cụ thể, sau SP1:
 
-1. `pnpm install --frozen-lockfile && pnpm verify` chạy xanh trên checkout sạch với Node 24.
+1. `pnpm install --frozen-lockfile && pnpm verify` chạy xanh trên checkout sạch với Node ≥ 24.7 (dưới 25).
 2. Bộ test hồi quy gồm ba lớp: harness nghiệm thu, HTTP smoke với API thật, Playwright UI E2E.
 3. Workflow GitHub Actions chạy đúng chuỗi trên và không thể xanh khi test bị bỏ qua, chập chờn hoặc cây làm việc bị bẩn.
 4. Tài liệu nghiệm thu không còn tuyên bố PASS nào thiếu bằng chứng.
@@ -38,7 +38,7 @@ Cụ thể, sau SP1:
 2. Hướng A: bản thiết kế gọn nhất, cộng các điểm vá chỗ hở (mục 4).
 3. **Xếp chồng lên PR #1**: SP1 đi vào nhánh `ui-vietnamese-recovery`, sau đó PR #1 merge vào `main` một lần, mang cả UI tiếng Việt lẫn cổng kiểm tra.
 4. Ghim `@playwright/test` **1.56.1** (khớp Chromium 1194 cài sẵn trong môi trường cloud).
-5. Khi CI GitHub còn bị chặn: chủ repo tự sửa; trong lúc chờ, chấp nhận bằng chứng `LOCAL` gắn SHA. SP1 chỉ **đóng** khi CI GitHub xanh.
+5. Khi CI GitHub còn bị chặn: chủ repo tự sửa; trong lúc chờ, chấp nhận bằng chứng `LOCAL` gắn SHA. SP1 chỉ **đóng** khi CI GitHub xanh. Cách hiểu áp dụng trong spec này (mục 4.1): cả PR SP1 và PR #1 được phép merge trên bằng chứng `LOCAL` cộng kết quả red-check; run CI xanh trên `main` là điều kiện đóng.
 6. Threads và Browser Gateway giữ nguyên (quyết định ở spec roadmap).
 7. Ba phần thiết kế (nhánh/CI, lint/typecheck/build, test/E2E/bằng chứng) được duyệt riêng từng phần.
 
@@ -48,20 +48,25 @@ Cụ thể, sau SP1:
 
 - **Nhánh thực thi:** `claude/dreamy-shannon-416aba` (nhánh của phiên làm việc). Trước khi code, merge `origin/ui-vietnamese-recovery` (4f1ea10) vào nhánh này bằng merge commit; không xung đột vì `main` là merge-base và nhánh chỉ có commit tài liệu.
 - **PR SP1:** từ `claude/dreamy-shannon-416aba` vào base `ui-vietnamese-recovery`. PR này mang theo hai spec tài liệu và các commit SP1.
-- **Sau khi PR SP1 xanh và được merge:** đánh dấu PR #1 ready, merge PR #1 vào `main` bằng **merge commit** (không squash, không rebase) để giữ nguyên SHA đã có CI.
+- **Cổng merge:**
+  - PR SP1 merge vào `ui-vietnamese-recovery` khi có bằng chứng: `CI / verify` xanh trên PR, hoặc, nếu Actions còn bị chặn, bằng chứng `LOCAL` cộng kết quả red-check (mục 5) trong mô tả PR.
+  - PR #1 merge vào `main` theo cùng quy tắc.
+  - Cả hai PR merge bằng **merge commit** (không squash, không rebase), để SHA mà bằng chứng trỏ tới vẫn nằm trong lịch sử. Chủ repo tắt squash/rebase cho hai PR này.
 - **Bất biến trong lúc làm SP1:** không commit thẳng vào `main` hay `ui-vietnamese-recovery`. Nếu bắt buộc có hotfix trên `main`, merge `main` vào nhánh SP1 (không rebase).
-- **Thứ tự commit** (mỗi commit giữ cây nhất quán):
-  1. lint
-  2. toolchain (lockfile, Playwright 1.56.1, engineStrict, `.node-version`, `.gitignore`)
+- **Thứ tự commit.** "Nhất quán" nghĩa là: mọi bước của cổng đã tồn tại tới commit đó đều pass trên Node ≥ 24.7 (ví dụ sau commit 4, `pnpm lint && pnpm typecheck && pnpm build` pass).
+  1. lint (gồm luật cấm đánh dấu test trong thư mục test, mục 4.4)
+  2. toolchain (lockfile, Playwright 1.56.1, engineStrict, engines `>=24.7 <25`, `.node-version`, `.gitignore`)
   3. typecheck root + xóa shim + sửa kiểu `credential-crypto`
-  4. web tsconfig + `next build` + sửa kiểu `node-registration-manager`
+  4. web tsconfig + `next build` + sửa kiểu `node-card`
   5. typecheck `tests/web` + nới kiểu `overview-model`
   6. test runner
   7. test harness
   8. HTTP smoke
   9. E2E
-  10. `verify-v1` + tài liệu nghiệm thu
-  11. `ci.yml` + runbook
+  10. `verify-v1` + tài liệu nghiệm thu (mục `CI baseline (SP1)` ở `Status: NOT_VERIFIED`)
+  11. `ci.yml` + runbook + xóa script `test:integration`
+  12. bằng chứng: trên clone sạch, chạy `pnpm verify` ở commit 11, rồi chuyển `CI baseline (SP1)` sang `Status: LOCAL` với Evidence trỏ SHA commit 11. Nếu sau đó có commit không phải tài liệu (sửa theo review, merge `main`), lặp lại bước này cho commit code mới nhất.
+- **Bước đóng (sau khi PR #1 vào `main` và có run xanh):** implementer merge `main` vào `claude/dreamy-shannon-416aba`, chuyển `CI baseline (SP1)` sang `Status: PASS` với URL run và SHA, mở PR vào `main` (merge commit). Chủ repo tạo và đẩy tag annotated `gd0-sp1-ci-green` lên đúng SHA đó, nội dung tag là URL run.
 
 ### 4.2. Toolchain cố định
 
@@ -70,7 +75,8 @@ Cụ thể, sau SP1:
 | `pnpm-lock.yaml` | Sinh bằng pnpm 10.17.1 trên Node 24 sau khi ghim Playwright; commit vào repo |
 | `apps/web/package.json` | `"@playwright/test": "1.56.1"` (bỏ dấu `^`). `apps/browser-gateway` giữ `playwright ^1.55.0`, nên lockfile có hai bản `playwright-core`; chấp nhận |
 | `pnpm-workspace.yaml` | Thêm `engineStrict: true`. Đã kiểm chứng trên pnpm 10.17.1: Node 22 bị từ chối (`ERR_PNPM_UNSUPPORTED_ENGINE`), Node 24 cài frozen thành công |
-| `.node-version` | Nội dung `24`; CI đọc qua `node-version-file` |
+| `package.json` `engines.node` | Đổi thành `">=24.7 <25"`: `crypto.argon2Sync` (hasher thật của API) chỉ có từ Node 24.7.0; trên 24.0–24.6 API báo `NODE24_ARGON2_REQUIRED` |
+| `.node-version` | Nội dung `24`; CI đọc qua `node-version-file` (lấy bản 24.x mới nhất) |
 | `.gitignore` | Thêm `.next/`, `next-env.d.ts`, `*.tsbuildinfo`, `test-results/`, `playwright-report/` |
 | pnpm phiên bản | Chỉ ghim ở `packageManager`; bỏ `with: version` khỏi workflow |
 
@@ -134,11 +140,18 @@ jobs:
 
 ### 4.4. Lint
 
-`scripts/lint.mjs` vẫn chỉ cấm `TODO`/`FIXME`/`HACK`, với ba thay đổi:
+`scripts/lint.mjs` giữ dạng quét văn bản, với các thay đổi:
 
 - Gốc quét: `apps`, `packages`, `scripts`, `tests`.
 - Bỏ qua mọi thư mục tên `node_modules` hoặc bắt đầu bằng `.` (`.next`, `.data`…).
 - Đuôi file: `.ts`, `.tsx`, `.mjs`. Vẫn bỏ qua chính `scripts/lint.mjs`.
+- Luật 1 (mọi file quét): cấm `TODO`/`FIXME`/`HACK`.
+- Luật 2 (chỉ file trong `tests/` và `apps/web/tests/`): cấm mọi cách đánh dấu làm test hỏng trông như pass hoặc bị bỏ qua. Regex:
+  - `\bexpectFailure\b`
+  - `\b(skip|todo)\s*:`
+  - `\b(test|it|describe)\.(skip|only|todo|fail|fixme)\b`
+
+  Lý do (đã tái hiện trên Node 24.21): test gắn `{ expectFailure: true }` mà fail thật vẫn được JUnit ghi là pass; Playwright `test.fail()` cũng làm báo cáo JSON ghi `ok: true`.
 
 Không thêm ESLint hay Biome: đo được 50–140 lỗi tùy bộ luật trên code rất dày, sẽ làm ở sub-project khác.
 
@@ -169,25 +182,50 @@ Xóa `types/node-shim.d.ts` và `types/web-shim.d.ts` (đo được: không phá
     "apps/worker/**/*.ts",
     "apps/browser-gateway/**/*.ts",
     "packages/**/*.ts",
-    "tests/smoke/**/*.ts",
-    "tests/acceptance/**/*.ts",
-    "tests/integration/**/*.ts"
+    "tests/**/*.ts"
   ],
-  "exclude": ["**/node_modules/**"]
+  "exclude": ["**/node_modules/**", "tests/web/**"]
 }
 ```
 
 - `moduleDetection: "force"` xử lý 3 lỗi top-level await mà không đổi code `entry.ts`.
+- Với cấu hình mới (lib ES2024, không DOM), lỗi duy nhất còn lại là TS2749 tại `credential-crypto.service.ts:4` (`CryptoKey` chỉ là giá trị trong @types/node). Lỗi `BufferSource` ở dòng 6 (mục 2) chỉ xuất hiện với cấu hình cũ.
 - Sửa kiểu duy nhất: trong `apps/api/src/modules/accounts/credential-crypto.service.ts` thêm `import type {webcrypto} from 'node:crypto'` và khai báo khóa là `webcrypto.CryptoKey | undefined`.
-- Các file test Node (`tests/smoke`, `tests/acceptance`, `tests/integration`) lần đầu được typecheck.
+- Mọi file test Node dưới `tests/` (trừ `tests/web`, có chương trình riêng) lần đầu được typecheck, nên test thêm ở thư mục con mới cũng được kiểm.
 
 **(b) Web — `apps/web/tsconfig.json` (file mới, được commit)**
 
-- Lấy nguyên nội dung Next 16.4 tự sinh (`jsx: react-jsx`, plugin `next`, `isolatedModules`, `moduleResolution: bundler`, include `next-env.d.ts`, `.next/types/**/*.ts`, `.next/dev/types/**/*.ts`, `**/*.mts`, `**/*.ts`, `**/*.tsx`).
-- Đổi/thêm: `strict: true`, `noUncheckedIndexedAccess: true`, `exactOptionalPropertyTypes: true`, `allowImportingTsExtensions: true`, `noEmit: true`.
-- Không dùng `extends` (Next bỏ qua bước tự kiểm tra cấu hình khi có `extends`).
+Nội dung đầy đủ (bản Next 16.4 tự sinh, cộng các tùy chọn nghiêm ngặt). Giữ đủ mọi khóa; thiếu khóa Next yêu cầu thì `next build` sẽ ghi lại file và bước "Clean tree" fail.
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "incremental": true,
+    "module": "esnext",
+    "esModuleInterop": true,
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "plugins": [{ "name": "next" }]
+  },
+  "include": ["next-env.d.ts", ".next/types/**/*.ts", ".next/dev/types/**/*.ts", "**/*.mts", "**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules"]
+}
+```
+
+- Không dùng `extends` (Next bỏ qua bước tự kiểm tra cấu hình khi có `extends`). Đã kiểm chứng: với file này `next build` không ghi lại tsconfig.
 - Chương trình này thay phần `apps/web/src/**/*.ts` trước đây nằm trong root, và giữ nguyên mức nghiêm ngặt `exactOptionalPropertyTypes` mà root đang áp.
-- Sửa kiểu duy nhất: `apps/web/src/features/browser-nodes/node-registration-manager.tsx:18`, thuộc tính `lastSeenAt` (`number | undefined` truyền vào prop tùy chọn). Chỉ đổi kiểu, không đổi hành vi Browser Nodes.
+- Lỗi duy nhất báo tại `node-registration-manager.tsx:18` (`lastSeenAt: number | undefined` truyền vào prop tùy chọn). Kiểu nhận nằm ở `apps/web/src/features/browser-nodes/node-card.tsx:5`. Sửa kiểu duy nhất: đổi prop thành `lastSeenAt?: number | undefined` trong `node-card.tsx`. Chỉ đổi kiểu, không đổi hành vi Browser Nodes.
 - Với `exactOptionalPropertyTypes` bật, `api-client.ts` không còn lỗi (đã đo).
 
 **(c) Test web — `tests/web/tsconfig.json` (file mới)**
@@ -205,7 +243,7 @@ Script: `"typecheck": "tsc -p tsconfig.json && tsc -p apps/web/tsconfig.json && 
 
 ### 4.7. Test runner `scripts/run-tests.mjs`
 
-1. Kiểm tra Node major: khác 24 thì in `run-tests: cần Node 24, đang dùng <phiên bản>` và exit 1.
+1. Kiểm tra phiên bản Node: ngoài khoảng `>=24.7 <25` thì in `run-tests: cần Node >=24.7 <25, đang dùng <phiên bản>` và exit 1.
 2. Xóa rồi tạo lại thư mục `test-results/` (không bao giờ đọc nhầm báo cáo cũ).
 3. Gom `tests/**/*.test.ts`; không có file nào thì in `NO_TESTS_FOUND` và exit 1.
 4. Chạy `process.execPath --experimental-strip-types --test --test-timeout=60000` với hai reporter: `spec` ra stdout và `junit` ra `test-results/node-tests.xml`.
@@ -236,12 +274,12 @@ Script: `"typecheck": "tsc -p tsconfig.json && tsc -p apps/web/tsconfig.json && 
 - Một test, tên chính xác `'http api smoke journey'`, không subtest.
 - **Không đổi code production.**
 
-**Dựng môi trường trong test:**
+**Dựng môi trường trong test** (đã chạy thử trọn 21 bước, pass khoảng 0,8 giây):
 - Truyền `env` dạng object (không ghi `process.env`): email/mật khẩu owner riêng cho smoke, `CREDENTIAL_ENCRYPTION_KEY` là 32 byte ngẫu nhiên dạng base64, `JWT_ACCESS_SECRET` riêng.
-- Gọi `createDevelopmentRuntime({env})`. Hasher argon2id là thật, nên cần Node 24.
-- Đăng ký `FakePublisher` đè lên publisher `API` của FACEBOOK, INSTAGRAM, THREADS, TIKTOK qua registry của runtime. Registry là một `Map`, nên đăng ký lại sẽ ghi đè.
-- Tạo worker cục bộ trên store/registry của runtime để gọi `tick()` và `syncMetrics()` thủ công.
-- `startApiServer(0, runtime)` mở cổng ngẫu nhiên. Đóng server trong `t.after`.
+- `const app = await createDevelopmentRuntime({env})` (`apps/api/src/runtime/dev-runtime.ts`). Hàm trả về object bọc `{store, runtime, registry, services, ids}`, không phải runtime trực tiếp. Hasher argon2id là thật, nên cần Node ≥ 24.7.
+- Với mỗi nền tảng FACEBOOK, INSTAGRAM, THREADS, TIKTOK: `app.registry.register(platform, 'API', new FakePublisher())`, với `FakePublisher` từ `apps/worker/src/testing/fake-publisher.ts` (constructor không tham số). Registry là một `Map`, nên đăng ký lại sẽ ghi đè publisher thật.
+- `const worker = new LocalWorkerRuntime(app.store, app.registry, app.services.media)` (`apps/worker/src/runtime/local-worker.ts`). Bước 16 gọi `worker.tick()`; bước 20 gọi `worker.syncMetrics(metricsCaptureKey())`, với `metricsCaptureKey` export từ cùng file.
+- `const server = startApiServer(0, app.runtime)` (`apps/api/src/main.ts`), rồi `await once(server, 'listening')` (từ `node:events`) vì `listen` bất đồng bộ; lấy cổng từ `server.address().port`. Đóng server trong `t.after`.
 - Bọc `globalThis.fetch` để ghi mọi host khác `127.0.0.1`; cuối test assert danh sách rỗng, rồi khôi phục `fetch`.
 
 **Chuỗi 21 bước** (brand `local-brand`):
@@ -305,7 +343,7 @@ Script: `"typecheck": "tsc -p tsconfig.json && tsc -p apps/web/tsconfig.json && 
     - `JWT_ACCESS_SECRET` riêng cho E2E;
     - `CREDENTIAL_ENCRYPTION_KEY` cố định 32 byte;
     - `WEB_ORIGINS=WEB_URL`, `COOKIE_SECURE=false`.
-  - Không nạp `.env`, nên kết quả kín, không phụ thuộc máy.
+  - Không nạp `.env`. Playwright vẫn cho server kế thừa biến môi trường của shell, nên mọi biến làm đổi hành vi đều được ghi đè tường minh như trên; thêm `BROWSER_GATEWAY_HOST=''`. CI không đặt biến nào khác.
 - `webServer[1]` — **Web:**
   - Lệnh: `"<process.execPath>" node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000`.
   - Chờ `WEB_URL/login`, timeout 60 giây, `reuseExistingServer: false`.
@@ -316,26 +354,28 @@ Script: `"typecheck": "tsc -p tsconfig.json && tsc -p apps/web/tsconfig.json && 
 - Xóa `test.skip(!process.env.E2E_SEEDED, …)`; tên test giữ `'v1 critical UI journey'`.
 - Đăng nhập bằng tài khoản trong `e2e-owner.ts`.
 - Thu `page.on('pageerror')` suốt test; cuối test assert rỗng.
-- Helper `expectLoaded(page, heading, apiPath)`:
-  1. Đăng ký `page.waitForResponse` cho `apiPath` với status 200 **trước** thao tác điều hướng. Mẫu 401 → refresh → 200 là bình thường.
-  2. Chờ `getByRole('heading', { name: heading, exact: true })` hiển thị.
-  3. Chờ `.page-state[role="status"]` (trạng thái loading) về 0.
-  4. Assert `.page-state--error` bằng 0. Không dùng `getByRole('alert')`, vì route announcer của Next luôn có một phần tử như vậy.
+- Helper `expectLoaded(page, { heading, apiPath }, action: () => Promise<unknown>)`:
+  1. Tạo promise `page.waitForResponse(r => new URL(r.url()).pathname === apiPath && r.status() === 200)` **trước** khi gọi `action()`. Mẫu 401 → refresh → 200 là bình thường.
+  2. Gọi `await action()` (click đăng nhập, `page.reload()`, hoặc click link điều hướng), rồi chờ promise ở bước 1.
+  3. Chờ `getByRole('heading', { name: heading, exact: true })` hiển thị.
+  4. Chờ `.page-state[role="status"]` (trạng thái loading) về 0.
+  5. Assert `.page-state--error` bằng 0. Không dùng `getByRole('alert')`, vì route announcer của Next luôn có một phần tử như vậy.
+
+  Lý do phải truyền `action` (đã tái hiện): sau khi đăng nhập, Next chuyển trang phía client và gọi `analytics/overview` ngay; nếu đăng ký chờ response sau bước đăng nhập thì response đã về và lệnh chờ luôn hết giờ.
 - Link điều hướng giới hạn trong `nav.app-nav`, tránh trùng với "Mở lịch đăng".
-- Hành trình và endpoint chính:
+- Hành trình (endpoint lấy theo feature manager thật của từng trang, đã đối chiếu: `overview-dashboard.tsx:22`, `products-manager.tsx:27`, `content-manager.tsx:31`, `calendar-dashboard.tsx:16`, `analytics-dashboard.tsx:15`; `brand-section-client.tsx` là code không còn được dùng):
 
-  | Bước | Trang | Endpoint chính chờ 200 |
+  | Bước | Trang và thao tác (`action`) | Endpoint chính (status chờ) |
   |---|---|---|
-  | 1 | Đăng nhập → URL `/app/brands/*/overview` | `/auth/login` |
-  | 2 | Tổng quan | `/brands/local-brand/analytics/overview` |
-  | 3 | Tải lại trang, vẫn Tổng quan (chứng minh refresh qua cookie/CSRF) | `/brands/local-brand/analytics/overview` |
-  | 4 | Sản phẩm | `/brands/local-brand/products` |
-  | 5 | Nội dung | `/brands/local-brand/content` |
-  | 6 | Lịch đăng | `/brands/local-brand/calendar` |
-  | 7 | Phân tích | `/brands/local-brand/analytics/platforms` |
-  | 8 | Đăng xuất → URL `/login`, `context.cookies()` rỗng | `/auth/logout` |
+  | 1 | Điền form, click "Đăng nhập" → URL `/app/brands/*/overview`, trang Tổng quan | `/brands/local-brand/analytics/overview` (200); đồng thời `/auth/login` (200) |
+  | 2 | `page.reload()`, vẫn Tổng quan (chứng minh refresh qua cookie/CSRF) | `/brands/local-brand/analytics/overview` (200) |
+  | 3 | Link "Sản phẩm" | `/brands/local-brand/products` (200) |
+  | 4 | Link "Nội dung" | `/brands/local-brand/content` (200) |
+  | 5 | Link "Lịch đăng" | `/brands/local-brand/calendar` (200) |
+  | 6 | Link "Phân tích" | `/brands/local-brand/analytics/platforms` (200) |
+  | 7 | Click "Đăng xuất khỏi DSM" | `/auth/logout` (**204**) |
 
-  Endpoint của từng trang lấy theo `apps/web/src/features/runtime/brand-section-client.tsx`; implementation plan đối chiếu lại với các feature manager riêng của Sản phẩm, Nội dung, Lịch đăng và Phân tích.
+  Bước 7 không dùng `expectLoaded`: chờ response `/auth/logout` status 204, rồi URL `/login`, rồi `context.cookies()` rỗng.
 
 **Phạm vi E2E:** chỉ đăng nhập, điều hướng, reload, đăng xuất trên production build. Không đăng bài qua UI, vì dev runtime chỉ có publisher thật và SP1 không thêm switch giả lập.
 
@@ -347,15 +387,19 @@ Scripts: root `"test:e2e": "pnpm --filter web test:e2e"`; `apps/web` giữ `"tes
 
 1. **`test-results/node-tests.xml`**
    - Thiếu file thì FAIL.
-   - Đọc các comment đếm `pass`/`fail`/`cancelled`/`skipped`/`todo`; yêu cầu `pass > 0` và các loại còn lại bằng 0.
+   - Đọc các comment đếm `tests`/`pass`/`fail`/`cancelled`/`skipped`/`todo` mà reporter JUnit của Node 24 ghi ra (đã kiểm chứng định dạng).
+   - Yêu cầu `fail`, `cancelled`, `skipped`, `todo` đều bằng 0, và `pass ≥ MIN_NODE_TESTS`. `MIN_NODE_TESTS` là hằng số trong `verify-v1.mjs`, bằng 42 ở SP1; tăng khi thêm test. Xóa bớt test thì cổng đỏ.
    - Yêu cầu có testcase `v1 acceptance harness` và `http api smoke journey`; thiếu thì báo `required test not executed: <tên>`.
+   - JUnit không phân biệt được test gắn `expectFailure`; việc này do luật 2 của lint (mục 4.4) chặn ở mã nguồn.
 2. **`test-results/e2e.json`**
    - Yêu cầu `stats.expected ≥ 1`, `unexpected = 0`, `flaky = 0`, `skipped = 0`.
-   - Spec `v1 critical UI journey` phải có `ok: true`.
+   - Duyệt đệ quy `suites[].specs` và `suites[].suites[]`; phải tìm thấy **đúng một** spec có title `v1 critical UI journey`, nếu không thì FAIL `required e2e not executed`.
+   - Với spec đó: `ok: true`; mọi phần tử `tests[]` có `expectedStatus === 'passed'` và `status === 'expected'`; phần tử cuối của `results[]` có `status === 'passed'`. Điều này chặn `test.fail()` ngay cả khi lint bị vượt qua.
 3. **`docs/verification/v1-acceptance.md`**
-   - Tách theo tiêu đề `## `. Mỗi mục có đúng một dòng `Status:` với giá trị thuộc `PASS | LOCAL | CI | NOT_VERIFIED | BLOCKED_EXTERNAL | BLOCKED_LOCAL_ENV`.
-   - `PASS` bắt buộc có dòng `Evidence: https://github.com/<owner>/<repo>/actions/runs/<số> @ <SHA 40 ký tự hex>`.
-   - `LOCAL` bắt buộc có dòng `Evidence: local pnpm verify @ <SHA 40 ký tự hex> (<YYYY-MM-DD>, <hệ điều hành>, node <phiên bản>)`.
+   - Tách theo dòng bắt đầu bằng `## `. Phần mở đầu (trước mục `## ` đầu tiên) không được chứa dòng nào khớp `^(Status|Evidence):`.
+   - Mỗi mục có đúng một dòng khớp `^Status: (PASS|LOCAL|CI|NOT_VERIFIED|BLOCKED_EXTERNAL|BLOCKED_LOCAL_ENV)(?: — .+)?$` (cho phép phần giải thích sau dấu " — ", như các mục giữ nguyên đang dùng).
+   - `PASS` bắt buộc có, trong cùng mục, dòng khớp `^Evidence: https://github\.com/[^/\s]+/[^/\s]+/actions/runs/\d+ @ [0-9a-f]{40}$`.
+   - `LOCAL` bắt buộc có, trong cùng mục, dòng khớp `^Evidence: local pnpm verify @ [0-9a-f]{40} \(\d{4}-\d{2}-\d{2}, [^,)]+, node v?24\.\d+\.\d+\)$`.
    - Bắt buộc có các mục `Automated implementation gate`, `Critical journey`, `CI baseline (SP1)`.
 4. **Dòng kết quả**
    - Khi `GITHUB_ACTIONS=true`: in `verify-v1: OK (<N> node tests, <M> e2e) — CI run <server>/<repo>/actions/runs/<id> @ <GITHUB_SHA>` và ghi thêm vào `$GITHUB_STEP_SUMMARY` nếu có.
@@ -365,13 +409,14 @@ Scripts: root `"test:e2e": "pnpm --filter web test:e2e"`; `apps/web` giữ `"tes
 
 - **Phần mở đầu:**
   - Quy tắc bằng chứng và danh sách trạng thái hợp lệ.
-  - Các cổng tự động được kiểm bởi `CI / verify` trên từng commit, không ghi PASS thủ công.
+  - Các cổng tự động được kiểm bởi `CI / verify` trên head của mỗi PR và mỗi push vào `main` (commit trung gian không được kiểm riêng); không ghi PASS thủ công cho chúng.
   - Ghi chú lịch sử, ngày 2026-10-13: rút lại các tuyên bố PASS ngày 2026-10-01 ("103/103 tests", "covered by automated tests"). Các tuyên bố đó tạo trong sandbox, không phải CI, không có SHA, và các test không khôi phục được.
 - **`## Automated implementation gate`** — `Status: CI`, liệt kê các bước trong `ci.yml`.
 - **`## Critical journey`** — `Status: CI`, nêu ba test bắt buộc kèm đường dẫn và tên, và giới hạn phạm vi: harness/HTTP smoke dùng FakePublisher; E2E không đăng bài; publisher Meta/TikTok thật chưa được phủ.
 - **`## CI baseline (SP1)`**
-  - Ban đầu: `Status: LOCAL` kèm bằng chứng `pnpm verify` trên SHA của commit SP1 cuối cùng chứa code, chạy trên cây sạch. Dòng Evidence được commit sau commit đó, vì một commit không chứa được SHA của chính nó.
-  - Khi có run `CI / verify` xanh đầu tiên trên SHA merge ở `main`: chuyển `Status: PASS` kèm URL run và SHA, đồng thời gắn tag `gd0-sp1-ci-green` (annotated, nội dung có URL run) lên SHA đó.
+  - Ở commit 10–11: `Status: NOT_VERIFIED`.
+  - Commit 12: `Status: LOCAL` kèm bằng chứng `pnpm verify` trên SHA commit 11, chạy trên clone sạch. Dòng Evidence nằm ở commit sau, vì một commit không chứa được SHA của chính nó.
+  - Bước đóng (mục 4.1): `Status: PASS` kèm URL run và SHA của run `CI / verify` thành công, cộng tag `gd0-sp1-ci-green`.
 - **`## Local-first persistence`** — `Status: NOT_VERIFIED` (chưa có test snapshot; SP2 thay runtime).
 - **Các mục Facebook, Instagram, Threads, TikTok, GPMLogin, Docker/Node 24:** giữ nguyên.
 
@@ -379,7 +424,7 @@ Scripts: root `"test:e2e": "pnpm --filter web test:e2e"`; `apps/web` giữ `"tes
 
 - Chỉ sửa mục "5. Verify": dùng `pnpm verify` thay cho `npm run verify`.
 - Ghi chú các yêu cầu:
-  - Node 24;
+  - Node ≥ 24.7 (dưới 25);
   - cổng 127.0.0.1:3000 và :4000 phải trống (tắt `pnpm dev` trước);
   - cài Chromium một lần bằng `pnpm --filter web exec playwright install chromium`;
   - không export `NEXT_PUBLIC_API_BASE_URL` khi build để chạy E2E;
@@ -399,7 +444,7 @@ Scripts: root `"test:e2e": "pnpm --filter web test:e2e"`; `apps/web` giữ `"tes
 }
 ```
 
-Các script `dev*` giữ nguyên. Xóa `test:integration`.
+Các script `dev*` giữ nguyên. Xóa `test:integration` ở commit 11, cùng lúc viết lại `ci.yml` (workflow cũ còn gọi script này). Script `test`/`build` ở cấp từng app (đã hỏng từ trước khi chạy trong thư mục app) giữ nguyên; cổng chỉ chạy từ thư mục gốc.
 
 ## 5. Kiểm tra ngược (red-check)
 
@@ -413,21 +458,25 @@ Chạy tại chỗ trước khi mở PR, không commit; ghi kết quả vào mô
 | 4 | Ghi `Status: PASS` không kèm Evidence vào tài liệu nghiệm thu | `verify-v1` |
 | 5 | Cho `FakePublisher` ném lỗi | `pnpm test` (harness và HTTP smoke) |
 | 6 | Thêm `TODO` vào một file `.tsx` | `pnpm lint` |
+| 7 | Gắn `{ expectFailure: true }` vào test harness và cho `FakePublisher` ném lỗi | `pnpm lint` (luật 2); bỏ qua lint thì `pnpm test` vẫn xanh, chứng minh luật 2 là cần thiết |
+| 8 | Đổi E2E thành `test.fail(...)` | `pnpm lint`; bỏ qua lint thì `verify-v1` fail (expectedStatus) |
+| 9 | Xóa một file trong `tests/web` | `verify-v1` (pass < `MIN_NODE_TESTS`) |
+| 10 | Bỏ `next-env.d.ts` khỏi `.gitignore`, chạy build rồi hai lệnh của bước "Clean tree" | `test -z "$(git status --porcelain)"` fail |
 
 ## 6. Tiêu chí thành công
 
-1. Trên clone sạch của head SP1 (Node 24.x, pnpm 10.17.1): `pnpm install --frozen-lockfile && pnpm verify` exit 0, dòng cuối là `verify-v1: OK (...) — LOCAL @ <sha> (clean) …`.
+1. Trên clone sạch của head SP1 (Node 24.7+, pnpm 10.17.1): `pnpm install --frozen-lockfile && pnpm verify` exit 0, dòng cuối là `verify-v1: OK (...) — LOCAL @ <sha> (clean) …`.
 2. Cài bằng Node 22 thất bại ngay ở `pnpm install` với lỗi engine.
-3. `pnpm lint` exit 0, quét cả `.tsx` và `tests/`, không vào `node_modules`/`.next`.
+3. `pnpm lint` exit 0, quét cả `.tsx` và `tests/`, không vào `node_modules`/`.next`, và chặn được các dấu đánh dấu test ở luật 2.
 4. `pnpm typecheck` chạy ba chương trình, cả ba 0 lỗi; `types/*.d.ts` đã bị xóa.
 5. `pnpm build` chạy `next build` thật từ checkout sạch: TypeScript pass, 14 route. Sau toàn bộ `pnpm verify`, `git status --porcelain` rỗng.
 6. `pnpm test` báo 42 pass, 0 fail, 0 skipped; ghi `test-results/node-tests.xml`. HTTP smoke không gửi request ra ngoài loopback và process tự thoát.
-7. `pnpm test:e2e` tự dựng API và web, 1 passed, không cần biến môi trường; mỗi trang có response 200 từ endpoint chính, hết loading, không ô lỗi, không `pageerror`; reload giữ phiên; logout xóa cookie.
-8. Cả 6 red-check ở mục 5 đều làm `pnpm verify` fail đúng bước.
-9. Code production chỉ đổi 3 chỗ thuần về kiểu (`credential-crypto.service.ts`, `node-registration-manager.tsx:18`, `overview-model.ts`). `apps/api/src/main.ts` không đổi.
+7. `pnpm test:e2e` tự dựng API và web, 1 passed, không cần biến môi trường; mỗi trang có response 200 từ endpoint chính, hết loading, không ô lỗi, không `pageerror`; reload giữ phiên; logout trả 204 và xóa cookie.
+8. Cả 10 red-check ở mục 5 đều fail đúng bước.
+9. Code production chỉ đổi 3 chỗ thuần về kiểu (`credential-crypto.service.ts`, `node-card.tsx`, `overview-model.ts`). `apps/api/src/main.ts` không đổi.
 10. `v1-acceptance.md` không còn PASS nào thiếu Evidence; tuyên bố "103/103" được rút lại kèm ghi chú có ngày.
 
-**Điều kiện đóng SP1:** run `CI / verify` đầu tiên trên SHA merge của PR #1 (đã chứa SP1) ở `main` kết thúc success; mục `CI baseline (SP1)` chuyển sang PASS với URL run và SHA; tag `gd0-sp1-ci-green` đã được đẩy. Trước đó SP1 ở trạng thái `LOCAL`, không phải PASS.
+**Điều kiện đóng SP1:** có một run `CI / verify` thành công (cho phép chạy lại) trên SHA merge của PR #1 ở `main`, hoặc, nếu cần sửa thêm, trên SHA đầu tiên của `main` chứa bản sửa. Mục `CI baseline (SP1)` chuyển sang PASS với đúng URL run và SHA đó, và tag `gd0-sp1-ci-green` trỏ vào SHA đó. Trước đó SP1 ở trạng thái `LOCAL`, không phải PASS.
 
 ## 7. Ngoài phạm vi
 
@@ -456,15 +505,17 @@ Chạy tại chỗ trước khi mở PR, không commit; ghi kết quả vào mô
 | Handle bị rò làm test treo | Đóng server trong `t.after`, timeout 300 giây ở runner, timeout job 20 phút; không dùng `--test-force-exit` |
 | Next tự ghi lại `apps/web/tsconfig.json` | Không dùng `extends`, copy nguyên include Next sinh; bước "Clean tree" trong CI phát hiện |
 | Wiring publisher Meta/TikTok thật không có test | Ghi rõ giới hạn trong tài liệu nghiệm thu; thuộc SP4/SP6 |
-| HTTP smoke cần Node 24 | `engineStrict` và kiểm tra Node major trong runner báo lỗi sớm, rõ ràng |
+| HTTP smoke và API cần Node ≥ 24.7 (argon2) | `engines` `>=24.7 <25` + `engineStrict` và kiểm tra phiên bản trong runner báo lỗi sớm, rõ ràng |
+| Test bị đánh dấu `expectFailure`/`test.fail()` trông như pass | Luật 2 của lint chặn ở mã nguồn; `verify-v1` kiểm `expectedStatus` của E2E; red-check 7 và 8 |
 | Các action `@v4` chạy runtime Node 20 đang bị khai tử | Theo dõi annotation khi runner được cấp; nâng major nếu bị ép |
 
 ## 9. Việc của chủ repo
 
 1. Mở một run CI đã fail để đọc annotation, rồi sửa theo đó ở Settings → Actions (cho phép Actions) và Settings → Billing and plans. Chạy lại một run để xác nhận job được cấp runner.
-2. Review và merge PR SP1 vào `ui-vietnamese-recovery`; sau đó merge PR #1 vào `main` bằng merge commit.
+2. Review và merge PR SP1 vào `ui-vietnamese-recovery`; sau đó merge PR #1 vào `main`. Cả hai bằng merge commit, theo cổng merge ở mục 4.1.
 3. Không merge gì khác vào `main` cho tới khi PR #1 vào.
-4. (Tùy chọn) Bật branch protection trên `main`, bắt buộc check `CI / verify`.
+4. Sau run xanh trên `main`: review/merge PR đóng SP1 (chuyển `CI baseline (SP1)` sang PASS), rồi tạo và đẩy tag `git tag -a gd0-sp1-ci-green <SHA> -m "<URL run>"`.
+5. (Tùy chọn) Bật branch protection trên `main`, bắt buộc check `CI / verify`.
 
 ## 10. Bản đồ file
 
@@ -475,16 +526,16 @@ Chạy tại chỗ trước khi mở PR, không commit; ghi kết quả vào mô
 | `.node-version` | Mới |
 | `pnpm-workspace.yaml` | Thêm `engineStrict: true` |
 | `pnpm-lock.yaml` | Mới |
-| `package.json` | Sửa scripts (mục 4.13) |
+| `package.json` | Sửa scripts (mục 4.13), `engines.node` `>=24.7 <25` |
 | `apps/web/package.json` | Ghim `@playwright/test` 1.56.1 |
 | `tsconfig.json` | Viết lại (mục 4.5a) |
 | `types/node-shim.d.ts`, `types/web-shim.d.ts` | Xóa |
 | `apps/web/tsconfig.json` | Mới (mục 4.5b) |
 | `tests/web/tsconfig.json` | Mới (mục 4.5c) |
 | `apps/api/src/modules/accounts/credential-crypto.service.ts` | Sửa kiểu |
-| `apps/web/src/features/browser-nodes/node-registration-manager.tsx` | Sửa kiểu dòng 18 |
+| `apps/web/src/features/browser-nodes/node-card.tsx` | Nới kiểu prop `lastSeenAt` (dòng 5) |
 | `apps/web/src/features/overview/overview-model.ts` | Nới kiểu `AnalyticsSnapshot` |
-| `scripts/lint.mjs` | Sửa (mục 4.4) |
+| `scripts/lint.mjs` | Sửa, thêm luật 2 (mục 4.4) |
 | `scripts/build.mjs` | Xóa |
 | `scripts/run-tests.mjs` | Sửa (mục 4.7) |
 | `scripts/verify-v1.mjs` | Viết lại (mục 4.11) |
@@ -495,3 +546,15 @@ Chạy tại chỗ trước khi mở PR, không commit; ghi kết quả vào mô
 | `apps/web/tests/v1-critical-journey.spec.ts` | Sửa (mục 4.10) |
 | `docs/verification/v1-acceptance.md` | Viết lại (mục 4.11) |
 | `docs/runbooks/local-development.md` | Sửa mục 5 |
+
+## 11. Rà soát đối kháng (13/10/2026)
+
+Bản viết đầu tiên được 3 reviewer độc lập rà soát trên code thật của PR #1 (áp thử toàn bộ phần toolchain trong một worktree riêng, chạy trọn HTTP smoke 21 bước và E2E). Một agent phản biện kiểm lại từng phát hiện: 31 phát hiện, 5 bị bác, 6 trùng; 20 phát hiện được xác nhận và đã sửa vào bản này. Các điểm chính:
+
+- **Blocker:** test gắn `expectFailure` (Node) hoặc `test.fail()` (Playwright) mà fail thật vẫn được báo là pass → thêm luật 2 cho lint, kiểm `expectedStatus` trong `verify-v1`, red-check 7 và 8.
+- E2E: logout trả 204 chứ không phải 200; `expectLoaded` phải nhận thao tác điều hướng để chờ response đúng lúc; endpoint lấy theo feature manager thật.
+- HTTP smoke: ghi rõ cách nối `createDevelopmentRuntime`, `FakePublisher`, `LocalWorkerRuntime`, `metricsCaptureKey`, `once(server,'listening')`.
+- Sửa kiểu Browser Nodes đặt đúng chỗ (`node-card.tsx:5`); `apps/web/tsconfig.json` ghi đầy đủ; root typecheck bao toàn bộ `tests/` (trừ `tests/web`).
+- Node ≥ 24.7 cho argon2; ngưỡng `MIN_NODE_TESTS`; tìm spec E2E đệ quy và đúng một lần.
+- Quy tắc bằng chứng: cú pháp dòng Status/Evidence, trạng thái `CI baseline (SP1)` qua từng commit, cổng merge khi Actions còn bị chặn, merge commit cho cả hai PR, bước đóng và người gắn tag, điều kiện đóng cho phép chạy lại; CI kiểm head PR và `main` chứ không phải mọi commit.
+- Thêm red-check cho bước "Clean tree" và cho việc xóa bớt test.

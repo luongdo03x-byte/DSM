@@ -286,7 +286,7 @@ flowchart LR
 7. **Vận hành:** log có cấu trúc, bảng theo dõi hàng đợi, theo dõi lỗi, kiểm tra uptime, backup PostgreSQL hằng ngày lên object storage.
 8. **Triển khai giai đoạn đầu:** 1 VPS chạy Docker Compose (web, api, worker, postgres, redis), object storage bên ngoài. Mở rộng khi có tải thật.
 9. **Threads và Browser Gateway:** giữ nguyên hành vi hiện tại; adapter mới không phụ thuộc chúng.
-10. **Chính sách bằng chứng:** CI chạy trên mọi commit; `v1-acceptance.md` chỉ ghi PASS kèm link run CI; `verify-v1.mjs` chạy harness thật thay vì tìm chữ trong markdown.
+10. **Chính sách bằng chứng:** CI chạy trên head của mỗi PR và mỗi push vào `main`; `v1-acceptance.md` chỉ ghi PASS kèm link run CI và SHA; `verify-v1.mjs` kiểm kết quả thật của các test bắt buộc (JUnit, báo cáo Playwright) thay vì tìm chữ trong markdown. Chi tiết: spec SP1.
 
 ### Tận dụng code V1
 
@@ -580,7 +580,7 @@ stateDiagram-v2
 **Kỹ thuật**
 - [ ] Kiểm tra Settings → Billing and plans và Settings → Actions để CI được cấp runner.
 - [ ] Sửa các lỗi chặn CI (mục GĐ0), commit `pnpm-lock.yaml`, thêm `next build` và typecheck `.tsx` vào CI.
-- [ ] Nối harness nghiệm thu vào test; sửa `verify-v1.mjs`; merge PR #1 khi CI xanh.
+- [ ] Nối harness nghiệm thu vào test; sửa `verify-v1.mjs`; merge PR #1 khi có bằng chứng (CI xanh, hoặc `LOCAL` khi Actions còn bị chặn — quyết định 13/10, xem spec SP1).
 - [ ] Viết spec riêng cho repository interface + PostgreSQL + BullMQ.
 
 **Hồ sơ & quyền API**
