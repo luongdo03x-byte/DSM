@@ -3,6 +3,7 @@
 Ngày: 2026-10-13
 Trạng thái: Đề xuất (brainstorming), chờ duyệt trước khi tách thành các implementation plan
 Thay thế: mục 6, 7 và 9 của bản "DSM V1 — Tổng kết tiến độ & định hướng phát triển" (13/10/2026)
+Cập nhật 13/10/2026: bổ sung đăng ảnh (ảnh đơn, album/carousel) bên cạnh video — xem mục 3.1
 
 > Tài liệu này định hướng lại DSM từ "Dropship Social Manager" thành **web quản lý và xây kênh mạng xã hội cho thị trường Việt Nam**, ưu tiên Facebook → Instagram → TikTok → YouTube. Số liệu thị trường và giới hạn API được tra cứu ngày 13/10/2026; những con số đến từ nguồn thứ cấp được ghi rõ là cần kiểm chứng.
 
@@ -10,7 +11,7 @@ Thay thế: mục 6, 7 và 9 của bản "DSM V1 — Tổng kết tiến độ &
 
 ## 0. Tóm tắt
 
-- **Định vị:** trợ lý xây kênh video ngắn đa nền tảng cho người Việt. Một video gốc → Facebook, Instagram, TikTok, YouTube; biết kênh nào đang lớn, còn bao xa tới mốc kiếm tiền; chỉ dùng API chính thức.
+- **Định vị:** trợ lý xây kênh đa nền tảng cho người Việt. Một nội dung gốc (video, ảnh đơn hoặc album ảnh) → Facebook, Instagram, TikTok, YouTube theo đúng định dạng mỗi nền tảng hỗ trợ; biết kênh nào đang lớn, còn bao xa tới mốc kiếm tiền; chỉ dùng API chính thức.
 - **Khách hàng đầu tiên:** creator/KOC và người xây nhiều kênh (4–12 kênh). Sau đó mở rộng sang freelancer/agency nhỏ.
 - **Thứ tự xây dựng:** Facebook + Instagram (cùng một hệ Meta API) → TikTok + YouTube.
 - **Đường găng không nằm ở code mà ở hồ sơ duyệt API** (Meta App Review + Business Verification, TikTok audit, Google OAuth verification + YouTube audit). Hồ sơ phải chạy song song từ tuần đầu.
@@ -44,7 +45,7 @@ Thay thế: mục 6, 7 và 9 của bản "DSM V1 — Tổng kết tiến độ &
 | GMV 4 sàn TMĐT 2025 | khoảng 16,3 tỷ USD (+34,8%) | Metric.vn qua e27 |
 | Thị phần GMV 2025 | Shopee khoảng 56%, TikTok Shop khoảng 41,3% | TikTok Shop vượt Shopee về doanh số dịp Tết 2026 (khoảng 52%) |
 
-**Đọc số liệu:** người dùng Việt dùng cùng lúc nhiều nền tảng, và video ngắn dọc (Reels, TikTok, Shorts) là định dạng chung của cả bốn nền tảng DSM ưu tiên. Đây là nền tảng cho tính năng cốt lõi "một video → bốn nền tảng". Instagram nhỏ ở Việt Nam nhưng dùng chung hạ tầng Meta với Facebook, nên chi phí thêm Instagram sau Facebook rất thấp. Vì vậy thứ tự FB → IG hợp lý về kỹ thuật dù IG không phải nền tảng lớn nhất.
+**Đọc số liệu:** người dùng Việt dùng cùng lúc nhiều nền tảng, và video ngắn dọc (Reels, TikTok, Shorts) là định dạng chung của cả bốn nền tảng DSM ưu tiên. Ảnh và album ảnh vẫn là định dạng hằng ngày của Facebook, Instagram và TikTok (Photo Mode), nhất là với shop và nội dung sản phẩm. Đây là nền tảng cho tính năng cốt lõi "một nội dung → bốn nền tảng". Instagram nhỏ ở Việt Nam nhưng dùng chung hạ tầng Meta với Facebook, nên chi phí thêm Instagram sau Facebook rất thấp. Vì vậy thứ tự FB → IG hợp lý về kỹ thuật dù IG không phải nền tảng lớn nhất.
 
 ### 2.2. Xu hướng ảnh hưởng tới sản phẩm
 
@@ -94,10 +95,29 @@ Thay thế: mục 6, 7 và 9 của bản "DSM V1 — Tổng kết tiến độ &
 | TikTok | Content Posting API: Direct Post hoặc Upload | App chưa audit: mọi bài bị giới hạn ở chế độ riêng tư. Audit khoảng 2–6 tuần theo nguồn thứ cấp | Phải gọi `creator_info` và hiển thị lựa chọn quyền riêng tư theo hướng dẫn UX; cấm chèn logo/watermark/branding vào nội dung | Nộp audit ngay khi có bản chạy được; brand kit không áp cho TikTok |
 | YouTube | Data API v3 `videos.insert` (resumable); Shorts là video dọc | Project chưa audit (tạo sau 28/07/2020): video upload bị khóa private. Scope `youtube.upload` cần Google OAuth verification | Trang `videos.insert` hiện ghi 100 lượt upload/ngày/project (bucket riêng); tài liệu cũ ghi 1.600/10.000 đơn vị, cần xác minh trong Cloud Console | Quota manager theo project; dùng `publishAt` để YouTube tự đăng đúng giờ |
 
+### 3.1. Ma trận định dạng: ảnh và video
+
+| Nội dung gốc | Facebook Page | Instagram | TikTok | YouTube |
+|---|---|---|---|---|
+| Video dọc ngắn | Reels | Reels | Video | Shorts |
+| Video ngang/dài | Video | Reels (API đăng mọi video dưới dạng Reels) | Video, trong giới hạn thời lượng `creator_info` trả về | Video dài |
+| Ảnh đơn | Bài ảnh | Bài ảnh (chỉ JPEG) | Bài ảnh (Photo Mode) | Không có API đăng ảnh |
+| Album nhiều ảnh | Bài nhiều ảnh | Carousel, tối đa 10 mục qua API | Carousel ảnh, tối đa 35 ảnh | Không có API đăng ảnh |
+| Story | Cần xác minh API (P2) | Story ảnh/video | — | — |
+| Chỉ văn bản/link | Bài chữ, bài link | Không hỗ trợ | Không hỗ trợ | Không hỗ trợ |
+
+**Ràng buộc riêng khi đăng ảnh:**
+
+- **Instagram:** API chỉ nhận JPEG. Carousel qua API tối đa 10 mục (ứng dụng cho 20 nhưng API vẫn là 10) và mọi ảnh trong carousel bị cắt theo tỉ lệ ảnh đầu tiên (mặc định 1:1). → Pre-flight kiểm tra định dạng và số lượng; trình cắt ảnh khóa tỉ lệ theo ảnh đầu.
+- **TikTok:** bài ảnh chỉ nhận nguồn `PULL_FROM_URL`, tối đa 35 ảnh, URL phải công khai và thuộc domain/tiền tố URL đã xác minh với TikTok (nếu không sẽ lỗi `url_ownership_unverified`); giới hạn 6 request/phút cho mỗi access token người dùng. → DSM cần một domain media công khai và xác minh nó với TikTok; video vẫn dùng FILE_UPLOAD.
+- **Facebook nhiều ảnh:** upload từng ảnh với `published=false`, rồi gắn vào bài qua `attached_media`. Ảnh chưa đăng bị xóa sau khoảng 24 giờ. → Worker upload ảnh ngay lúc đăng, không upload trước khi lên lịch. Số ảnh tối đa mỗi bài cần xác minh (một nguồn thứ cấp ghi 4).
+- **YouTube:** Data API không có endpoint đăng bài cộng đồng (Posts), nên ảnh chỉ dùng làm thumbnail. → Composer ghi rõ "YouTube bỏ qua bài ảnh" thay vì báo lỗi; đề xuất P2 "ảnh → video slideshow" để vẫn đưa album lên Shorts.
+- **Xử lý ảnh chung:** chuyển PNG/WebP/HEIC sang JPEG khi cần, xóa EXIF (nhất là tọa độ GPS), nén theo giới hạn dung lượng, cắt theo tỉ lệ khuyến nghị từng nền tảng (IG 4:5 hoặc 1:1, TikTok 9:16).
+
 Ngoài ra:
 
 - **Comment → inbox (private reply) trên FB/IG:** mỗi bình luận chỉ gửi được 1 tin nhắn riêng, trong vòng 7 ngày; tin tiếp theo cần người dùng trả lời trước (cửa sổ 24 giờ).
-- **Hồ sơ chung cần chuẩn bị:** pháp nhân (để Business Verification), domain, trang chính sách quyền riêng tư, điều khoản, hướng dẫn/endpoint xóa dữ liệu, video screencast cho từng quyền xin duyệt.
+- **Hồ sơ chung cần chuẩn bị:** pháp nhân (để Business Verification), domain, domain media công khai để xác minh với TikTok, trang chính sách quyền riêng tư, điều khoản, hướng dẫn/endpoint xóa dữ liệu, video screencast cho từng quyền xin duyệt.
 
 ---
 
@@ -135,9 +155,13 @@ Mức ưu tiên: **P0** = bắt buộc cho MVP, **P1** = nên có trước khi b
 | Tính năng | Ưu tiên | GĐ |
 |---|---|---|
 | Thư viện media + kiểm tra kỹ thuật tự động (tỉ lệ, thời lượng, dung lượng, codec) và transcode | P0 | 1 |
-| Composer **"một video → bốn nền tảng"** với preset từng nền tảng và preview | P0 | 1–2 |
-| Pre-flight check: IG ≤ 5 hashtag, YouTube tiêu đề ≤ 100 ký tự, TikTok không watermark, định dạng theo nền tảng | P0 | 1–2 |
+| Composer **"một nội dung → bốn nền tảng"** cho video, ảnh đơn và album, có preset từng nền tảng và preview | P0 | 1–2 |
+| Đăng ảnh đơn và album: FB bài nhiều ảnh, IG carousel, TikTok carousel ảnh | P0 | 1–2 |
+| Xử lý ảnh tự động: chuyển JPEG, xóa EXIF/GPS, nén theo giới hạn | P0 | 1 |
+| Trình sắp xếp album và cắt ảnh theo tỉ lệ từng nền tảng (IG khóa theo ảnh đầu), chọn ảnh bìa | P0 | 1 |
+| Pre-flight check: IG ≤ 5 hashtag, chỉ JPEG, carousel ≤ 10; TikTok ảnh ≤ 35 và URL đã xác minh, không watermark; YouTube tiêu đề ≤ 100 ký tự, bỏ qua bài ảnh | P0 | 1–2 |
 | Bình luận đầu tiên tự động (FB/IG), ảnh bìa, playlist YouTube | P1 | 2 |
+| Ảnh/album → video slideshow để đăng YouTube Shorts | P2 | 4 |
 | Brand kit (logo, màu, intro/outro) — không áp cho TikTok | P2 | 5 |
 
 ### M3 — Lịch & xuất bản
@@ -203,13 +227,14 @@ AI chỉ tạo bản nháp. Không tự động đăng nội dung AI khi chưa c
 
 ### Tính năng đặc trưng nên dùng để marketing
 
-1. **Một video → bốn nền tảng trong vài phút**, có pre-flight để không bị nền tảng từ chối.
-2. **Điểm sức khỏe kênh** và **giờ vàng của riêng bạn**.
-3. **Thanh tiến độ mốc kiếm tiền** YouTube/TikTok/Facebook.
-4. **Lịch lễ & sale Việt Nam** trên lịch nội dung.
-5. **Cảnh báo qua Zalo** khi bài lỗi hoặc token sắp hết hạn.
-6. **Comment → inbox** cho người bán.
-7. **An toàn tài khoản:** chỉ API chính thức.
+1. **Một nội dung → bốn nền tảng trong vài phút** (video, ảnh, album), có pre-flight để không bị nền tảng từ chối.
+2. **Album ảnh cắt một lần, ra đúng tỉ lệ cho từng nền tảng.**
+3. **Điểm sức khỏe kênh** và **giờ vàng của riêng bạn**.
+4. **Thanh tiến độ mốc kiếm tiền** YouTube/TikTok/Facebook.
+5. **Lịch lễ & sale Việt Nam** trên lịch nội dung.
+6. **Cảnh báo qua Zalo** khi bài lỗi hoặc token sắp hết hạn.
+7. **Comment → inbox** cho người bán.
+8. **An toàn tài khoản:** chỉ API chính thức.
 
 ---
 
@@ -255,7 +280,7 @@ flowchart LR
    }
    ```
 
-4. **Media:** object storage S3-compatible và worker ffmpeg/ffprobe để kiểm tra, transcode, tạo ảnh bìa. TikTok dùng FILE_UPLOAD để không phụ thuộc xác minh domain của PULL_FROM_URL.
+4. **Media:** object storage S3-compatible; worker video dùng ffmpeg/ffprobe để kiểm tra, transcode, tạo ảnh bìa; worker ảnh dùng thư viện xử lý ảnh (ví dụ sharp/libvips) để chuyển JPEG, xóa EXIF, nén, cắt theo nền tảng. Video TikTok dùng FILE_UPLOAD. Ảnh TikTok bắt buộc PULL_FROM_URL, nên DSM phục vụ ảnh đã xử lý qua một domain media công khai đã xác minh với TikTok (cần thử nghiệm URL có chữ ký/thời hạn dưới tiền tố đã xác minh).
 5. **Webhook:** xác thực chữ ký (Meta `X-Hub-Signature-256`), xử lý qua hàng đợi, idempotent.
 6. **Token:** giữ mã hóa AES-GCM hiện có; thêm xoay khóa, lịch làm mới, trạng thái sức khỏe.
 7. **Vận hành:** log có cấu trúc, bảng theo dõi hàng đợi, theo dõi lỗi, kiểm tra uptime, backup PostgreSQL hằng ngày lên object storage.
@@ -267,7 +292,7 @@ flowchart LR
 
 | Có sẵn | Dùng lại thế nào |
 |---|---|
-| Content: nội dung gốc → biến thể | Đổi bộ biến thể thành FB/IG/TikTok/YouTube, thêm trường riêng cho YouTube (tiêu đề, tag, danh mục, playlist) |
+| Content: nội dung gốc → biến thể | Đổi bộ biến thể thành FB/IG/TikTok/YouTube, thêm trường riêng cho YouTube (tiêu đề, tag, danh mục, playlist). Mô hình hiện chỉ cho 1 media mỗi nội dung (`masterAssetId`) và 1 media mỗi biến thể (`assetId`), nên phải thêm quan hệ nhiều media có thứ tự để đăng album |
 | Publishing: batch/job, validate, retry/cancel/reschedule | Chuyển lên BullMQ + PostgreSQL, thêm trạng thái PROCESSING và quota |
 | Accounts: credential mã hóa, HYBRID/API | Giữ mã hóa; bỏ HYBRID/BROWSER khỏi giao diện |
 | Publisher Facebook/Instagram/TikTok | Viết lại theo hợp đồng adapter, thêm Reels/Story/carousel |
@@ -277,7 +302,7 @@ flowchart LR
 
 ### Dữ liệu cần thêm
 
-`ChannelGoal`, `ContentPillar`, `ChannelSnapshot` (chỉ số hằng ngày), `MonetizationProgram` (ngưỡng cấu hình), `SocialComment`, `ReplyTemplate`, `AutomationRule`, `ApprovalRequest`, `NotificationChannel`, `QuotaUsage`, `Plan`/`Subscription`.
+`ContentMedia` (media của nội dung gốc, có thứ tự), `VariantMedia` (media dùng cho từng biến thể, vùng cắt, ảnh bìa), loại nội dung `ALBUM` bên cạnh `TEXT`/`IMAGE`/`VIDEO`, `ChannelGoal`, `ContentPillar`, `ChannelSnapshot` (chỉ số hằng ngày), `MonetizationProgram` (ngưỡng cấu hình), `SocialComment`, `ReplyTemplate`, `AutomationRule`, `ApprovalRequest`, `NotificationChannel`, `QuotaUsage`, `Plan`/`Subscription`.
 
 ---
 
@@ -300,6 +325,7 @@ gantt
   section Hồ sơ & quyền API
   Pháp nhân · domain · chính sách :c0, 2026-10-19, 21d
   Meta Business Verification      :c1, after c0, 21d
+  Xác minh domain media TikTok    :c5, after c0, 14d
   Meta App Review                 :c2, after g1, 30d
   TikTok audit                    :c3, after g2, 42d
   Google OAuth + YouTube audit    :c4, after g2, 42d
@@ -325,17 +351,17 @@ gantt
 ### GĐ1 — Facebook + Instagram (4 tuần)
 
 - **Mục tiêu:** đăng và lên lịch đáng tin cậy trên Meta, dùng hằng ngày cho kênh của chính bạn.
-- **Phạm vi:** OAuth Meta (Facebook Login for Business / Instagram Login); chọn Page/IG; token dài hạn và làm mới. Facebook: bài chữ, link, ảnh, nhiều ảnh, video, Reels. Instagram: ảnh, carousel, Reels, Story. Media pipeline. Composer có preview và pre-flight. Lịch kéo thả. Trạng thái job, retry, hủy, đổi lịch. Cảnh báo Telegram/Email.
-- **Điều kiện đóng:** ít nhất 50 bài thật đăng qua DSM; tỉ lệ job thành công từ 98%; có screencast cho từng quyền để nộp Meta App Review.
+- **Phạm vi:** OAuth Meta (Facebook Login for Business / Instagram Login); chọn Page/IG; token dài hạn và làm mới. Facebook: bài chữ, link, ảnh đơn, nhiều ảnh, video, Reels. Instagram: ảnh, carousel (tối đa 10), Reels, Story. Mô hình nhiều media có thứ tự. Media pipeline cho video và ảnh, trình sắp xếp album và cắt ảnh. Composer có preview và pre-flight. Lịch kéo thả. Trạng thái job, retry, hủy, đổi lịch. Cảnh báo Telegram/Email.
+- **Điều kiện đóng:** ít nhất 50 bài thật đăng qua DSM, có đủ ảnh đơn, album và video; tỉ lệ job thành công từ 98%; có screencast cho từng quyền để nộp Meta App Review.
 
 ### GĐ2 — TikTok + YouTube (4 tuần)
 
-- **Mục tiêu:** hoàn thiện "một video → bốn nền tảng".
+- **Mục tiêu:** hoàn thiện "một nội dung → bốn nền tảng".
 - **Phạm vi:**
-  - TikTok: Login Kit, Content Posting API, `creator_info`, giao diện chọn quyền riêng tư theo hướng dẫn UX, upload theo chunk, theo dõi trạng thái. Hiển thị rõ "chỉ đăng riêng tư" khi app chưa audit.
-  - YouTube: Google OAuth, resumable upload, tiêu đề/mô tả/tag/danh mục/quyền riêng tư/`publishAt`, nhận diện Shorts, ảnh bìa, playlist, quota manager.
+  - TikTok: Login Kit, Content Posting API, `creator_info`, giao diện chọn quyền riêng tư theo hướng dẫn UX. Video upload theo chunk (FILE_UPLOAD); ảnh và carousel ảnh (tối đa 35) qua PULL_FROM_URL từ domain media đã xác minh. Theo dõi trạng thái. Hiển thị rõ "chỉ đăng riêng tư" khi app chưa audit.
+  - YouTube: Google OAuth, resumable upload, tiêu đề/mô tả/tag/danh mục/quyền riêng tư/`publishAt`, nhận diện Shorts, ảnh bìa, playlist, quota manager. Bài ảnh được bỏ qua kèm lý do trên composer.
   - Nộp TikTok audit, Google OAuth verification và YouTube API audit.
-- **Điều kiện đóng:** một video gốc đăng được lên cả 4 nền tảng từ một composer, trạng thái từng đích chính xác; ba hồ sơ đã nộp.
+- **Điều kiện đóng:** một video gốc đăng được lên cả 4 nền tảng và một album ảnh đăng được lên FB/IG/TikTok từ cùng một composer, trạng thái từng đích chính xác; ba hồ sơ đã nộp.
 
 ### GĐ3 — Xây kênh & Analytics (4 tuần)
 
@@ -346,7 +372,7 @@ gantt
 ### GĐ4 — Tương tác & AI (4 tuần)
 
 - **Mục tiêu:** giữ người dùng mở DSM mỗi ngày.
-- **Phạm vi:** hộp thư bình luận hợp nhất; trả lời, ẩn, mẫu câu; auto-reply theo từ khóa; comment → inbox (FB/IG); cảnh báo Zalo. AI: caption/hook/hashtag tiếng Việt theo nền tảng; kế hoạch 30 ngày; tiêu đề/mô tả YouTube; phụ đề tiếng Việt.
+- **Phạm vi:** hộp thư bình luận hợp nhất; trả lời, ẩn, mẫu câu; auto-reply theo từ khóa; comment → inbox (FB/IG); cảnh báo Zalo. AI: caption/hook/hashtag tiếng Việt theo nền tảng; kế hoạch 30 ngày; tiêu đề/mô tả YouTube; phụ đề tiếng Việt. Ảnh/album → video slideshow cho YouTube Shorts (P2).
 - **Điều kiện đóng:** trả lời từ DSM hiển thị đúng trên nền tảng; nội dung AI luôn qua bước người duyệt.
 
 ### GĐ5 — Thương mại hóa (4 tuần)
@@ -376,13 +402,13 @@ flowchart TD
     B2 --> B3["AI đề xuất kế hoạch 30 ngày<br/>thành bản nháp trên lịch"]
   end
   subgraph S3["3 · Sản xuất nội dung"]
-    C1["Tạo nội dung gốc<br/>video dọc · ảnh · văn bản"] --> C2["Media pipeline<br/>kiểm tra tỉ lệ · thời lượng · codec · transcode"]
-    C2 --> C3["Sinh 4 biến thể<br/>FB · IG · TikTok · YouTube"]
+    C1["Tạo nội dung gốc<br/>video · ảnh đơn · album ảnh · văn bản"] --> C2["Media pipeline<br/>video: tỉ lệ · thời lượng · codec · transcode<br/>ảnh: JPEG · xóa EXIF · nén · cắt theo nền tảng"]
+    C2 --> C3["Sinh biến thể theo định dạng<br/>mỗi nền tảng hỗ trợ"]
     C3 --> C4["AI gợi ý caption · hook · hashtag tiếng Việt"]
     C4 --> C5{"Cần duyệt?"}
     C5 -- "Có" --> C6["Gửi duyệt<br/>chỉnh sửa hoặc phê duyệt"]
     C5 -- "Không" --> C7
-    C6 --> C7["Pre-flight theo nền tảng<br/>IG tối đa 5 hashtag · TikTok không watermark · YouTube tiêu đề tối đa 100 ký tự"]
+    C6 --> C7["Pre-flight theo nền tảng<br/>IG: 5 hashtag, JPEG, carousel 10 · TikTok: ảnh 35, không watermark · YouTube: tiêu đề 100 ký tự"]
   end
   subgraph S4["4 · Xuất bản"]
     D1["Đăng ngay hoặc lên lịch<br/>gợi ý giờ vàng"] --> D2["Hàng đợi & scheduler"]
@@ -412,7 +438,52 @@ flowchart TD
   F4 -. "Bài học: pillar, giờ đăng, hook hiệu quả" .-> B2
 ```
 
-### 8.2. Một video đăng lên bốn nền tảng
+### 8.2. Định tuyến định dạng: ảnh và video
+
+```mermaid
+flowchart LR
+  M["Nội dung gốc"] --> T{"Định dạng"}
+  T -- "Video" --> V["FB: Reels / video<br/>IG: Reels<br/>TikTok: video<br/>YouTube: Shorts / video dài"]
+  T -- "Ảnh đơn" --> P["FB: bài ảnh<br/>IG: bài ảnh JPEG<br/>TikTok: bài ảnh"]
+  T -- "Album ảnh" --> A["FB: bài nhiều ảnh<br/>IG: carousel tối đa 10<br/>TikTok: carousel tối đa 35"]
+  T -- "Văn bản / link" --> X["Chỉ Facebook"]
+  P --> Y{"Đăng cả YouTube?"}
+  A --> Y
+  Y -- "Có, P2" --> S["Tạo video slideshow<br/>đăng YouTube Shorts"]
+  Y -- "Không" --> K["Bỏ qua YouTube<br/>ghi rõ lý do trên composer"]
+```
+
+### 8.3. Một album ảnh đăng lên ba nền tảng
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant W as Worker
+  participant S as Domain media đã xác minh
+  participant FB as Facebook
+  participant IG as Instagram
+  participant TT as TikTok
+  W->>W: Chuẩn hóa ảnh: JPEG, xóa EXIF, cắt theo tỉ lệ từng nền tảng
+  par Facebook
+    loop Mỗi ảnh
+      W->>FB: Upload ảnh với published=false
+      FB-->>W: photo_id
+    end
+    W->>FB: Tạo bài feed kèm attached_media
+  and Instagram
+    loop Mỗi ảnh, tối đa 10
+      W->>IG: Tạo container ảnh is_carousel_item
+    end
+    W->>IG: Tạo container CAROUSEL
+    W->>IG: media_publish
+  and TikTok
+    W->>S: Đặt ảnh dưới tiền tố URL đã xác minh
+    W->>TT: Khởi tạo bài PHOTO với PULL_FROM_URL, tối đa 35 ảnh
+    W->>TT: Kiểm tra trạng thái đăng
+  end
+```
+
+### 8.4. Một video đăng lên bốn nền tảng
 
 ```mermaid
 sequenceDiagram
@@ -451,7 +522,7 @@ sequenceDiagram
   D-->>U: Thông báo kết quả kèm link bài
 ```
 
-### 8.3. Vòng đời một job đăng bài
+### 8.5. Vòng đời một job đăng bài
 
 ```mermaid
 stateDiagram-v2
@@ -483,7 +554,7 @@ stateDiagram-v2
 |---|---|---|
 | North Star | Số kênh đạt tần suất đăng mục tiêu mỗi tuần | Tăng đều theo tuần |
 | Độ tin cậy | Tỉ lệ job đăng thành công (không tính lỗi do người dùng) | Từ 98% |
-| Tốc độ | Thời gian thao tác để đăng 1 video lên 4 nền tảng | Dưới 3 phút |
+| Tốc độ | Thời gian thao tác để đăng 1 nội dung (video hoặc album) lên mọi nền tảng hỗ trợ | Dưới 3 phút |
 | Kích hoạt | Người dùng mới kết nối từ 2 nền tảng và đăng bài đầu tiên trong 24 giờ | Từ 50% |
 | Giữ chân | Người dùng còn đăng bài ở tuần thứ 4 | Từ 40% |
 | Kinh doanh | Tỉ lệ beta chuyển sang trả phí | Đặt sau phỏng vấn khách hàng |
@@ -500,6 +571,7 @@ stateDiagram-v2
 | Khóa tài khoản do tự động hóa | Trung bình | Chỉ API chính thức; tôn trọng quota; đóng băng Browser Gateway |
 | Pháp lý dữ liệu (Luật BVDLCN 2026, Nghị định 147) | Trung bình | Chính sách quyền riêng tư, tối thiểu hóa dữ liệu, mã hóa token, xóa dữ liệu theo yêu cầu; tham vấn luật sư trước khi thu phí |
 | Quota (YouTube 100 upload/ngày/project, IG 100 bài/ngày/tài khoản) | Trung bình | Quota manager, hiển thị quota cho người dùng, xin tăng quota qua audit khi có tải |
+| Bài ảnh TikTok phụ thuộc domain media đã xác minh | Trung bình | Chọn domain media sớm, xác minh ngay khi có TikTok app; thử nghiệm URL có thời hạn trước GĐ2 |
 | Năng lực 1 dev | Cao | Giữ phạm vi từng giai đoạn; không mở giai đoạn mới khi giai đoạn trước chưa đạt điều kiện đóng |
 
 ---
@@ -516,6 +588,7 @@ stateDiagram-v2
 - [ ] Chốt pháp nhân dùng cho Business Verification.
 - [ ] Mua domain; viết chính sách quyền riêng tư, điều khoản, hướng dẫn xóa dữ liệu (tiếng Việt và tiếng Anh).
 - [ ] Tạo Meta app, TikTok developer app, Google Cloud project.
+- [ ] Chọn subdomain media công khai (ví dụ `media.<domain>`) để xác minh với TikTok.
 
 **Thị trường**
 - [ ] Phỏng vấn 15–20 người (creator, agency nhỏ, shop): đang đăng chéo thế nào, mất bao lâu, dùng công cụ gì, sẵn sàng trả bao nhiêu.
@@ -530,6 +603,29 @@ stateDiagram-v2
 3. Đồng ý đóng băng Threads và Browser Gateway/GPMLogin?
 4. Đổi tên sản phẩm? "Dropship Social Manager" không còn khớp định vị mới.
 5. Ngân sách tháng cho hạ tầng và AI trong giai đoạn beta.
+
+---
+
+## 13. Tách thành sub-project
+
+Lộ trình trên gồm nhiều hệ thống độc lập, nên không viết một implementation plan duy nhất. Mỗi sub-project đi qua chu trình riêng: brainstorming → spec → duyệt → implementation plan → TDD → verification → PR.
+
+| Mã | Sub-project | Giai đoạn | Phụ thuộc |
+|---|---|---|---|
+| SP1 | Khôi phục CI và cổng nghiệm thu | GĐ0 | — |
+| SP2 | Runtime bền vững: repository, PostgreSQL, BullMQ, worker tách riêng | GĐ0 | SP1 |
+| SP3 | Mô hình nội dung nhiều media và media pipeline (ảnh + video) | GĐ1 | SP2 |
+| SP4 | Adapter Meta: Facebook + Instagram | GĐ1 | SP2, SP3 |
+| SP5 | Composer và lịch đa nền tảng | GĐ1 | SP3, SP4 |
+| SP6 | Adapter TikTok (video + ảnh) | GĐ2 | SP3 |
+| SP7 | Adapter YouTube | GĐ2 | SP3 |
+| SP8 | Insights và Channel Growth Studio | GĐ3 | SP4, SP6, SP7 |
+| SP9 | Hộp thư tương tác | GĐ4 | SP4 |
+| SP10 | Trợ lý AI tiếng Việt | GĐ4 | SP5 |
+| SP11 | Đội nhóm, gói cước, thanh toán | GĐ5 | SP2 |
+| — | Hồ sơ và quyền API (không phải code) | Song song | — |
+
+Thứ tự đề xuất: SP1 → SP2 → SP3 → SP4 → SP5, sau đó SP6 và SP7 có thể làm song song.
 
 ---
 
@@ -557,3 +653,8 @@ stateDiagram-v2
 - [Tuoi Tre News — Vietnam social media rules from 2026](https://news.tuoitre.vn/vietnam-bans-social-media-from-id-photo-requests-eavesdropping-from-2026-103251229145805203.htm)
 - [Telecom Review Asia — Vietnam social media verification rules](https://telecomreviewasia.com/news/industry-news/4753-vietnam-implements-new-social-media-verification-rules/)
 - [Chatdaddy — Comment reply limitations on Instagram and Messenger](https://help.chatdaddy.tech/article/understanding-comment-reply-limitations-on-instagram-and-messenger-chatdaddy)
+- [TikTok for Developers — Photo Post API reference](https://developers.tiktok.com/doc/content-posting-api-reference-photo-post)
+- [Meta — Page Photos reference](https://developers.facebook.com/docs/graph-api/reference/page/photos)
+- [Sprout Social — Instagram mixed media posts](https://support.sproutsocial.com/hc/en-us/articles/42017616974349-Instagram-Mixed-Media-Posts)
+- [Bundle.social — Facebook posting API](https://bundle.social/blog/facebook-posting-api)
+- [PostEverywhere — YouTube community posts](https://posteverywhere.ai/social-media-terms/youtube-community-posts)
