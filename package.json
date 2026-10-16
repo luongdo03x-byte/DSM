@@ -13,7 +13,7 @@
     "build": "pnpm --filter web build",
     "test:e2e": "pnpm --filter web test:e2e",
     "lint": "node scripts/lint.mjs",
-    "verify": "npm run lint && npm run typecheck && npm test && npm run build && node scripts/verify-v1.mjs",
+    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e && node scripts/verify-v1.mjs",
     "dev": "corepack pnpm --parallel --filter api --filter web dev",
     "dev:gateway": "corepack pnpm --filter browser-gateway dev",
     "dev:worker": "corepack pnpm --filter worker dev",

@@ -1,20 +1,65 @@
 # V1 Acceptance Evidence
 
+This file records the acceptance evidence for DSM V1. `node scripts/verify-v1.mjs` (the last step of `pnpm verify` and of the `CI / verify` job) parses it and fails the gate when one of the rules below is broken.
+
+Evidence rules:
+
+- Every `## ` section has exactly one status line, written at the start of a line as `Status: <STATUS>` or `Status: <STATUS> — <explanation>`.
+- Valid statuses: `PASS`, `LOCAL`, `CI`, `NOT_VERIFIED`, `BLOCKED_EXTERNAL`, `BLOCKED_LOCAL_ENV`.
+- `PASS` requires, in the same section, the line `Evidence: https://github.com/<owner>/<repo>/actions/runs/<run id> @ <40-character commit SHA>` pointing at a successful `CI / verify` run.
+- `LOCAL` requires, in the same section, the line `Evidence: local pnpm verify @ <40-character commit SHA> (<YYYY-MM-DD>, <machine>, node v24.x.y)`. Record it only after `pnpm install --frozen-lockfile && pnpm verify` passed on a clean clone and `verify-v1` printed `(clean)`. `LOCAL` is not CI evidence.
+- `CI` marks a gate that `CI / verify` enforces automatically on the head of every pull request and on every push to `main` (intermediate commits are not checked one by one). Never record `PASS` by hand for these gates.
+- `NOT_VERIFIED` means that no evidence exists yet. `BLOCKED_EXTERNAL` and `BLOCKED_LOCAL_ENV` mean that the check needs external accounts or an environment that is not available.
+- This introduction must not contain status or evidence lines.
+
+History:
+
+- 2026-10-13: the PASS claims dated 2026-10-01 ("103/103 tests", "covered by automated tests") are withdrawn. They were produced in a sandbox, not in CI, carried no commit SHA, and the tests they refer to cannot be recovered from the git history. The gate was rebuilt in sub-project SP1 (`docs/superpowers/specs/2026-10-13-dsm-sp1-ci-verification-gate-design.md`).
+
 ## Automated implementation gate
 
-Status: PASS — 2026-10-01; lint, strict typecheck, 103/103 tests, and build succeeded in the sandbox.
+Status: CI — enforced by `CI / verify` (`.github/workflows/ci.yml`) on every pull request head and every push to `main`.
 
-Evidence command: `npm run lint && npm run typecheck && npm test && npm run test:integration && npm run build`.
+Steps of the `verify` job, in order (the first failure stops the job):
+
+1. `pnpm install --frozen-lockfile` with Node from `.node-version` and pnpm from `packageManager`; `engineStrict` rejects Node outside `>=24.7 <25`.
+2. `pnpm lint` (`scripts/lint.mjs`): no `TODO`/`FIXME`/`HACK` in `.ts`, `.tsx` and `.mjs` files under `apps`, `packages`, `scripts` and `tests`; no skip, only, todo, fail, fixme or expectFailure markers under `tests/` and `apps/web/tests/`.
+3. `pnpm typecheck`: three strict TypeScript programs (`tsconfig.json`, `apps/web/tsconfig.json`, `tests/web/tsconfig.json`).
+4. `pnpm test` (`scripts/run-tests.mjs`): every `tests/**/*.test.ts`, JUnit report in `test-results/node-tests.xml`.
+5. `pnpm build`: `next build` of `apps/web`.
+6. `pnpm --filter web exec playwright install --with-deps chromium`.
+7. `pnpm test:e2e`: Playwright against the real API and `next start` on 127.0.0.1, JSON report in `test-results/e2e.json`.
+8. `node scripts/verify-v1.mjs`: checks both reports and this file.
+9. Clean tree: `git status --porcelain` must print nothing.
 
 ## Critical journey
 
-Status: PASS — deterministic acceptance harness completed login → product → signed media → content/4 variants → publish → tracked redirect → metrics → analytics.
+Status: CI — the three required tests below run in every `CI / verify` run; `verify-v1` fails when one of them is missing, skipped or marked as expected to fail.
 
-The local deterministic acceptance harness covers login → product → signed media → content + 4 variants → validate/schedule → publish worker → tracked redirect → metrics → analytics.
+| Layer | File | Test name |
+|---|---|---|
+| Acceptance harness | `tests/acceptance/v1-acceptance-harness.test.ts` | `v1 acceptance harness` |
+| HTTP API smoke | `tests/integration/http-api-smoke.test.ts` | `http api smoke journey` |
+| UI end-to-end | `apps/web/tests/v1-critical-journey.spec.ts` | `v1 critical UI journey` |
+
+Scope limits:
+
+- The harness and the HTTP smoke publish through `FakePublisher` (`apps/worker/src/testing/fake-publisher.ts`); no real platform API is called.
+- The UI E2E covers login, navigation (Tổng quan, Sản phẩm, Nội dung, Lịch đăng, Phân tích), reload with session refresh, and logout on a production build. It does not publish through the UI.
+- The real Meta and TikTok publisher wiring is not covered by any automated test (see the live publish sections below).
+
+## CI baseline (SP1)
+
+Status: NOT_VERIFIED — no `pnpm verify` evidence has been recorded for the SP1 gate yet.
+
+How this section changes:
+
+- `LOCAL`: after `pnpm install --frozen-lockfile && pnpm verify` passed on a clean clone of the latest code commit; the evidence line points at that commit and is committed afterwards, because a commit cannot contain its own SHA.
+- `PASS`: after a successful `CI / verify` run on `main`, with the run URL and the SHA it checked; the annotated tag `gd0-sp1-ci-green` points at the same SHA.
 
 ## Local-first persistence
 
-Status: PASS — local business state can be restored from `DEV_STORE_FILE` via atomic JSON snapshots; social credentials remain encrypted ciphertext. S3-compatible signed media upload, embedded publish worker, hourly metrics snapshots, and restart-safe account seeding are covered by automated tests.
+Status: NOT_VERIFIED — no automated test restores business state from `DEV_STORE_FILE` snapshots; sub-project SP2 replaces this runtime.
 
 ## Facebook live publish
 
