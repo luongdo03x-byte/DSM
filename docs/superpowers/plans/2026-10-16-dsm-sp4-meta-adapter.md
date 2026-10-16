@@ -76,7 +76,7 @@
 ### Task 2: Kết nối Meta (OAuth, chọn Page/IG, lưu token)
 
 **Files:**
-- Create: `apps/api/src/integrations/meta/meta-graph-client.ts`, `apps/api/src/integrations/meta/meta-oauth.connector.ts`
+- Modify: `apps/api/src/integrations/meta/meta-http.client.ts` (đổi thành `MetaGraphClient` với interface dưới đây; giữ export cũ làm alias tới khi không còn chỗ dùng), `apps/api/src/integrations/meta/meta-oauth.service.ts` (hiện thực `OAuthConnector`, export `MetaOAuthConnector`), `apps/api/src/integrations/meta/meta.config.ts` (thêm `redirectUri`, `stateSecret`)
 - Create: `apps/api/src/modules/integrations/integrations.service.ts`
 - Modify: `apps/api/src/runtime/local-api.ts`, `.env.example` (`META_APP_ID`, `META_APP_SECRET`, `META_REDIRECT_URI`, `OAUTH_STATE_SECRET`)
 - Create: `tests/support/meta-graph-stub.ts`
@@ -99,7 +99,7 @@
   - `exchangeCode đổi sang token dài hạn` (stub `/oauth/access_token` hai lần: code→short, `fb_exchange_token`→long).
   - `listAccounts trả Page và IG gắn Page` (`/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}`).
   - `callback chỉ tạo tài khoản cho Page đã chọn` (stub có 2 Page + 1 IG; confirm 1 Page → 1 `SocialAccount` FACEBOOK `CONNECTED`, credential mã hóa, không có tài khoản thứ hai).
-- [ ] **Step 2: Chạy** → FAIL. **Step 3: Hiện thực.** Tài khoản mới có `publishMode: 'API'`. Kết quả callback lưu tạm 15 phút trong bảng `OAuthPending` (thêm vào `Repositories` và schema, migration `0004_oauth_pending`). **Step 4: Chạy** → PASS.
+- [ ] **Step 2: Chạy** → FAIL. **Step 3: Hiện thực** (đọc trước `meta-http.client.ts`, `meta-oauth.service.ts` hiện có và giữ hành vi đúng của chúng). Tài khoản mới có `publishMode: 'API'`. Kết quả callback lưu tạm 15 phút trong bảng `OAuthPending` (thêm vào `Repositories` và schema, migration `0004_oauth_pending`). **Step 4: Chạy** → PASS.
 - [ ] **Step 5: Commit** `feat(api): connect Facebook Pages and Instagram accounts through Meta OAuth`.
 
 ### Task 3: `FacebookAdapter`
