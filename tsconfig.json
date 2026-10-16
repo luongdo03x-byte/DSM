@@ -3,27 +3,22 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "moduleDetection": "force",
     "strict": true,
     "exactOptionalPropertyTypes": true,
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": true,
-    "lib": [
-      "ES2022",
-      "DOM",
-      "DOM.Iterable"
-    ],
+    "lib": ["ES2024"],
+    "types": ["node"],
     "allowImportingTsExtensions": true,
-    "noEmit": true,
-    "jsx": "preserve"
+    "noEmit": true
   },
   "include": [
-    "apps/**/*.ts",
+    "apps/api/**/*.ts",
+    "apps/worker/**/*.ts",
+    "apps/browser-gateway/**/*.ts",
     "packages/**/*.ts",
-    "types/**/*.d.ts"
+    "tests/**/*.ts"
   ],
-  "exclude": [
-    "**/*.test.ts",
-    "apps/web/tests/**/*.ts",
-    "apps/web/playwright.config.ts"
-  ]
+  "exclude": ["**/node_modules/**", "tests/web/**"]
 }
