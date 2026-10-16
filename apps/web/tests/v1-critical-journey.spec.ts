@@ -1,7 +1,6 @@
 import {test,expect} from '@playwright/test';
 
 test('v1 critical UI journey',async({page})=>{
-  test.skip(!process.env.E2E_SEEDED,'Requires seeded web/API test environment');
   await page.goto('/login');
   await page.getByLabel('Email').fill(process.env.E2E_EMAIL??'owner@test.local');
   await page.getByLabel('Mật khẩu').fill(process.env.E2E_PASSWORD??'test-password');
