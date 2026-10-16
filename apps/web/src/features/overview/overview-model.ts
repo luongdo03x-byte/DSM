@@ -1,6 +1,6 @@
 import {platformLabel,statusLabel} from '../../lib/ui/status.ts';
 
-export type AnalyticsSnapshot={posts?:number|null;views?:number|null;clicks?:number|null;ctr?:number|null;platforms?:Array<{platform:string;posts?:number|null;views?:number|null;clicks?:number|null;ctr?:number|null}>};
+export type AnalyticsSnapshot={posts?:number|null|undefined;views?:number|null|undefined;clicks?:number|null|undefined;ctr?:number|null|undefined;platforms?:Array<{platform:string;posts?:number|null|undefined;views?:number|null|undefined;clicks?:number|null|undefined;ctr?:number|null|undefined}>|undefined};
 export type AccountSnapshot={id:string;platform?:string;username?:string;status?:string;publishMode?:string;browserProfileId?:string};
 export type JobSnapshot={id:string;platform?:string;status?:string;scheduledAt?:number;errorMessage?:string;errorCode?:string};
 
