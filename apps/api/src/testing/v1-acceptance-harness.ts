@@ -1,4 +1,5 @@
 import {MemoryStore} from '../../../../packages/shared/src/store.ts';
+import {MemoryRepositories} from '../../../../packages/shared/src/memory-repositories.ts';
 import {AuthService} from '../modules/auth/auth.service.ts';
 import {ProductsService} from '../modules/products/products.service.ts';
 import {MediaService,InMemoryObjectStorage} from '../modules/media/media.service.ts';
@@ -17,10 +18,11 @@ import {MetricsSyncService} from '../../../worker/src/analytics/metrics-sync.ser
 
 export async function runV1CriticalJourney(){
   const s=new MemoryStore();s.workspaces.set('w',{id:'w',name:'Workspace'});s.memberships.push({workspaceId:'w',userId:'u',role:'OWNER'});s.brands.set('b',{id:'b',workspaceId:'w',name:'PawJoy',slug:'pawjoy',language:'en',timezone:'UTC',currency:'USD',status:'ACTIVE'});s.users.set('u',{id:'u',email:'owner@test',passwordHash:'hash',status:'ACTIVE'});
-  const auth=new AuthService(s,{hash:async x=>x,verify:async()=>true},'secret');const login=await auth.login('owner@test','pw');
-  const products=new ProductsService(s),product=products.create('b',{name:'Dog Brush',slug:'dog-brush',currency:'USD',landingUrl:'https://shop.test/dog-brush',cost:'8',sellingPrice:'29'});
-  const media=new MediaService(s,new InMemoryObjectStorage()),upload=await media.createUpload({workspaceId:'w',brandId:'b'},{type:'VIDEO',mimeType:'video/mp4'});
-  const contentSvc=new ContentService(s),content=contentSvc.create('b',{type:'VIDEO',title:'Dog brush demo',productId:product.id,body:'Demo',masterAssetId:upload.assetId});const variants=contentSvc.copyMasterToAll('b',content.id);for(const v of variants)v.status='READY';
+  const repos=new MemoryRepositories(s);
+  const auth=new AuthService(repos,{hash:async x=>x,verify:async()=>true},'secret');const login=await auth.login('owner@test','pw');
+  const products=new ProductsService(repos),product=await products.create('b',{name:'Dog Brush',slug:'dog-brush',currency:'USD',landingUrl:'https://shop.test/dog-brush',cost:'8',sellingPrice:'29'});
+  const media=new MediaService(repos,new InMemoryObjectStorage()),upload=await media.createUpload({workspaceId:'w',brandId:'b'},{type:'VIDEO',mimeType:'video/mp4'});
+  const contentSvc=new ContentService(repos),content=await contentSvc.create('b',{type:'VIDEO',title:'Dog brush demo',productId:product.id,body:'Demo',masterAssetId:upload.assetId});const variants=await contentSvc.copyMasterToAll('b',content.id);for(const v of variants)await repos.variants.update(v.id,{status:'READY'});
   const accounts=new AccountsService(s,new CredentialCryptoService(new Uint8Array(32).fill(8)));for(const platform of ['FACEBOOK','TIKTOK','INSTAGRAM','THREADS'] as const){const a=accounts.create('b',{platform,publishMode:'API'});a.status='CONNECTED'}
   const registry=new PublisherRegistry();const publishers=new Map<string,FakePublisher>();for(const platform of ['FACEBOOK','TIKTOK','INSTAGRAM','THREADS'] as const){const p=new FakePublisher();publishers.set(platform,p);registry.register(platform,'API',p)}
   const publishing=new PublishingService(s,registry,new StrategyResolver());const accountIds=[...s.socialAccounts.keys()];const batch=await publishing.createBatch({brandId:'b',contentId:content.id,createdBy:'u',socialAccountIds:accountIds});

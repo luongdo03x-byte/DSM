@@ -98,76 +98,76 @@ export class LocalApiRuntime {
       }
 
       if((m=route(req.path,/^\/brands\/([^/]+)$/))){
-        const brandId=decodeURIComponent(m[1]!);this.authorize(userId,brandId);
+        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
         if(method==='GET')return{status:200,body:this.d.store.brands.get(brandId)};
       }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/accounts$/))){
-        const brandId=decodeURIComponent(m[1]!);this.authorize(userId,brandId);
+        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
         if(method==='GET')return{status:200,body:this.d.accounts.list(brandId)};
         if(method==='POST'){const b=asObject(req.body);return{status:201,body:this.d.accounts.create(brandId,{platform:b.platform,username:b.username,publishMode:b.publishMode})}}
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/accounts\/([^/]+)\/credentials$/))){
-        const brandId=decodeURIComponent(m[1]!),accountId=decodeURIComponent(m[2]!);this.authorize(userId,brandId);const account=this.d.store.socialAccounts.get(accountId);if(!account||account.brandId!==brandId)throw new Error('ACCOUNT_NOT_FOUND');if(method==='POST'){const b=asObject(req.body);await this.d.accounts.saveCredential(accountId,String(b.provider??account.platform.toLowerCase()),String(b.accessToken??''),b.refreshToken!==undefined?String(b.refreshToken):undefined);return{status:200,body:{id:account.id,status:account.status}}}
+        const brandId=decodeURIComponent(m[1]!),accountId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);const account=this.d.store.socialAccounts.get(accountId);if(!account||account.brandId!==brandId)throw new Error('ACCOUNT_NOT_FOUND');if(method==='POST'){const b=asObject(req.body);await this.d.accounts.saveCredential(accountId,String(b.provider??account.platform.toLowerCase()),String(b.accessToken??''),b.refreshToken!==undefined?String(b.refreshToken):undefined);return{status:200,body:{id:account.id,status:account.status}}}
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/accounts\/([^/]+)\/browser-profile$/))){
-        const brandId=decodeURIComponent(m[1]!),accountId=decodeURIComponent(m[2]!);this.authorize(userId,brandId);if(method==='POST'){const b=asObject(req.body);return{status:200,body:this.d.accounts.attachBrowserProfile(brandId,accountId,String(b.browserNodeId??''),String(b.providerProfileId??''),String(b.name??'Browser profile'))}}
+        const brandId=decodeURIComponent(m[1]!),accountId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);if(method==='POST'){const b=asObject(req.body);return{status:200,body:this.d.accounts.attachBrowserProfile(brandId,accountId,String(b.browserNodeId??''),String(b.providerProfileId??''),String(b.name??'Browser profile'))}}
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/accounts\/([^/]+)\/disconnect$/))){
-        const brandId=decodeURIComponent(m[1]!),accountId=decodeURIComponent(m[2]!);this.authorize(userId,brandId);
-        if(method==='POST')return{status:200,body:this.d.accounts.disconnect(brandId,accountId,userId)};
+        const brandId=decodeURIComponent(m[1]!),accountId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);
+        if(method==='POST')return{status:200,body:await this.d.accounts.disconnect(brandId,accountId,userId)};
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/browser-nodes$/))){
-        const brandId=decodeURIComponent(m[1]!);const access=this.authorize(userId,brandId);if(method==='GET')return{status:200,body:[...this.d.store.browserNodes.values()].filter(x=>x.workspaceId===access.workspaceId)};
+        const brandId=decodeURIComponent(m[1]!);const access=await this.authorize(userId,brandId);if(method==='GET')return{status:200,body:[...this.d.store.browserNodes.values()].filter(x=>x.workspaceId===access.workspaceId)};
       }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/media\/uploads$/))){
-        const brandId=decodeURIComponent(m[1]!);const access=this.authorize(userId,brandId);
+        const brandId=decodeURIComponent(m[1]!);const access=await this.authorize(userId,brandId);
         if(method==='POST'){if(!this.d.media)return{status:501,body:{error:'MEDIA_NOT_CONFIGURED'}};const b=asObject(req.body);return{status:201,body:await this.d.media.createUpload({workspaceId:access.workspaceId,brandId},{type:b.type,mimeType:String(b.mimeType??''),...(b.category!==undefined?{category:String(b.category)}:{})})}}
       }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/products\/([^/]+)\/archive$/))){
-        const brandId=decodeURIComponent(m[1]!),productId=decodeURIComponent(m[2]!);this.authorize(userId,brandId);
-        if(method==='POST')return{status:200,body:this.d.products.archive(brandId,productId,userId)};
+        const brandId=decodeURIComponent(m[1]!),productId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);
+        if(method==='POST')return{status:200,body:await this.d.products.archive(brandId,productId,userId)};
       }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/campaigns$/))){
-        const brandId=decodeURIComponent(m[1]!);this.authorize(userId,brandId);
+        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
         if(method==='GET')return{status:200,body:[...this.d.store.campaigns.values()].filter(x=>x.brandId===brandId)};
         if(method==='POST'){if(!this.d.campaigns)return{status:501,body:{error:'CAMPAIGNS_NOT_CONFIGURED'}};const b=asObject(req.body);return{status:201,body:this.d.campaigns.create(brandId,{name:String(b.name??''),...(b.productId!==undefined?{productId:String(b.productId)}:{}),...(b.description!==undefined?{description:String(b.description)}:{})})}}
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/campaigns\/([^/]+)\/content$/))){
-        const brandId=decodeURIComponent(m[1]!),campaignId=decodeURIComponent(m[2]!);this.authorize(userId,brandId);
+        const brandId=decodeURIComponent(m[1]!),campaignId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);
         if(method==='POST'){if(!this.d.campaigns)return{status:501,body:{error:'CAMPAIGNS_NOT_CONFIGURED'}};const b=asObject(req.body);return{status:200,body:this.d.campaigns.attachContent(brandId,campaignId,String(b.contentId??''))}}
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/campaigns\/([^/]+)\/performance$/))){
-        const brandId=decodeURIComponent(m[1]!),campaignId=decodeURIComponent(m[2]!);this.authorize(userId,brandId);
+        const brandId=decodeURIComponent(m[1]!),campaignId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);
         if(method==='GET'){if(!this.d.campaignPerformance)return{status:501,body:{error:'CAMPAIGN_PERFORMANCE_NOT_CONFIGURED'}};return{status:200,body:this.d.campaignPerformance.get(brandId,campaignId)}}
       }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/tracked-links$/))){
-        const brandId=decodeURIComponent(m[1]!);this.authorize(userId,brandId);
+        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
         if(method==='POST'){const b=asObject(req.body);return{status:201,body:this.d.tracking.create(brandId,{targetUrl:String(b.targetUrl??''),...(b.productId!==undefined?{productId:String(b.productId)}:{}),...(b.contentItemId!==undefined?{contentItemId:String(b.contentItemId)}:{}),...(b.utmSource!==undefined?{utmSource:String(b.utmSource)}:{}),...(b.utmMedium!==undefined?{utmMedium:String(b.utmMedium)}:{}),...(b.utmCampaign!==undefined?{utmCampaign:String(b.utmCampaign)}:{}),...(b.utmContent!==undefined?{utmContent:String(b.utmContent)}:{})})}}
       }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/calendar$/))){
-        const brandId=decodeURIComponent(m[1]!);this.authorize(userId,brandId);if(method==='GET')return{status:200,body:[...this.d.store.publishJobs.values()].filter(x=>x.brandId===brandId).sort((a,b)=>a.scheduledAt-b.scheduledAt)};
+        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);if(method==='GET')return{status:200,body:[...this.d.store.publishJobs.values()].filter(x=>x.brandId===brandId).sort((a,b)=>a.scheduledAt-b.scheduledAt)};
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/calendar\/([^/]+)$/))){
-        const brandId=decodeURIComponent(m[1]!),jobId=decodeURIComponent(m[2]!);this.authorize(userId,brandId);const job=this.d.store.publishJobs.get(jobId);if(!job||job.brandId!==brandId)throw new Error('JOB_NOT_FOUND');
+        const brandId=decodeURIComponent(m[1]!),jobId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);const job=this.d.store.publishJobs.get(jobId);if(!job||job.brandId!==brandId)throw new Error('JOB_NOT_FOUND');
         if(method==='PATCH'){const b=asObject(req.body);return{status:200,body:this.d.batchStatus.reschedule(jobId,Number(b.scheduledAt))}}
         if(method==='DELETE')return{status:200,body:this.d.batchStatus.cancel(jobId)};
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/publish-jobs\/([^/]+)\/retry$/))){
-        const brandId=decodeURIComponent(m[1]!),jobId=decodeURIComponent(m[2]!);this.authorize(userId,brandId);const job=this.d.store.publishJobs.get(jobId);if(!job||job.brandId!==brandId)throw new Error('JOB_NOT_FOUND');if(method==='POST')return{status:200,body:this.d.batchStatus.manualRetry(jobId,userId)};
+        const brandId=decodeURIComponent(m[1]!),jobId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);const job=this.d.store.publishJobs.get(jobId);if(!job||job.brandId!==brandId)throw new Error('JOB_NOT_FOUND');if(method==='POST')return{status:200,body:await this.d.batchStatus.manualRetry(jobId,userId)};
       }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/products$/))){
-        const brandId=decodeURIComponent(m[1]!);this.authorize(userId,brandId);
-        if(method==='GET')return{status:200,body:this.d.products.list(brandId)};
+        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
+        if(method==='GET')return{status:200,body:await this.d.products.list(brandId)};
         if(method==='POST'){
           const b=asObject(req.body);
-          const product=this.d.products.create(brandId,{
+          const product=await this.d.products.create(brandId,{
             name:String(b.name??''),slug:String(b.slug??''),currency:String(b.currency??''),
             ...(b.description!==undefined?{description:String(b.description)}:{}),
             ...(b.imageAssetId!==undefined?{imageAssetId:String(b.imageAssetId)}:{}),
@@ -182,11 +182,11 @@ export class LocalApiRuntime {
       }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/content$/))){
-        const brandId=decodeURIComponent(m[1]!);this.authorize(userId,brandId);
+        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
         if(method==='GET')return{status:200,body:[...this.d.store.contents.values()].filter(x=>x.brandId===brandId)};
         if(method==='POST'){
           const b=asObject(req.body);
-          const content=this.d.content.create(brandId,{
+          const content=await this.d.content.create(brandId,{
             type:b.type,title:String(b.title??''),
             ...(b.productId!==undefined?{productId:String(b.productId)}:{}),
             ...(b.hook!==undefined?{hook:String(b.hook)}:{}),
@@ -199,18 +199,18 @@ export class LocalApiRuntime {
       }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/content\/([^/]+)\/variants$/))){
-        const brandId=decodeURIComponent(m[1]!),contentId=decodeURIComponent(m[2]!);this.authorize(userId,brandId);if(method==='GET')return{status:200,body:this.d.content.listVariants(brandId,contentId)};
+        const brandId=decodeURIComponent(m[1]!),contentId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);if(method==='GET')return{status:200,body:await this.d.content.listVariants(brandId,contentId)};
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/content\/([^/]+)\/variants\/([^/]+)$/))){
-        const brandId=decodeURIComponent(m[1]!),contentId=decodeURIComponent(m[2]!),variantId=decodeURIComponent(m[3]!);this.authorize(userId,brandId);this.d.content.listVariants(brandId,contentId);if(method==='PATCH'){const b=asObject(req.body);return{status:200,body:this.d.content.updateVariant(brandId,variantId,{...(b.caption!==undefined?{caption:String(b.caption)}:{}),...(b.body!==undefined?{body:String(b.body)}:{}),...(Array.isArray(b.hashtags)?{hashtags:b.hashtags.map(String)}:{}),...(b.cta!==undefined?{cta:String(b.cta)}:{}),...(b.assetId!==undefined?{assetId:String(b.assetId)}:{}),...(b.status==='READY'||b.status==='DRAFT'?{status:b.status}:{})})}}
+        const brandId=decodeURIComponent(m[1]!),contentId=decodeURIComponent(m[2]!),variantId=decodeURIComponent(m[3]!);await this.authorize(userId,brandId);await this.d.content.listVariants(brandId,contentId);if(method==='PATCH'){const b=asObject(req.body);return{status:200,body:await this.d.content.updateVariant(brandId,variantId,{...(b.caption!==undefined?{caption:String(b.caption)}:{}),...(b.body!==undefined?{body:String(b.body)}:{}),...(Array.isArray(b.hashtags)?{hashtags:b.hashtags.map(String)}:{}),...(b.cta!==undefined?{cta:String(b.cta)}:{}),...(b.assetId!==undefined?{assetId:String(b.assetId)}:{}),...(b.status==='READY'||b.status==='DRAFT'?{status:b.status}:{})})}}
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/content\/([^/]+)\/variants\/copy$/))){
-        const brandId=decodeURIComponent(m[1]!);const contentId=decodeURIComponent(m[2]!);this.authorize(userId,brandId);
-        if(method==='POST')return{status:200,body:this.d.content.copyMasterToAll(brandId,contentId)};
+        const brandId=decodeURIComponent(m[1]!);const contentId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);
+        if(method==='POST')return{status:200,body:await this.d.content.copyMasterToAll(brandId,contentId)};
       }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/publish\/validate$/))){
-        const brandId=decodeURIComponent(m[1]!);this.authorize(userId,brandId);
+        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
         if(method==='POST'){
           const b=asObject(req.body);
           const result=await this.d.publishing.validateTargets({brandId,contentId:String(b.contentId??''),socialAccountIds:Array.isArray(b.socialAccountIds)?b.socialAccountIds.map(String):[]});
@@ -219,7 +219,7 @@ export class LocalApiRuntime {
       }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/publish$/))){
-        const brandId=decodeURIComponent(m[1]!);this.authorize(userId,brandId);
+        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
         if(method==='POST'){
           const b=asObject(req.body);
           const result=await this.d.publishing.createBatch({brandId,contentId:String(b.contentId??''),createdBy:userId,socialAccountIds:Array.isArray(b.socialAccountIds)?b.socialAccountIds.map(String):[],...(b.scheduledAt!==undefined?{scheduledAt:Number(b.scheduledAt)}:{})});
@@ -228,15 +228,15 @@ export class LocalApiRuntime {
       }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/analytics\/overview$/))){
-        const brandId=decodeURIComponent(m[1]!);this.authorize(userId,brandId);
+        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
         if(method==='GET')return{status:200,body:this.d.analytics.overview(brandId)};
       }
-      if((m=route(req.path,/^\/brands\/([^/]+)\/analytics\/content$/))){const brandId=decodeURIComponent(m[1]!);this.authorize(userId,brandId);if(method==='GET')return{status:200,body:this.d.analytics.content(brandId)}}
-      if((m=route(req.path,/^\/brands\/([^/]+)\/analytics\/platforms$/))){const brandId=decodeURIComponent(m[1]!);this.authorize(userId,brandId);if(method==='GET')return{status:200,body:this.d.analytics.platforms(brandId)}}
+      if((m=route(req.path,/^\/brands\/([^/]+)\/analytics\/content$/))){const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);if(method==='GET')return{status:200,body:this.d.analytics.content(brandId)}}
+      if((m=route(req.path,/^\/brands\/([^/]+)\/analytics\/platforms$/))){const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);if(method==='GET')return{status:200,body:this.d.analytics.platforms(brandId)}}
 
       if((m=route(req.path,/^\/publish\/batches\/([^/]+)$/))){
         if(method==='GET'){
-          const batchId=decodeURIComponent(m[1]!);const batch=this.d.store.publishBatches.get(batchId);if(!batch)throw new Error('BATCH_NOT_FOUND');this.authorize(userId,batch.brandId);
+          const batchId=decodeURIComponent(m[1]!);const batch=this.d.store.publishBatches.get(batchId);if(!batch)throw new Error('BATCH_NOT_FOUND');await this.authorize(userId,batch.brandId);
           const jobs=[...this.d.store.publishJobs.values()].filter(j=>j.batchId===batchId);
           return{status:200,body:{batchId,status:this.d.batchStatus.get(batchId),jobs}};
         }
@@ -251,7 +251,7 @@ export class LocalApiRuntime {
     if(!header?.startsWith('Bearer '))throw new Error('UNAUTHORIZED');
     try {const claims=await this.d.auth.me(header.slice(7));return claims.sub}catch{throw new Error('UNAUTHORIZED')}
   }
-  private authorize(userId:string,brandId:string){try{return this.d.brandAccess.assertAccess(userId,brandId)}catch{throw new Error('BRAND_NOT_FOUND')}}
+  private async authorize(userId:string,brandId:string){try{return await this.d.brandAccess.assertAccess(userId,brandId)}catch{throw new Error('BRAND_NOT_FOUND')}}
   private mapError(error:unknown):LocalResponse{
     const message=error instanceof Error?error.message:'INTERNAL_ERROR';
     if(['UNAUTHORIZED','INVALID_CREDENTIALS','INVALID_REFRESH','NODE_AUTH','INVALID_REGISTRATION','STALE_SIGNATURE','REPLAY','BAD_SIGNATURE'].includes(message))return{status:401,body:{error:message}};

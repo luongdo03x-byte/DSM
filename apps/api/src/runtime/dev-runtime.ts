@@ -1,4 +1,5 @@
 import {MemoryStore} from '../../../../packages/shared/src/store.ts';
+import {MemoryRepositories} from '../../../../packages/shared/src/memory-repositories.ts';
 import {FetchHttpClient} from '../../../../packages/shared/src/http.ts';
 import type {PasswordHasher} from '../modules/auth/auth.service.ts';
 import {AuthService,Node24Argon2idHasher} from '../modules/auth/auth.service.ts';
@@ -47,6 +48,7 @@ export async function createDevelopmentRuntime(options:DevelopmentRuntimeOptions
   if(!store.memberships.some(m=>m.workspaceId===workspaceId&&m.userId===ownerId))store.memberships.push({workspaceId,userId:ownerId,role:'OWNER'});
   if(!store.brands.has(brandId))store.brands.set(brandId,{id:brandId,workspaceId,name:env.DEV_BRAND_NAME??'Local Brand',slug:env.DEV_BRAND_SLUG??'local-brand',language:env.DEV_BRAND_LANGUAGE??'en',timezone:env.DEV_BRAND_TIMEZONE??'UTC',currency:env.DEV_BRAND_CURRENCY??'USD',status:'ACTIVE'});
 
+  const repos=new MemoryRepositories(store);
   const credentialCrypto=new CredentialCryptoService(credentialKey(env)),accounts=new AccountsService(store,credentialCrypto),nodeAuth=new NodeAuthService(store,credentialCrypto),browserNodes=new BrowserNodesService(store);
   const createdAccounts=new Map<string,ReturnType<AccountsService['create']>>();
   for(const platform of ['FACEBOOK','INSTAGRAM','THREADS','TIKTOK'] as const){const existing=[...store.socialAccounts.values()].find(a=>a.brandId===brandId&&a.platform===platform);createdAccounts.set(platform,existing??accounts.create(brandId,{platform,publishMode:'HYBRID'}))}
@@ -64,7 +66,7 @@ export async function createDevelopmentRuntime(options:DevelopmentRuntimeOptions
   }
 
   const storage=env.S3_ENDPOINT&&env.S3_REGION&&env.S3_ACCESS_KEY&&env.S3_SECRET_KEY&&env.S3_BUCKET?new S3CompatibleObjectStorage({endpoint:env.S3_ENDPOINT,region:env.S3_REGION,accessKey:env.S3_ACCESS_KEY,secretKey:env.S3_SECRET_KEY,bucket:env.S3_BUCKET}):new InMemoryObjectStorage();
-  const analytics=new AnalyticsService(store),products=new ProductsService(store),content=new ContentService(store),batchStatus=new BatchStatusService(store),tracking=new TrackingService(store),media=new MediaService(store,storage),campaigns=new CampaignsService(store);
-  const runtime=new LocalApiRuntime({store,auth:new AuthService(store,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(store),products,content,accounts,publishing:new PublishingService(store,registry,new StrategyResolver()),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(store,analytics),nodeAuth,browserNodes});
-  return{store,runtime,registry,services:{accounts,products,content,batchStatus,analytics,tracking,media,campaigns,nodeAuth,browserNodes},ids:{ownerId,workspaceId,brandId}};
+  const analytics=new AnalyticsService(store),products=new ProductsService(repos),content=new ContentService(repos),batchStatus=new BatchStatusService(store),tracking=new TrackingService(store),media=new MediaService(repos,storage),campaigns=new CampaignsService(store);
+  const runtime=new LocalApiRuntime({store,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(store,registry,new StrategyResolver()),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(store,analytics),nodeAuth,browserNodes});
+  return{store,repos,runtime,registry,services:{accounts,products,content,batchStatus,analytics,tracking,media,campaigns,nodeAuth,browserNodes},ids:{ownerId,workspaceId,brandId}};
 }
