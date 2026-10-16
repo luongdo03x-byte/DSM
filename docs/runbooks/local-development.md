@@ -32,7 +32,7 @@ corepack pnpm install
 npm run dev
 ```
 
-`npm run dev` starts only Web + API. Open `http://localhost:3000`, then log in with `DEV_OWNER_EMAIL` / `DEV_OWNER_PASSWORD`. The API listens on port 4000 and runs the embedded local publish/metrics worker. With the default `DEV_STORE_FILE=.data/local-store.json`, business state is atomically snapshotted every two seconds and restored after restart; encrypted social credentials remain encrypted in the snapshot.
+`npm run dev` starts only Web + API. Open `http://127.0.0.1:3000`, then log in with `DEV_OWNER_EMAIL` / `DEV_OWNER_PASSWORD`. The API listens on port 4000 and runs the embedded local publish/metrics worker. With the default `DEV_STORE_FILE=.data/local-store.json`, business state is atomically snapshotted every two seconds and restored after restart; encrypted social credentials remain encrypted in the snapshot. Use the same hostname for Web and API (the default API URL is `http://127.0.0.1:4000`) so the CSRF cookie is accessible to Web after login. The refresh cookie remains HttpOnly and limited to `/auth`.
 
 Optional standalone worker:
 

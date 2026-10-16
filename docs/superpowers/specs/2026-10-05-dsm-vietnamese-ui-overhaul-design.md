@@ -1,7 +1,7 @@
 # DSM V1 — Thiết kế giao diện tiếng Việt
 
 Ngày: 2026-10-05
-Trạng thái: Chờ duyệt trước khi lập kế hoạch triển khai
+Trạng thái: Đang triển khai trên branch ui-vietnamese-recovery; chờ xác minh test/typecheck/build trước khi merge
 
 ## 1. Mục tiêu
 
