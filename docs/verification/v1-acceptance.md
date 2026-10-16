@@ -50,7 +50,9 @@ Scope limits:
 
 ## CI baseline (SP1)
 
-Status: NOT_VERIFIED — no `pnpm verify` evidence has been recorded for the SP1 gate yet.
+Status: LOCAL — `pnpm verify` passed on a clean clone; no `CI / verify` run has passed yet.
+
+Evidence: local pnpm verify @ b8f835134f4970d1f519346421069074e07c0cd5 (2026-10-16, DESKTOP-T6MQM3F, node v24.21.0)
 
 How this section changes:
 
