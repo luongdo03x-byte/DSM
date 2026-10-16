@@ -9,8 +9,8 @@
   "scripts": {
     "test": "node scripts/run-tests.mjs",
     "test:integration": "node scripts/run-tests.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json && tsc -p apps/web/tsconfig.json",
+    "build": "pnpm --filter web build",
     "lint": "node scripts/lint.mjs",
     "verify": "npm run lint && npm run typecheck && npm test && npm run build && node scripts/verify-v1.mjs",
     "dev": "corepack pnpm --parallel --filter api --filter web dev",
