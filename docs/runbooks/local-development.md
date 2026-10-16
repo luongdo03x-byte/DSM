@@ -55,7 +55,17 @@ The gateway registers/heartbeats to `CORE_API_URL`, starts the configured GPM pr
 ## 5. Verify
 
 ```bash
-npm run verify
+pnpm verify
 ```
 
-The automated gate covers lint, strict typecheck, unit/integration tests, build checks, and V1 artifact verification. Live Facebook/Instagram/Threads/TikTok publishing and GPMLogin smoke tests require real authorized test accounts and are deliberately separate acceptance gates.
+`pnpm verify` runs the same chain as the `CI / verify` job: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` (a real `next build`), `pnpm test:e2e` (Playwright starts the API on 127.0.0.1:4000 and `next start` on 127.0.0.1:3000 by itself) and `node scripts/verify-v1.mjs` (checks the test reports and `docs/verification/v1-acceptance.md`).
+
+Requirements:
+
+- Node >=24.7 and <25: the API's argon2id hasher needs `crypto.argon2Sync`, and `pnpm install` refuses other Node versions (`engineStrict`).
+- Ports 127.0.0.1:3000 and 127.0.0.1:4000 must be free: stop `pnpm dev` first.
+- Install Chromium for Playwright once: `pnpm --filter web exec playwright install chromium`.
+- Do not export `NEXT_PUBLIC_API_BASE_URL` when building for the E2E run; the build must keep the default `http://127.0.0.1:4000`.
+- A passing run on your machine ends with `verify-v1: OK (...) — LOCAL @ <sha> (clean|dirty) — không phải bằng chứng CI`. This is `LOCAL` evidence, not CI evidence. Record it in `docs/verification/v1-acceptance.md` only when the line says `(clean)`.
+
+The automated gate covers lint, strict typecheck, Node tests (unit tests, the acceptance harness and the HTTP API smoke), the production build, the Playwright UI journey and the evidence check. Live Facebook/Instagram/Threads/TikTok publishing and GPMLogin smoke tests require real authorized test accounts and are deliberately separate acceptance gates.

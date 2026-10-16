@@ -4,15 +4,15 @@
   "version": "1.0.0",
   "packageManager": "pnpm@10.17.1",
   "engines": {
-    "node": ">=24 <25"
+    "node": ">=24.7 <25"
   },
   "scripts": {
     "test": "node scripts/run-tests.mjs",
-    "test:integration": "node scripts/run-tests.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json && tsc -p apps/web/tsconfig.json && tsc -p tests/web/tsconfig.json",
+    "build": "pnpm --filter web build",
+    "test:e2e": "pnpm --filter web test:e2e",
     "lint": "node scripts/lint.mjs",
-    "verify": "npm run lint && npm run typecheck && npm test && npm run build && node scripts/verify-v1.mjs",
+    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e && node scripts/verify-v1.mjs",
     "dev": "corepack pnpm --parallel --filter api --filter web dev",
     "dev:gateway": "corepack pnpm --filter browser-gateway dev",
     "dev:worker": "corepack pnpm --filter worker dev",

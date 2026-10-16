@@ -10,3 +10,8 @@ debug-artifacts/
 *.log
 
 .data/
+.next/
+next-env.d.ts
+*.tsbuildinfo
+test-results/
+playwright-report/
