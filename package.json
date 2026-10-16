@@ -8,7 +8,8 @@
   },
   "scripts": {
     "test": "node scripts/run-tests.mjs",
-    "typecheck": "tsc -p tsconfig.json && tsc -p apps/web/tsconfig.json && tsc -p tests/web/tsconfig.json",
+    "typecheck": "pnpm db:generate && tsc -p tsconfig.json && tsc -p apps/web/tsconfig.json && tsc -p tests/web/tsconfig.json",
+    "db:generate": "pnpm --filter @app/database generate",
     "build": "pnpm --filter web build",
     "test:e2e": "pnpm --filter web test:e2e",
     "lint": "node scripts/lint.mjs",

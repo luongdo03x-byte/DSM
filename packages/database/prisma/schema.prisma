@@ -8,12 +8,43 @@ datasource db {
   provider = "postgresql"
 }
 
-enum WorkspaceRole { OWNER ADMIN EDITOR OPERATOR VIEWER }
-enum Platform { FACEBOOK INSTAGRAM THREADS TIKTOK }
-enum PublishMode { API BROWSER HYBRID }
-enum ContentType { VIDEO IMAGE TEXT }
-enum AccountStatus { CONNECTED EXPIRED DISCONNECTED ERROR }
-enum JobStatus { QUEUED PROCESSING RETRYING PUBLISHED FAILED CANCELLED }
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  EDITOR
+  OPERATOR
+  VIEWER
+}
+enum Platform {
+  FACEBOOK
+  INSTAGRAM
+  THREADS
+  TIKTOK
+}
+enum PublishMode {
+  API
+  BROWSER
+  HYBRID
+}
+enum ContentType {
+  VIDEO
+  IMAGE
+  TEXT
+}
+enum AccountStatus {
+  CONNECTED
+  EXPIRED
+  DISCONNECTED
+  ERROR
+}
+enum JobStatus {
+  QUEUED
+  PROCESSING
+  RETRYING
+  PUBLISHED
+  FAILED
+  CANCELLED
+}
 
 model User {
   id           String            @id @default(uuid())
@@ -99,7 +130,7 @@ model SocialAccount {
   publishMode       PublishMode
   status            AccountStatus
   brand             Brand             @relation(fields: [brandId], references: [id], onDelete: Restrict)
-  credential        SocialCredential?
+  credential        EncryptedCredential?
   browserProfile    BrowserProfile?
   variants          ContentVariant[]
   publishJobs       PublishJob[]
@@ -108,17 +139,19 @@ model SocialAccount {
   @@index([brandId, platform])
 }
 
-model SocialCredential {
+model EncryptedCredential {
   id                    String        @id @default(uuid())
   socialAccountId       String        @unique
   provider              String
-  encryptedAccessToken  String
-  encryptedRefreshToken String?
+  ciphertext            String        @map("encryptedAccessToken")
+  refreshCiphertext     String?       @map("encryptedRefreshToken")
   iv                    String
   authTag               String
-  expiresAt             DateTime?
+  expiresAt             BigInt?
   scopes                Json?
   account               SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  @@map("SocialCredential")
 }
 
 model BrowserNode {
@@ -129,13 +162,23 @@ model BrowserNode {
   port           Int
   status         String
   provider       String
-  lastSeenAt     DateTime?
+  lastSeenAt     BigInt?
   maxConcurrency Int              @default(2)
   encryptedNodeKey String?
   workspace      Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
   profiles       BrowserProfile[]
+  registrations  BrowserRegistration[]
 
   @@index([workspaceId, status])
+}
+
+model BrowserRegistration {
+  id         String @id
+  nodeId     String @unique
+  tokenHash  String
+  expiresAt  BigInt
+  consumedAt BigInt?
+  node       BrowserNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
 }
 
 model BrowserProfile {
@@ -247,7 +290,7 @@ model PublishBatch {
   contentItemId String
   status        String
   createdBy     String
-  createdAt     DateTime     @default(now())
+  createdAt     BigInt       @default(dbgenerated("((EXTRACT(epoch FROM CURRENT_TIMESTAMP) * (1000)::numeric))::bigint"))
   brand         Brand        @relation(fields: [brandId], references: [id], onDelete: Restrict)
   content       ContentItem  @relation(fields: [contentItemId], references: [id], onDelete: Restrict)
   jobs          PublishJob[]
@@ -263,7 +306,7 @@ model PublishJob {
   contentVariantId    String
   platform            Platform
   strategy            String
-  scheduledAt         DateTime
+  scheduledAt         BigInt
   status              JobStatus
   attemptCount        Int             @default(0)
   maxAttempts         Int             @default(4)
@@ -287,8 +330,8 @@ model PublishAttempt {
   publishJobId  String
   attemptNumber Int
   strategy      String
-  startedAt     DateTime
-  finishedAt    DateTime?
+  startedAt     BigInt
+  finishedAt    BigInt?
   status        String
   errorType     String?
   errorCode     String?
@@ -308,7 +351,7 @@ model PublishedPost {
   platform         Platform
   platformPostId   String
   platformPostUrl  String?
-  publishedAt      DateTime
+  publishedAt      BigInt
   job              PublishJob     @relation(fields: [publishJobId], references: [id], onDelete: Cascade)
   account          SocialAccount  @relation(fields: [socialAccountId], references: [id], onDelete: Restrict)
   contentVariant   ContentVariant @relation(fields: [contentVariantId], references: [id], onDelete: Restrict)
@@ -322,7 +365,7 @@ model PublishedPost {
 model PostMetric {
   id              String        @id @default(uuid())
   publishedPostId String
-  capturedAt      DateTime
+  capturedAt      BigInt
   captureKey      String
   views           BigInt?
   likes           BigInt?
@@ -361,7 +404,7 @@ model TrackedLink {
 model ClickEvent {
   id            String      @id @default(uuid())
   trackedLinkId String
-  timestamp     DateTime    @default(now())
+  timestamp     BigInt      @default(dbgenerated("((EXTRACT(epoch FROM CURRENT_TIMESTAMP) * (1000)::numeric))::bigint"))
   referrer      String?
   userAgent     String?
   country       String?
@@ -375,9 +418,9 @@ model AuthSession {
   id               String    @id @default(uuid())
   userId           String
   refreshTokenHash String
-  expiresAt        DateTime
-  revokedAt        DateTime?
-  createdAt        DateTime  @default(now())
+  expiresAt        BigInt
+  revokedAt        BigInt?
+  createdAt        BigInt    @default(dbgenerated("((EXTRACT(epoch FROM CURRENT_TIMESTAMP) * (1000)::numeric))::bigint"))
   user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
@@ -391,7 +434,7 @@ model AuditLog {
   entityType  String
   entityId    String?
   metadata    Json?
-  createdAt   DateTime  @default(now())
+  createdAt   BigInt    @default(dbgenerated("((EXTRACT(epoch FROM CURRENT_TIMESTAMP) * (1000)::numeric))::bigint"))
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
 
