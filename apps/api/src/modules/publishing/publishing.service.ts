@@ -1,27 +1,101 @@
-import type {MemoryStore} from '../../../../../packages/shared/src/store.ts';import type {ContentType,PublishJob,Platform} from '../../../../../packages/shared/src/domain.ts';import {id} from '../../../../../packages/shared/src/ids.ts';import {sha256} from '../../../../../packages/shared/src/security.ts';import {PublisherRegistry} from './publisher-registry.ts';import {StrategyResolver} from './strategy-resolver.ts';
-export class PublishingService{
-  private store:MemoryStore;private registry:PublisherRegistry;private resolver:StrategyResolver;
-  constructor(store:MemoryStore,registry:PublisherRegistry,resolver:StrategyResolver){this.store=store;this.registry=registry;this.resolver=resolver}
-  async validateTargets(input:{brandId:string;contentId:string;socialAccountIds:string[];apiHealth?:Record<string,boolean>;browserHealth?:Record<string,boolean>}){
-    const c=this.store.contents.get(input.contentId);if(!c||c.brandId!==input.brandId)throw new Error('CONTENT_NOT_FOUND');const results=[];
-    for(const aid of input.socialAccountIds){const a=this.store.socialAccounts.get(aid);if(!a||a.brandId!==input.brandId){results.push({socialAccountId:aid,platform:'TIKTOK' as Platform,valid:false,errors:['ACCOUNT_NOT_FOUND'],warnings:[]});continue}
-      const v=[...this.store.variants.values()].find(x=>x.contentItemId===c.id&&x.platform===a.platform);if(!v||v.status!=='READY'){results.push({socialAccountId:aid,platform:a.platform,valid:false,errors:['VARIANT_NOT_READY'],warnings:[]});continue}
-      const pubApi=this.tryPublisher(a.platform,'API'),pubBrowser=this.tryPublisher(a.platform,'BROWSER'),contentType=c.type as ContentType;
-      const apiVal=pubApi?await pubApi.validate(this.toInput(input.brandId,a.id,v.id,a.platform,contentType,v)):undefined,browserVal=pubBrowser?await pubBrowser.validate(this.toInput(input.brandId,a.id,v.id,a.platform,contentType,v)):undefined;
-      if(a.publishMode==='API'&&apiVal&&!apiVal.valid){results.push({socialAccountId:aid,platform:a.platform,valid:false,errors:apiVal.errors,warnings:apiVal.warnings});continue}
-      if(a.publishMode==='BROWSER'&&browserVal&&!browserVal.valid){results.push({socialAccountId:aid,platform:a.platform,valid:false,errors:browserVal.errors,warnings:browserVal.warnings});continue}
-      if(a.publishMode==='HYBRID'&&apiVal&&!apiVal.valid&&browserVal&&!browserVal.valid){results.push({socialAccountId:aid,platform:a.platform,valid:false,errors:[...new Set([...apiVal.errors,...browserVal.errors])],warnings:[...new Set([...apiVal.warnings,...browserVal.warnings])]});continue}
-      if(a.publishMode==='HYBRID'&&apiVal&&!apiVal.valid&&!browserVal){results.push({socialAccountId:aid,platform:a.platform,valid:false,errors:apiVal.errors,warnings:apiVal.warnings});continue}
-      if(a.publishMode==='HYBRID'&&browserVal&&!browserVal.valid&&!apiVal){results.push({socialAccountId:aid,platform:a.platform,valid:false,errors:browserVal.errors,warnings:browserVal.warnings});continue}
-      let strategy:'API'|'BROWSER';try{strategy=this.resolver.resolve({publishMode:a.publishMode,contentType,apiCredentialHealthy:input.apiHealth?.[a.id]??a.status==='CONNECTED',apiCapability:!!pubApi&&!!apiVal?.valid,browserCapability:!!pubBrowser&&!!browserVal?.valid,browserNodeHealthy:input.browserHealth?.[a.id]??!!a.browserProfileId})}catch(e:any){results.push({socialAccountId:aid,platform:a.platform,valid:false,errors:[e.code??String(e.message??'VALIDATION')],warnings:[]});continue}
-      const selected=strategy==='API'?apiVal:browserVal;results.push({socialAccountId:aid,platform:a.platform,valid:true,errors:[],warnings:selected?.warnings??[],strategy,contentVariantId:v.id});
-    }return results;
+import type {ContentType, ContentVariant, Platform, PublishJob} from '../../../../../packages/shared/src/domain.ts';
+import type {Repositories} from '../../../../../packages/shared/src/repositories.ts';
+import {id} from '../../../../../packages/shared/src/ids.ts';
+import {sha256} from '../../../../../packages/shared/src/security.ts';
+import {PublisherRegistry} from './publisher-registry.ts';
+import {StrategyResolver} from './strategy-resolver.ts';
+
+type ValidationInput = {brandId: string; contentId: string; socialAccountIds: string[]; apiHealth?: Record<string, boolean>; browserHealth?: Record<string, boolean>};
+
+export class PublishingService {
+  private readonly repos: Repositories;
+  private readonly registry: PublisherRegistry;
+  private readonly resolver: StrategyResolver;
+  constructor(repos: Repositories, registry: PublisherRegistry, resolver: StrategyResolver) {
+    this.repos = repos; this.registry = registry; this.resolver = resolver;
   }
-  async createBatch(input:{brandId:string;contentId:string;createdBy:string;socialAccountIds:string[];scheduledAt?:number;apiHealth?:Record<string,boolean>;browserHealth?:Record<string,boolean>}){
-    const c=this.store.contents.get(input.contentId);if(!c||c.brandId!==input.brandId)throw new Error('CONTENT_NOT_FOUND');const validation=await this.validateTargets(input);const batch={id:id('batch'),brandId:input.brandId,contentItemId:c.id,createdBy:input.createdBy,createdAt:Date.now()};this.store.publishBatches.set(batch.id,batch);const results=[];
-    for(const r of validation){if(!r.valid||!r.strategy||!r.contentVariantId){results.push(r);continue}const scheduledAt=input.scheduledAt??Date.now(),key=await sha256(`${input.brandId}|${r.socialAccountId}|${r.contentVariantId}|${new Date(scheduledAt).toISOString()}`);const existing=[...this.store.publishJobs.values()].find(j=>j.idempotencyKey===key);const job:PublishJob=existing??{id:id('job'),batchId:batch.id,brandId:input.brandId,socialAccountId:r.socialAccountId,contentVariantId:r.contentVariantId,platform:r.platform,strategy:r.strategy,scheduledAt,status:'QUEUED',attemptCount:0,maxAttempts:4,idempotencyKey:key};if(!existing)this.store.publishJobs.set(job.id,job);results.push({socialAccountId:r.socialAccountId,platform:r.platform,valid:true,errors:[],warnings:r.warnings,jobId:job.id})}
-    return{batchId:batch.id,results};
+
+  async validateTargets(input: ValidationInput) {
+    const content = await this.repos.contents.get(input.contentId);
+    if (!content || content.brandId !== input.brandId) throw new Error('CONTENT_NOT_FOUND');
+    const results: Array<{socialAccountId: string; platform: Platform; valid: boolean; errors: string[]; warnings: string[]; strategy?: 'API' | 'BROWSER'; contentVariantId?: string}> = [];
+    for (const accountId of input.socialAccountIds) {
+      const account = await this.repos.socialAccounts.get(accountId);
+      if (!account || account.brandId !== input.brandId) {
+        results.push({socialAccountId: accountId, platform: 'TIKTOK', valid: false, errors: ['ACCOUNT_NOT_FOUND'], warnings: []});
+        continue;
+      }
+      const variant = (await this.repos.variants.findBy({contentItemId: content.id, platform: account.platform}))[0];
+      if (!variant || variant.status !== 'READY') {
+        results.push({socialAccountId: accountId, platform: account.platform, valid: false, errors: ['VARIANT_NOT_READY'], warnings: []});
+        continue;
+      }
+      const api = this.tryPublisher(account.platform, 'API'), browser = this.tryPublisher(account.platform, 'BROWSER'), contentType = content.type as ContentType;
+      const apiResult = api ? await api.validate(this.toInput(input.brandId, account.id, variant, contentType)) : undefined;
+      const browserResult = browser ? await browser.validate(this.toInput(input.brandId, account.id, variant, contentType)) : undefined;
+      if (account.publishMode === 'API' && apiResult && !apiResult.valid) {
+        results.push({socialAccountId: accountId, platform: account.platform, valid: false, errors: apiResult.errors, warnings: apiResult.warnings});
+        continue;
+      }
+      if (account.publishMode === 'BROWSER' && browserResult && !browserResult.valid) {
+        results.push({socialAccountId: accountId, platform: account.platform, valid: false, errors: browserResult.errors, warnings: browserResult.warnings});
+        continue;
+      }
+      if (account.publishMode === 'HYBRID' && apiResult && !apiResult.valid && browserResult && !browserResult.valid) {
+        results.push({socialAccountId: accountId, platform: account.platform, valid: false, errors: [...new Set([...apiResult.errors, ...browserResult.errors])], warnings: [...new Set([...apiResult.warnings, ...browserResult.warnings])]});
+        continue;
+      }
+      if (account.publishMode === 'HYBRID' && apiResult && !apiResult.valid && !browserResult) {
+        results.push({socialAccountId: accountId, platform: account.platform, valid: false, errors: apiResult.errors, warnings: apiResult.warnings});
+        continue;
+      }
+      if (account.publishMode === 'HYBRID' && browserResult && !browserResult.valid && !apiResult) {
+        results.push({socialAccountId: accountId, platform: account.platform, valid: false, errors: browserResult.errors, warnings: browserResult.warnings});
+        continue;
+      }
+      let strategy: 'API' | 'BROWSER';
+      try {
+        strategy = this.resolver.resolve({publishMode: account.publishMode, contentType,
+          apiCredentialHealthy: input.apiHealth?.[account.id] ?? account.status === 'CONNECTED',
+          apiCapability: !!api && !!apiResult?.valid,
+          browserCapability: !!browser && !!browserResult?.valid,
+          browserNodeHealthy: input.browserHealth?.[account.id] ?? !!account.browserProfileId});
+      } catch (error: any) {
+        results.push({socialAccountId: accountId, platform: account.platform, valid: false, errors: [error.code ?? String(error.message ?? 'VALIDATION')], warnings: []});
+        continue;
+      }
+      const selected = strategy === 'API' ? apiResult : browserResult;
+      results.push({socialAccountId: accountId, platform: account.platform, valid: true, errors: [], warnings: selected?.warnings ?? [], strategy, contentVariantId: variant.id});
+    }
+    return results;
   }
-  private tryPublisher(platform:Platform,strategy:'API'|'BROWSER'){try{return this.registry.get(platform,strategy)}catch{return undefined}}
-  private toInput(brandId:string,socialAccountId:string,contentVariantId:string,platform:Platform,contentType:ContentType,v:any){return{brandId,socialAccountId,contentVariantId,platform,contentType,...(v.caption?{caption:v.caption}:{}),...(v.body?{body:v.body}:{})}}
+
+  async createBatch(input: ValidationInput & {createdBy: string; scheduledAt?: number}) {
+    const content = await this.repos.contents.get(input.contentId);
+    if (!content || content.brandId !== input.brandId) throw new Error('CONTENT_NOT_FOUND');
+    const validation = await this.validateTargets(input);
+    const batch = {id: id('batch'), brandId: input.brandId, contentItemId: content.id, createdBy: input.createdBy, createdAt: Date.now()};
+    await this.repos.publishBatches.insert(batch);
+    const results = [];
+    for (const result of validation) {
+      if (!result.valid || !result.strategy || !result.contentVariantId) {results.push(result); continue}
+      const scheduledAt = input.scheduledAt ?? Date.now();
+      const key = await sha256([input.brandId, result.socialAccountId, result.contentVariantId, new Date(scheduledAt).toISOString()].join('|'));
+      const existing = (await this.repos.publishJobs.findBy({idempotencyKey: key}))[0];
+      const job: PublishJob = existing ?? {id: id('job'), batchId: batch.id, brandId: input.brandId, socialAccountId: result.socialAccountId,
+        contentVariantId: result.contentVariantId, platform: result.platform, strategy: result.strategy, scheduledAt,
+        status: 'QUEUED', attemptCount: 0, maxAttempts: 4, idempotencyKey: key};
+      if (!existing) await this.repos.publishJobs.insert(job);
+      results.push({socialAccountId: result.socialAccountId, platform: result.platform, valid: true, errors: [], warnings: result.warnings, jobId: job.id});
+    }
+    return {batchId: batch.id, results};
+  }
+
+  private tryPublisher(platform: Platform, strategy: 'API' | 'BROWSER') {
+    try {return this.registry.get(platform, strategy)} catch {return undefined}
+  }
+  private toInput(brandId: string, socialAccountId: string, variant: ContentVariant, contentType: ContentType) {
+    return {brandId, socialAccountId, contentVariantId: variant.id, platform: variant.platform, contentType,
+      ...(variant.caption ? {caption: variant.caption} : {}), ...(variant.body ? {body: variant.body} : {})};
+  }
 }

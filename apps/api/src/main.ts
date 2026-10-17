@@ -70,7 +70,7 @@ async function boot(){
     const persistence=process.env.DEV_STORE_FILE?new JsonStorePersistence(process.env.DEV_STORE_FILE):undefined;
     const store=persistence?await persistence.load():undefined;
     const app=await createDevelopmentRuntime({...((store)?{store}: {})});
-    const server=startApiServer(port,app.runtime),worker=new LocalWorkerRuntime(app.store,app.registry,app.services.media);
+    const server=startApiServer(port,app.runtime),worker=new LocalWorkerRuntime(app.repos,app.registry,app.services.media);
     const timer=setInterval(()=>{void worker.tick().catch(error=>console.error('local worker tick failed',error));void worker.syncMetrics(metricsCaptureKey()).catch(error=>console.error('local metrics sync failed',error))},Number(process.env.LOCAL_WORKER_INTERVAL_MS??1000));
     let saving=false;const persist=async()=>{if(!persistence||saving)return;saving=true;try{await persistence.save(app.store)}catch(error){console.error('local store persistence failed',error)}finally{saving=false}};
     const persistenceTimer=persistence?setInterval(()=>void persist(),Number(process.env.LOCAL_STORE_FLUSH_MS??2000)):undefined;

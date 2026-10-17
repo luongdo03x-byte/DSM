@@ -63,6 +63,9 @@ export function toRow(table: DomainTable, entity: RecordValue): RecordValue {
   }
   if (table === 'media') result.storageProvider = 'S3';
   if (table === 'publishBatches') result.status = 'QUEUED';
+  if (table === 'campaigns' && Array.isArray(entity.contentIds)) {
+    result.contents = {deleteMany: {}, create: entity.contentIds.map((contentItemId: string) => ({contentItemId}))};
+  }
   return result;
 }
 
@@ -70,6 +73,7 @@ export function toWhere(table: DomainTable, where: RecordValue): RecordValue {
   const result = toRow(table, where);
   if (table === 'media') delete result.storageProvider;
   if (table === 'publishBatches') delete result.status;
+  if (table === 'campaigns') delete result.contents;
   return result;
 }
 

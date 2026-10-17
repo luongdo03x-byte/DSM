@@ -1,2 +1,22 @@
-import type {MemoryStore} from '../../../../../packages/shared/src/store.ts';import {AnalyticsService,ctr} from '../analytics/analytics.service.ts';
-export class CampaignPerformanceService{private s:MemoryStore;private a:AnalyticsService;constructor(s:MemoryStore,a:AnalyticsService){this.s=s;this.a=a}get(brandId:string,campaignId:string){const c=this.s.campaigns.get(campaignId);if(!c||c.brandId!==brandId)throw new Error('CAMPAIGN_NOT_FOUND');const contentSet=new Set(c.contentIds),rows=this.a.content(brandId).filter(r=>{const v=this.s.variants.get(r.contentVariantId);return !!v&&contentSet.has(v.contentItemId)}).sort((x,y)=>y.views-x.views);const views=rows.reduce((n,x)=>n+x.views,0),clicks=rows.reduce((n,x)=>n+x.clicks,0);return{views,clicks,ctr:ctr(clicks,views),posts:rows.length,content:rows}}}
+import type {Repositories} from '../../../../../packages/shared/src/repositories.ts';
+import {AnalyticsService, ctr} from '../analytics/analytics.service.ts';
+
+export class CampaignPerformanceService {
+  private readonly repos: Repositories;
+  private readonly analytics: AnalyticsService;
+  constructor(repos: Repositories, analytics: AnalyticsService) {this.repos = repos; this.analytics = analytics}
+
+  async get(brandId: string, campaignId: string) {
+    const campaign = await this.repos.campaigns.get(campaignId);
+    if (!campaign || campaign.brandId !== brandId) throw new Error('CAMPAIGN_NOT_FOUND');
+    const contentSet = new Set(campaign.contentIds);
+    const rows = [];
+    for (const row of await this.analytics.content(brandId)) {
+      const variant = await this.repos.variants.get(row.contentVariantId);
+      if (variant && contentSet.has(variant.contentItemId)) rows.push(row);
+    }
+    rows.sort((a, b) => b.views - a.views);
+    const views = rows.reduce((count, row) => count + row.views, 0), clicks = rows.reduce((count, row) => count + row.clicks, 0);
+    return {views, clicks, ctr: ctr(clicks, views), posts: rows.length, content: rows};
+  }
+}

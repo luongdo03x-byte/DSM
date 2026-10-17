@@ -1,2 +1,25 @@
-import type {MemoryStore} from '../../../../packages/shared/src/store.ts';import type {PublisherRegistry} from '../../../api/src/modules/publishing/publisher-registry.ts';import {id} from '../../../../packages/shared/src/ids.ts';
-export class MetricsSyncService{private s:MemoryStore;private r:PublisherRegistry;constructor(s:MemoryStore,r:PublisherRegistry){this.s=s;this.r=r}async sync(publishedPostId:string,captureKey:string,capturedAt=Date.now()){const existing=this.s.postMetrics.find(x=>x.publishedPostId===publishedPostId&&x.captureKey===captureKey);if(existing)return existing;const p=this.s.publishedPosts.get(publishedPostId);if(!p)throw new Error('POST_NOT_FOUND');const job=this.s.publishJobs.get(p.publishJobId);if(!job)throw new Error('JOB_NOT_FOUND');const m=await this.r.get(p.platform,job.strategy).fetchMetrics(p.platformPostId,{socialAccountId:p.socialAccountId});const row={id:id('metric'),publishedPostId,capturedAt,captureKey,...(m.views!==undefined?{views:m.views}:{}),...(m.likes!==undefined?{likes:m.likes}:{}),...(m.comments!==undefined?{comments:m.comments}:{}),...(m.shares!==undefined?{shares:m.shares}:{}),...(m.saves!==undefined?{saves:m.saves}:{}),rawMetrics:m.raw};this.s.postMetrics.push(row);return row}}
+import {id} from '../../../../packages/shared/src/ids.ts';
+import type {Repositories} from '../../../../packages/shared/src/repositories.ts';
+import type {PublisherRegistry} from '../../../api/src/modules/publishing/publisher-registry.ts';
+
+export class MetricsSyncService {
+  private readonly repos: Repositories;
+  private readonly registry: PublisherRegistry;
+  constructor(repos: Repositories, registry: PublisherRegistry) {this.repos = repos; this.registry = registry}
+
+  async sync(publishedPostId: string, captureKey: string, capturedAt = Date.now()) {
+    const existing = (await this.repos.postMetrics.findBy({publishedPostId, captureKey}))[0];
+    if (existing) return existing;
+    const post = await this.repos.publishedPosts.get(publishedPostId);
+    if (!post) throw new Error('POST_NOT_FOUND');
+    const job = await this.repos.publishJobs.get(post.publishJobId);
+    if (!job) throw new Error('JOB_NOT_FOUND');
+    const metrics = await this.registry.get(post.platform, job.strategy).fetchMetrics(post.platformPostId, {socialAccountId: post.socialAccountId});
+    const row = {id: id('metric'), publishedPostId, capturedAt, captureKey,
+      ...(metrics.views !== undefined ? {views: metrics.views} : {}), ...(metrics.likes !== undefined ? {likes: metrics.likes} : {}),
+      ...(metrics.comments !== undefined ? {comments: metrics.comments} : {}), ...(metrics.shares !== undefined ? {shares: metrics.shares} : {}),
+      ...(metrics.saves !== undefined ? {saves: metrics.saves} : {}), rawMetrics: metrics.raw};
+    await this.repos.postMetrics.append(row);
+    return row;
+  }
+}

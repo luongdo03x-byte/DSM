@@ -1,15 +1,47 @@
-import type {MemoryStore} from '../../../../packages/shared/src/store.ts';
+import type {Repositories} from '../../../../packages/shared/src/repositories.ts';
 import type {PublisherRegistry} from '../../../api/src/modules/publishing/publisher-registry.ts';
 import type {MediaService} from '../../../api/src/modules/media/media.service.ts';
 import {JobRunner} from '../publishing/job-runner.service.ts';
 import {PublishInputBuilder} from '../publishing/publish-input.builder.ts';
-import {id} from '../../../../packages/shared/src/ids.ts';
+import {MetricsSyncService} from '../analytics/metrics-sync.service.ts';
 
-export function metricsCaptureKey(now=Date.now()){const d=new Date(now);d.setUTCMinutes(0,0,0);return `${d.toISOString().slice(0,13)}:00Z`}
+export function metricsCaptureKey(now = Date.now()) {
+  const date = new Date(now);
+  date.setUTCMinutes(0, 0, 0);
+  return `${date.toISOString().slice(0, 13)}:00Z`;
+}
 
-export class LocalWorkerRuntime{
-  private store:MemoryStore;private registry:PublisherRegistry;private runner:JobRunner;private builder:PublishInputBuilder;
-  constructor(store:MemoryStore,registry:PublisherRegistry,media:MediaService){this.store=store;this.registry=registry;this.runner=new JobRunner(store,registry);this.builder=new PublishInputBuilder(store,media)}
-  async tick(now=Date.now()){let count=0;const due=[...this.store.publishJobs.values()].filter(j=>(j.status==='QUEUED'||j.status==='RETRYING')&&j.scheduledAt<=now).sort((a,b)=>a.scheduledAt-b.scheduledAt);for(const job of due){await this.runner.run(job.id,j=>this.builder.build(j));count++}return count}
-  async syncMetrics(captureKey:string){const capturedAt=Date.parse(captureKey);if(!Number.isFinite(capturedAt))throw new Error('INVALID_CAPTURE_KEY');let count=0;for(const post of this.store.publishedPosts.values()){if(this.store.postMetrics.some(m=>m.publishedPostId===post.id&&m.captureKey===captureKey))continue;const job=this.store.publishJobs.get(post.publishJobId);if(!job)continue;const publisher=this.registry.get(job.platform,job.strategy);const metrics=await publisher.fetchMetrics(post.platformPostId,{socialAccountId:post.socialAccountId});this.store.postMetrics.push({id:id('metric'),publishedPostId:post.id,capturedAt,captureKey,...(metrics.views!==undefined?{views:metrics.views}:{}),...(metrics.likes!==undefined?{likes:metrics.likes}:{}),...(metrics.comments!==undefined?{comments:metrics.comments}:{}),...(metrics.shares!==undefined?{shares:metrics.shares}:{}),...(metrics.saves!==undefined?{saves:metrics.saves}:{}),rawMetrics:metrics.raw});count++}return count}
+export class LocalWorkerRuntime {
+  private readonly repos: Repositories;
+  private readonly runner: JobRunner;
+  private readonly builder: PublishInputBuilder;
+  private readonly metrics: MetricsSyncService;
+  constructor(repos: Repositories, registry: PublisherRegistry, media: MediaService) {
+    this.repos = repos;
+    this.runner = new JobRunner(repos, registry);
+    this.builder = new PublishInputBuilder(repos, media);
+    this.metrics = new MetricsSyncService(repos, registry);
+  }
+
+  async tick(now = Date.now()) {
+    const due = await this.repos.publishJobs.findDue(now, 20);
+    let count = 0;
+    for (const job of due) {
+      const result = await this.runner.run(job.id, current => this.builder.build(current));
+      if (result !== 'SKIPPED') count++;
+    }
+    return count;
+  }
+
+  async syncMetrics(captureKey: string) {
+    const capturedAt = Date.parse(captureKey);
+    if (!Number.isFinite(capturedAt)) throw new Error('INVALID_CAPTURE_KEY');
+    let count = 0;
+    for (const post of await this.repos.publishedPosts.findBy({})) {
+      if ((await this.repos.postMetrics.findBy({publishedPostId: post.id, captureKey})).length) continue;
+      await this.metrics.sync(post.id, captureKey, capturedAt);
+      count++;
+    }
+    return count;
+  }
 }

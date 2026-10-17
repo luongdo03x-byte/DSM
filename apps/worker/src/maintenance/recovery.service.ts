@@ -1,2 +1,17 @@
-import type {MemoryStore} from '../../../../packages/shared/src/store.ts';import type {PublishQueueService} from '../../../api/src/modules/publishing/publish-queue.service.ts';
-export class RecoveryService{private store:MemoryStore;private q:PublishQueueService;constructor(store:MemoryStore,q:PublishQueueService){this.store=store;this.q=q}recoverDueJobs(now=Date.now()){let n=0;for(const j of this.store.publishJobs.values())if((j.status==='QUEUED'||j.status==='RETRYING')&&j.scheduledAt<=now){const queue=j.strategy==='API'?this.q.api:this.q.browser;if(!queue.has(j.id)){this.q.enqueue(j.id);n++}}return n}}
+import type {Repositories} from '../../../../packages/shared/src/repositories.ts';
+import type {PublishQueueService} from '../../../api/src/modules/publishing/publish-queue.service.ts';
+
+export class RecoveryService {
+  private readonly repos: Repositories;
+  private readonly queue: PublishQueueService;
+  constructor(repos: Repositories, queue: PublishQueueService) {this.repos = repos; this.queue = queue}
+
+  async recoverDueJobs(now = Date.now()): Promise<number> {
+    let count = 0;
+    for (const job of await this.repos.publishJobs.findDue(now, 1000)) {
+      const target = job.strategy === 'API' ? this.queue.api : this.queue.browser;
+      if (!target.has(job.id)) {this.queue.enqueue(job.id); count++}
+    }
+    return count;
+  }
+}

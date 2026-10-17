@@ -52,7 +52,7 @@ test('http api smoke journey', async (t) => {
   };
   const app = await createDevelopmentRuntime({env});
   for (const platform of PLATFORMS) app.registry.register(platform, 'API', new FakePublisher());
-  const worker = new LocalWorkerRuntime(app.store, app.registry, app.services.media);
+  const worker = new LocalWorkerRuntime(app.repos, app.registry, app.services.media);
 
   const server = startApiServer(0, app.runtime);
   t.after(

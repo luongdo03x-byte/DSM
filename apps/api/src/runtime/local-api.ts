@@ -82,13 +82,13 @@ export class LocalApiRuntime {
       }
       let publicMatch:RegExpExecArray|null;
       if(method==='GET'&&(publicMatch=route(req.path,/^\/r\/([^/]+)$/))){
-        const referrer=req.headers?.referer,userAgent=req.headers?.['user-agent'];const target=this.d.tracking.resolve(decodeURIComponent(publicMatch[1]!),{...(referrer?{referrer}:{}),...(userAgent?{userAgent}:{})});
+        const referrer=req.headers?.referer,userAgent=req.headers?.['user-agent'];const target=await this.d.tracking.resolve(decodeURIComponent(publicMatch[1]!),{...(referrer?{referrer}:{}),...(userAgent?{userAgent}:{})});
         return{status:302,body:null,headers:{location:target}};
       }
 
       let nodeMatch:RegExpExecArray|null;
       if(method==='POST'&&(nodeMatch=route(req.path,/^\/browser-nodes\/([^/]+)\/register$/))){if(!this.d.nodeAuth)return{status:501,body:{error:'NODE_AUTH_NOT_CONFIGURED'}};const b=asObject(req.body);return{status:200,body:await this.d.nodeAuth.register(decodeURIComponent(nodeMatch[1]!),String(b.registrationToken??''))}}
-      if(method==='POST'&&(nodeMatch=route(req.path,/^\/browser-nodes\/([^/]+)\/heartbeat$/))){if(!this.d.nodeAuth||!this.d.browserNodes)return{status:501,body:{error:'NODE_AUTH_NOT_CONFIGURED'}};const nodeId=decodeURIComponent(nodeMatch[1]!),timestamp=req.headers?.['x-node-ts']??'',signature=req.headers?.['x-node-signature']??'',body=asObject(req.body),raw=JSON.stringify(body);await this.d.nodeAuth.verify({nodeId,timestamp,method,path:req.path,body:raw,signature});return{status:200,body:this.d.browserNodes.heartbeat(nodeId,{status:body.status==='DEGRADED'?'DEGRADED':'ONLINE',...(body.maxConcurrency!==undefined?{maxConcurrency:Number(body.maxConcurrency)}:{})})}}
+      if(method==='POST'&&(nodeMatch=route(req.path,/^\/browser-nodes\/([^/]+)\/heartbeat$/))){if(!this.d.nodeAuth||!this.d.browserNodes)return{status:501,body:{error:'NODE_AUTH_NOT_CONFIGURED'}};const nodeId=decodeURIComponent(nodeMatch[1]!),timestamp=req.headers?.['x-node-ts']??'',signature=req.headers?.['x-node-signature']??'',body=asObject(req.body),raw=JSON.stringify(body);await this.d.nodeAuth.verify({nodeId,timestamp,method,path:req.path,body:raw,signature});return{status:200,body:await this.d.browserNodes.heartbeat(nodeId,{status:body.status==='DEGRADED'?'DEGRADED':'ONLINE',...(body.maxConcurrency!==undefined?{maxConcurrency:Number(body.maxConcurrency)}:{})})}}
 
       const userId=await this.authenticate(req);
       let m:RegExpExecArray|null;
@@ -104,14 +104,14 @@ export class LocalApiRuntime {
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/accounts$/))){
         const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
-        if(method==='GET')return{status:200,body:this.d.accounts.list(brandId)};
-        if(method==='POST'){const b=asObject(req.body);return{status:201,body:this.d.accounts.create(brandId,{platform:b.platform,username:b.username,publishMode:b.publishMode})}}
+        if(method==='GET')return{status:200,body:await this.d.accounts.list(brandId)};
+        if(method==='POST'){const b=asObject(req.body);return{status:201,body:await this.d.accounts.create(brandId,{platform:b.platform,username:b.username,publishMode:b.publishMode})}}
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/accounts\/([^/]+)\/credentials$/))){
-        const brandId=decodeURIComponent(m[1]!),accountId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);const account=this.d.store.socialAccounts.get(accountId);if(!account||account.brandId!==brandId)throw new Error('ACCOUNT_NOT_FOUND');if(method==='POST'){const b=asObject(req.body);await this.d.accounts.saveCredential(accountId,String(b.provider??account.platform.toLowerCase()),String(b.accessToken??''),b.refreshToken!==undefined?String(b.refreshToken):undefined);return{status:200,body:{id:account.id,status:account.status}}}
+        const brandId=decodeURIComponent(m[1]!),accountId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);const account=this.d.store.socialAccounts.get(accountId);if(!account||account.brandId!==brandId)throw new Error('ACCOUNT_NOT_FOUND');if(method==='POST'){const b=asObject(req.body);const updated=await this.d.accounts.saveCredential(accountId,String(b.provider??account.platform.toLowerCase()),String(b.accessToken??''),b.refreshToken!==undefined?String(b.refreshToken):undefined);return{status:200,body:{id:updated.id,status:updated.status}}}
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/accounts\/([^/]+)\/browser-profile$/))){
-        const brandId=decodeURIComponent(m[1]!),accountId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);if(method==='POST'){const b=asObject(req.body);return{status:200,body:this.d.accounts.attachBrowserProfile(brandId,accountId,String(b.browserNodeId??''),String(b.providerProfileId??''),String(b.name??'Browser profile'))}}
+        const brandId=decodeURIComponent(m[1]!),accountId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);if(method==='POST'){const b=asObject(req.body);return{status:200,body:await this.d.accounts.attachBrowserProfile(brandId,accountId,String(b.browserNodeId??''),String(b.providerProfileId??''),String(b.name??'Browser profile'))}}
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/accounts\/([^/]+)\/disconnect$/))){
         const brandId=decodeURIComponent(m[1]!),accountId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);
@@ -134,20 +134,20 @@ export class LocalApiRuntime {
       if((m=route(req.path,/^\/brands\/([^/]+)\/campaigns$/))){
         const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
         if(method==='GET')return{status:200,body:[...this.d.store.campaigns.values()].filter(x=>x.brandId===brandId)};
-        if(method==='POST'){if(!this.d.campaigns)return{status:501,body:{error:'CAMPAIGNS_NOT_CONFIGURED'}};const b=asObject(req.body);return{status:201,body:this.d.campaigns.create(brandId,{name:String(b.name??''),...(b.productId!==undefined?{productId:String(b.productId)}:{}),...(b.description!==undefined?{description:String(b.description)}:{})})}}
+        if(method==='POST'){if(!this.d.campaigns)return{status:501,body:{error:'CAMPAIGNS_NOT_CONFIGURED'}};const b=asObject(req.body);return{status:201,body:await this.d.campaigns.create(brandId,{name:String(b.name??''),...(b.productId!==undefined?{productId:String(b.productId)}:{}),...(b.description!==undefined?{description:String(b.description)}:{})})}}
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/campaigns\/([^/]+)\/content$/))){
         const brandId=decodeURIComponent(m[1]!),campaignId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);
-        if(method==='POST'){if(!this.d.campaigns)return{status:501,body:{error:'CAMPAIGNS_NOT_CONFIGURED'}};const b=asObject(req.body);return{status:200,body:this.d.campaigns.attachContent(brandId,campaignId,String(b.contentId??''))}}
+        if(method==='POST'){if(!this.d.campaigns)return{status:501,body:{error:'CAMPAIGNS_NOT_CONFIGURED'}};const b=asObject(req.body);return{status:200,body:await this.d.campaigns.attachContent(brandId,campaignId,String(b.contentId??''))}}
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/campaigns\/([^/]+)\/performance$/))){
         const brandId=decodeURIComponent(m[1]!),campaignId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);
-        if(method==='GET'){if(!this.d.campaignPerformance)return{status:501,body:{error:'CAMPAIGN_PERFORMANCE_NOT_CONFIGURED'}};return{status:200,body:this.d.campaignPerformance.get(brandId,campaignId)}}
+        if(method==='GET'){if(!this.d.campaignPerformance)return{status:501,body:{error:'CAMPAIGN_PERFORMANCE_NOT_CONFIGURED'}};return{status:200,body:await this.d.campaignPerformance.get(brandId,campaignId)}}
       }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/tracked-links$/))){
         const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
-        if(method==='POST'){const b=asObject(req.body);return{status:201,body:this.d.tracking.create(brandId,{targetUrl:String(b.targetUrl??''),...(b.productId!==undefined?{productId:String(b.productId)}:{}),...(b.contentItemId!==undefined?{contentItemId:String(b.contentItemId)}:{}),...(b.utmSource!==undefined?{utmSource:String(b.utmSource)}:{}),...(b.utmMedium!==undefined?{utmMedium:String(b.utmMedium)}:{}),...(b.utmCampaign!==undefined?{utmCampaign:String(b.utmCampaign)}:{}),...(b.utmContent!==undefined?{utmContent:String(b.utmContent)}:{})})}}
+        if(method==='POST'){const b=asObject(req.body);return{status:201,body:await this.d.tracking.create(brandId,{targetUrl:String(b.targetUrl??''),...(b.productId!==undefined?{productId:String(b.productId)}:{}),...(b.contentItemId!==undefined?{contentItemId:String(b.contentItemId)}:{}),...(b.utmSource!==undefined?{utmSource:String(b.utmSource)}:{}),...(b.utmMedium!==undefined?{utmMedium:String(b.utmMedium)}:{}),...(b.utmCampaign!==undefined?{utmCampaign:String(b.utmCampaign)}:{}),...(b.utmContent!==undefined?{utmContent:String(b.utmContent)}:{})})}}
       }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/calendar$/))){
@@ -155,8 +155,8 @@ export class LocalApiRuntime {
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/calendar\/([^/]+)$/))){
         const brandId=decodeURIComponent(m[1]!),jobId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);const job=this.d.store.publishJobs.get(jobId);if(!job||job.brandId!==brandId)throw new Error('JOB_NOT_FOUND');
-        if(method==='PATCH'){const b=asObject(req.body);return{status:200,body:this.d.batchStatus.reschedule(jobId,Number(b.scheduledAt))}}
-        if(method==='DELETE')return{status:200,body:this.d.batchStatus.cancel(jobId)};
+        if(method==='PATCH'){const b=asObject(req.body);return{status:200,body:await this.d.batchStatus.reschedule(jobId,Number(b.scheduledAt))}}
+        if(method==='DELETE')return{status:200,body:await this.d.batchStatus.cancel(jobId)};
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/publish-jobs\/([^/]+)\/retry$/))){
         const brandId=decodeURIComponent(m[1]!),jobId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);const job=this.d.store.publishJobs.get(jobId);if(!job||job.brandId!==brandId)throw new Error('JOB_NOT_FOUND');if(method==='POST')return{status:200,body:await this.d.batchStatus.manualRetry(jobId,userId)};
@@ -229,16 +229,16 @@ export class LocalApiRuntime {
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/analytics\/overview$/))){
         const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
-        if(method==='GET')return{status:200,body:this.d.analytics.overview(brandId)};
+        if(method==='GET')return{status:200,body:await this.d.analytics.overview(brandId)};
       }
-      if((m=route(req.path,/^\/brands\/([^/]+)\/analytics\/content$/))){const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);if(method==='GET')return{status:200,body:this.d.analytics.content(brandId)}}
-      if((m=route(req.path,/^\/brands\/([^/]+)\/analytics\/platforms$/))){const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);if(method==='GET')return{status:200,body:this.d.analytics.platforms(brandId)}}
+      if((m=route(req.path,/^\/brands\/([^/]+)\/analytics\/content$/))){const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);if(method==='GET')return{status:200,body:await this.d.analytics.content(brandId)}}
+      if((m=route(req.path,/^\/brands\/([^/]+)\/analytics\/platforms$/))){const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);if(method==='GET')return{status:200,body:await this.d.analytics.platforms(brandId)}}
 
       if((m=route(req.path,/^\/publish\/batches\/([^/]+)$/))){
         if(method==='GET'){
           const batchId=decodeURIComponent(m[1]!);const batch=this.d.store.publishBatches.get(batchId);if(!batch)throw new Error('BATCH_NOT_FOUND');await this.authorize(userId,batch.brandId);
           const jobs=[...this.d.store.publishJobs.values()].filter(j=>j.batchId===batchId);
-          return{status:200,body:{batchId,status:this.d.batchStatus.get(batchId),jobs}};
+          return{status:200,body:{batchId,status:await this.d.batchStatus.get(batchId),jobs}};
         }
       }
 
