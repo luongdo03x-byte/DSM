@@ -6,7 +6,7 @@ test('v1 acceptance harness', async () => {
   const result = await runV1CriticalJourney();
 
   assert.equal(result.loginOk, true);
-  assert.equal(result.variants, 4);
+  assert.equal(result.variants, 5);
   assert.equal(result.jobs, 4);
   assert.equal(result.publishedPosts, 4);
   assert.equal(result.batchStatus, 'PUBLISHED');

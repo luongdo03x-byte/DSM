@@ -193,9 +193,22 @@ export class LocalApiRuntime {
             ...(b.body!==undefined?{body:String(b.body)}:{}),
             ...(b.cta!==undefined?{cta:String(b.cta)}:{}),
             ...(b.masterAssetId!==undefined?{masterAssetId:String(b.masterAssetId)}:{}),
+            ...(Array.isArray(b.mediaAssetIds)?{mediaAssetIds:b.mediaAssetIds.map(String)}:{}),
           },userId);
           return{status:201,body:content};
         }
+      }
+
+      if((m=route(req.path,/^\/brands\/([^/]+)\/content\/([^/]+)\/media$/))){
+        const brandId=decodeURIComponent(m[1]!),contentId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);
+        if(method==='PUT'){const b=asObject(req.body);if(!Array.isArray(b.mediaAssetIds))throw new Error('MEDIA_IDS_REQUIRED');return{status:200,body:await this.d.content.setMedia(brandId,contentId,b.mediaAssetIds.map(String))}}
+      }
+      if((m=route(req.path,/^\/brands\/([^/]+)\/content\/([^/]+)\/variants\/([^/]+)\/media$/))){
+        const brandId=decodeURIComponent(m[1]!),contentId=decodeURIComponent(m[2]!),variantId=decodeURIComponent(m[3]!);await this.authorize(userId,brandId);await this.d.content.listVariants(brandId,contentId);
+        if(method==='PUT'){const b=asObject(req.body);if(!Array.isArray(b.items))throw new Error('MEDIA_ITEMS_REQUIRED');const items=b.items.map(value=>{const item=asObject(value);return{mediaAssetId:String(item.mediaAssetId??''),...(item.crop!==undefined?{crop:item.crop as {x:number;y:number;width:number;height:number}}:{}),...(item.isCover!==undefined?{isCover:Boolean(item.isCover)}:{})}});return{status:200,body:await this.d.content.setVariantMedia(brandId,variantId,items)}}
+      }
+      if((m=route(req.path,/^\/brands\/([^/]+)\/content\/([^/]+)\/variants\/([^/]+)\/preflight$/))){
+        const brandId=decodeURIComponent(m[1]!),contentId=decodeURIComponent(m[2]!),variantId=decodeURIComponent(m[3]!);await this.authorize(userId,brandId);const variants=await this.d.content.listVariants(brandId,contentId);if(!variants.some(variant=>variant.id===variantId))throw new Error('VARIANT_NOT_FOUND');if(method==='GET')return{status:200,body:{issues:await this.d.content.preflightVariant(brandId,variantId)}}
       }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/content\/([^/]+)\/variants$/))){

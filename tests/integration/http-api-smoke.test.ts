@@ -139,7 +139,7 @@ test('http api smoke journey', async (t) => {
   // 9. Copy master to the four platform variants
   const variants = await call('POST', `/brands/${BRAND}/content/${contentId}/variants/copy`, {token});
   assert.equal(variants.status, 200);
-  assert.equal(variants.body.length, 4);
+  assert.equal(variants.body.length, 5);
 
   // 10. Four seeded social accounts
   const accounts = await call('GET', `/brands/${BRAND}/accounts`, {token});
@@ -157,7 +157,7 @@ test('http api smoke journey', async (t) => {
   }
 
   // 12. Mark the four variants READY
-  for (const variant of variants.body) {
+  for (const variant of variants.body.filter((row: {skippedReason?: string}) => !row.skippedReason)) {
     const ready = await call('PATCH', `/brands/${BRAND}/content/${contentId}/variants/${variant.id}`, {token, body: {status: 'READY'}});
     assert.equal(ready.status, 200);
     assert.equal(ready.body.status, 'READY');

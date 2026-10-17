@@ -12,7 +12,7 @@ test('copyMasterToAll tạo đúng một biến thể mỗi nền tảng và g�
   const service = new ContentService(repos);
   const first = await service.copyMasterToAll('brand-1', 'content-1');
   const second = await service.copyMasterToAll('brand-1', 'content-1');
-  assert.deepEqual(first.map(v => v.platform), ['FACEBOOK', 'INSTAGRAM', 'THREADS', 'TIKTOK']);
+  assert.deepEqual(first.map(v => v.platform), ['FACEBOOK', 'INSTAGRAM', 'THREADS', 'TIKTOK', 'YOUTUBE']);
   assert.deepEqual(second.map(v => v.id), first.map(v => v.id));
-  assert.equal((await repos.variants.findBy({contentItemId: 'content-1'})).length, 4);
+  assert.equal((await repos.variants.findBy({contentItemId: 'content-1'})).length, 5);
 });

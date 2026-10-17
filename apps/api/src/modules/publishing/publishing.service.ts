@@ -5,6 +5,7 @@ import {id} from '../../../../../packages/shared/src/ids.ts';
 import {sha256} from '../../../../../packages/shared/src/security.ts';
 import {PublisherRegistry} from './publisher-registry.ts';
 import {StrategyResolver} from './strategy-resolver.ts';
+import {ContentService} from '../content/content.service.ts';
 
 type ValidationInput = {brandId: string; contentId: string; socialAccountIds: string[]; apiHealth?: Record<string, boolean>; browserHealth?: Record<string, boolean>};
 
@@ -28,31 +29,43 @@ export class PublishingService {
         continue;
       }
       const variant = (await this.repos.variants.findBy({contentItemId: content.id, platform: account.platform}))[0];
+      if (variant?.skippedReason) {
+        results.push({socialAccountId: accountId, platform: account.platform, valid: false, errors: ['VARIANT_SKIPPED'], warnings: []});
+        continue;
+      }
       if (!variant || variant.status !== 'READY') {
         results.push({socialAccountId: accountId, platform: account.platform, valid: false, errors: ['VARIANT_NOT_READY'], warnings: []});
+        continue;
+      }
+      const preflightIssues = await new ContentService(this.repos).preflightVariant(input.brandId,variant.id);
+      const preflightErrors = preflightIssues.filter(issue=>issue.severity==='error').map(issue=>issue.code);
+      const preflightWarnings = preflightIssues.filter(issue=>issue.severity==='warning').map(issue=>issue.code);
+      const warnings = (extra:string[]=[])=>[...new Set([...preflightWarnings,...extra])];
+      if (preflightErrors.length) {
+        results.push({socialAccountId:accountId,platform:account.platform,valid:false,errors:preflightErrors,warnings:preflightWarnings});
         continue;
       }
       const api = this.tryPublisher(account.platform, 'API'), browser = this.tryPublisher(account.platform, 'BROWSER'), contentType = content.type as ContentType;
       const apiResult = api ? await api.validate(this.toInput(input.brandId, account.id, variant, contentType)) : undefined;
       const browserResult = browser ? await browser.validate(this.toInput(input.brandId, account.id, variant, contentType)) : undefined;
       if (account.publishMode === 'API' && apiResult && !apiResult.valid) {
-        results.push({socialAccountId: accountId, platform: account.platform, valid: false, errors: apiResult.errors, warnings: apiResult.warnings});
+        results.push({socialAccountId: accountId, platform: account.platform, valid: false, errors: apiResult.errors, warnings: warnings(apiResult.warnings)});
         continue;
       }
       if (account.publishMode === 'BROWSER' && browserResult && !browserResult.valid) {
-        results.push({socialAccountId: accountId, platform: account.platform, valid: false, errors: browserResult.errors, warnings: browserResult.warnings});
+        results.push({socialAccountId: accountId, platform: account.platform, valid: false, errors: browserResult.errors, warnings: warnings(browserResult.warnings)});
         continue;
       }
       if (account.publishMode === 'HYBRID' && apiResult && !apiResult.valid && browserResult && !browserResult.valid) {
-        results.push({socialAccountId: accountId, platform: account.platform, valid: false, errors: [...new Set([...apiResult.errors, ...browserResult.errors])], warnings: [...new Set([...apiResult.warnings, ...browserResult.warnings])]});
+        results.push({socialAccountId: accountId, platform: account.platform, valid: false, errors: [...new Set([...apiResult.errors, ...browserResult.errors])], warnings: warnings([...apiResult.warnings, ...browserResult.warnings])});
         continue;
       }
       if (account.publishMode === 'HYBRID' && apiResult && !apiResult.valid && !browserResult) {
-        results.push({socialAccountId: accountId, platform: account.platform, valid: false, errors: apiResult.errors, warnings: apiResult.warnings});
+        results.push({socialAccountId: accountId, platform: account.platform, valid: false, errors: apiResult.errors, warnings: warnings(apiResult.warnings)});
         continue;
       }
       if (account.publishMode === 'HYBRID' && browserResult && !browserResult.valid && !apiResult) {
-        results.push({socialAccountId: accountId, platform: account.platform, valid: false, errors: browserResult.errors, warnings: browserResult.warnings});
+        results.push({socialAccountId: accountId, platform: account.platform, valid: false, errors: browserResult.errors, warnings: warnings(browserResult.warnings)});
         continue;
       }
       let strategy: 'API' | 'BROWSER';
@@ -63,11 +76,11 @@ export class PublishingService {
           browserCapability: !!browser && !!browserResult?.valid,
           browserNodeHealthy: input.browserHealth?.[account.id] ?? !!account.browserProfileId});
       } catch (error: any) {
-        results.push({socialAccountId: accountId, platform: account.platform, valid: false, errors: [error.code ?? String(error.message ?? 'VALIDATION')], warnings: []});
+        results.push({socialAccountId: accountId, platform: account.platform, valid: false, errors: [error.code ?? String(error.message ?? 'VALIDATION')], warnings: warnings()});
         continue;
       }
       const selected = strategy === 'API' ? apiResult : browserResult;
-      results.push({socialAccountId: accountId, platform: account.platform, valid: true, errors: [], warnings: selected?.warnings ?? [], strategy, contentVariantId: variant.id});
+      results.push({socialAccountId: accountId, platform: account.platform, valid: true, errors: [], warnings: warnings(selected?.warnings), strategy, contentVariantId: variant.id});
     }
     return results;
   }
