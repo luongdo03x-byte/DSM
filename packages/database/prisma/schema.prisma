@@ -311,6 +311,7 @@ model PublishJob {
   attemptCount        Int             @default(0)
   maxAttempts         Int             @default(4)
   idempotencyKey      String          @unique
+  processingStartedAt BigInt?
   remoteCorrelationId String?
   errorCode           String?
   errorMessage        String?

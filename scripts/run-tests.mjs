@@ -35,6 +35,7 @@ const result = spawnSync(
   [
     '--experimental-strip-types',
     '--test',
+    '--test-concurrency=1',
     `--test-timeout=${TEST_TIMEOUT_MS}`,
     '--test-reporter=spec',
     '--test-reporter-destination=stdout',

@@ -91,7 +91,7 @@ export async function createRuntime(options:RuntimeOptions) {
   let queue:BullJobQueue|undefined;
   try {
     await client.$connect();
-    queue=new BullJobQueue({url:env.REDIS_URL});
+    queue=new BullJobQueue({url:env.REDIS_URL},env.PUBLISH_QUEUE_NAME);
     const repos:Repositories=new PrismaRepositories(client);
     const hasher=options.hasher??new Node24Argon2idHasher();
     const ids={ownerId:'local-owner',workspaceId:'local-workspace',brandId:'local-brand'};

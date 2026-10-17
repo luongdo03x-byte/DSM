@@ -66,7 +66,10 @@ class MemoryPublishJobRepo extends MapRepo<PublishJob> implements PublishJobRepo
   async claim(id: string, from: PublishJob['status'][], to: PublishJob['status']): Promise<boolean> {
     const job = this.jobs.get(id);
     if (!job || !from.includes(job.status)) return false;
-    this.jobs.set(id, {...job, status: to});
+    const changed: PublishJob = {...job, status: to};
+    if (to === 'PROCESSING') changed.processingStartedAt = Date.now();
+    else delete changed.processingStartedAt;
+    this.jobs.set(id, changed);
     return true;
   }
 

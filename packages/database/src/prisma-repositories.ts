@@ -87,7 +87,7 @@ class PrismaPublishJobRepo extends TableRepo<PublishJob> implements PublishJobRe
   }
 
   async claim(id: string, from: PublishJob['status'][], to: PublishJob['status']): Promise<boolean> {
-    const result = await this.delegate.updateMany({where: {id, status: {in: from}}, data: {status: to}});
+    const result = await this.delegate.updateMany({where: {id, status: {in: from}}, data: {status: to, processingStartedAt: to === 'PROCESSING' ? BigInt(Date.now()) : null}});
     return result.count === 1;
   }
 
