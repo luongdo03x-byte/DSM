@@ -5,3 +5,4 @@ engineStrict: true
 onlyBuiltDependencies:
   - '@prisma/engines'
   - prisma
+  - sharp

@@ -87,9 +87,15 @@ importers:
       bullmq:
         specifier: ^5.58.0
         version: 5.81.5
+      heic-decode:
+        specifier: 2.1.0
+        version: 2.1.0
       ioredis:
         specifier: ^5.7.0
         version: 5.11.1
+      sharp:
+        specifier: 0.35.5
+        version: 0.35.5(@types/node@24.19.2)
 
   packages/browser-contracts: {}
 
@@ -1004,6 +1010,10 @@ packages:
     resolution: {integrity: sha512-T2UbfbBEF32wiepXIsMlTW9+dDYC6wMh/t/vYA4tuOMKqWz/n3vr1NFSxQiyP+zk2mXsoMA/i/7qV6LKut1t1A==}
     engines: {node: '>= 0.4'}
 
+  heic-decode@2.1.0:
+    resolution: {integrity: sha512-0fB3O3WMk38+PScbHLVp66jcNhsZ/ErtQ6u2lMYu/YxXgbBtl+oKOhGQHa4RpvE68k8IzbWkABzHnyAIjR758A==}
+    engines: {node: '>=8.0.0'}
+
   http-errors@2.0.1:
     resolution: {integrity: sha512-4FbRdAX+bSdmo4AUFuS0WNiPz8NgFt+r8ThgNWmlrjQjt1Q7ZR9+zTlce2859x4KSXrwIsaeTqDoKQmtP8pLmQ==}
     engines: {node: '>= 0.8'}
@@ -1049,6 +1059,10 @@ packages:
 
   json-schema-traverse@1.0.0:
     resolution: {integrity: sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug==}
+
+  libheif-js@1.23.5:
+    resolution: {integrity: sha512-umXZPthnWZtF3iG/5mQG+AZ2V6i0UeYpo3z2CkggTEgL8dKmIIwJT6TDuAMuabXa1yTW8uJ1ZAgR+CxNTklYYw==}
+    engines: {node: '>=8.0.0'}
 
   load-esm@1.0.3:
     resolution: {integrity: sha512-v5xlu8eHD1+6r8EHTg6hfmO97LN8ugKtiXcy5e6oN72iD2r6u0RPfLl6fxM+7Wnh2ZRq15o0russMst44WauPA==}
@@ -1581,8 +1595,7 @@ snapshots:
       tslib: 2.8.1
     optional: true
 
-  '@img/colour@1.1.0':
-    optional: true
+  '@img/colour@1.1.0': {}
 
   '@img/sharp-darwin-arm64@0.35.5':
     optionalDependencies:
@@ -2273,8 +2286,7 @@ snapshots:
 
   destr@2.0.5: {}
 
-  detect-libc@2.1.2:
-    optional: true
+  detect-libc@2.1.2: {}
 
   dotenv@17.4.2: {}
 
@@ -2442,6 +2454,10 @@ snapshots:
     dependencies:
       function-bind: 1.1.2
 
+  heic-decode@2.1.0:
+    dependencies:
+      libheif-js: 1.23.5
+
   http-errors@2.0.1:
     dependencies:
       depd: 2.0.0
@@ -2485,6 +2501,8 @@ snapshots:
   jiti@2.7.0: {}
 
   json-schema-traverse@1.0.0: {}
+
+  libheif-js@1.23.5: {}
 
   load-esm@1.0.3: {}
 
@@ -2861,7 +2879,6 @@ snapshots:
       '@img/sharp-win32-ia32': 0.35.5
       '@img/sharp-win32-x64': 0.35.5
       '@types/node': 24.19.2
-    optional: true
 
   shebang-command@2.0.0:
     dependencies:
