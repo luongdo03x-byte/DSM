@@ -27,8 +27,11 @@ export class TaskExecutor {
       const saved = JSON.parse(readFileSync(stateFile, 'utf8')) as BrowserTaskResult[];
       for (const task of saved) {
         if (task.state !== 'DONE' && task.state !== 'FAILED') {
+          const uncertain = task.state === 'SUBMITTING' || task.state === 'VERIFYING';
           task.state = 'FAILED';
-          task.error = {code: 'OUTCOME_UNKNOWN', message: 'Gateway stopped before task completion; reconcile the post manually', retryable: false};
+          task.error = uncertain
+            ? {code: 'OUTCOME_UNKNOWN', message: 'Gateway stopped during submission; reconcile the post manually', retryable: false}
+            : {code: 'GATEWAY_RESTART_PRE_SUBMIT', message: 'Gateway stopped before submission; safe to retry', retryable: true};
         }
         this.tasks.set(task.taskId, task);
       }

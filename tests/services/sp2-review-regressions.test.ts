@@ -70,6 +70,10 @@ test('browser gateway journal survives restart and marks interrupted submission 
     assert.equal(recovered.get('interrupted').error?.code, 'OUTCOME_UNKNOWN');
     assert.equal(recovered.get('interrupted').error?.retryable, false);
     assert.equal(JSON.parse(readFileSync(file, 'utf8'))[0].state, 'FAILED');
+    writeFileSync(file, JSON.stringify([{taskId: 'pre-submit', state: 'UPLOADING'}]));
+    const safe = new TaskExecutor(1, file);
+    assert.equal(safe.get('pre-submit').error?.code, 'GATEWAY_RESTART_PRE_SUBMIT');
+    assert.equal(safe.get('pre-submit').error?.retryable, true);
   } finally {rmSync(dir, {recursive: true, force: true})}
 });
 
