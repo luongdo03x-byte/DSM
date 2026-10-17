@@ -3,6 +3,7 @@ import {MemoryRepositories} from '../../../../packages/shared/src/memory-reposit
 import type {Repositories} from '../../../../packages/shared/src/repositories.ts';
 import {createPrismaClient} from '../../../../packages/database/src/client.ts';
 import {PrismaRepositories} from '../../../../packages/database/src/prisma-repositories.ts';
+import {BullJobQueue} from '../../../worker/src/queue/bull-job-queue.ts';
 import {FetchHttpClient} from '../../../../packages/shared/src/http.ts';
 import type {PasswordHasher} from '../modules/auth/auth.service.ts';
 import {AuthService,Node24Argon2idHasher} from '../modules/auth/auth.service.ts';
@@ -85,9 +86,12 @@ export async function createRuntime(options:RuntimeOptions) {
   }
   if(mode!=='postgres')throw new Error('RUNTIME_STORE_INVALID');
   if(!env.DATABASE_URL)throw new Error('DATABASE_URL_REQUIRED');
+  if(!env.REDIS_URL)throw new Error('REDIS_URL_REQUIRED');
   const client=createPrismaClient(env.DATABASE_URL);
+  let queue:BullJobQueue|undefined;
   try {
     await client.$connect();
+    queue=new BullJobQueue({url:env.REDIS_URL});
     const repos:Repositories=new PrismaRepositories(client);
     const hasher=options.hasher??new Node24Argon2idHasher();
     const ids={ownerId:'local-owner',workspaceId:'local-workspace',brandId:'local-brand'};
@@ -111,8 +115,8 @@ export async function createRuntime(options:RuntimeOptions) {
       for(const platform of ['FACEBOOK','INSTAGRAM','THREADS','TIKTOK'] as const)registry.register(platform,'BROWSER',new BrowserPublisherProxy(platform,repos,browserClient));
     }
     const storage=env.S3_ENDPOINT&&env.S3_REGION&&env.S3_ACCESS_KEY&&env.S3_SECRET_KEY&&env.S3_BUCKET?new S3CompatibleObjectStorage({endpoint:env.S3_ENDPOINT,region:env.S3_REGION,accessKey:env.S3_ACCESS_KEY,secretKey:env.S3_SECRET_KEY,bucket:env.S3_BUCKET}):new InMemoryObjectStorage();
-    const analytics=new AnalyticsService(repos),products=new ProductsService(repos),content=new ContentService(repos),batchStatus=new BatchStatusService(repos),tracking=new TrackingService(repos),media=new MediaService(repos,storage),campaigns=new CampaignsService(repos);
-    const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver()),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),nodeAuth,browserNodes});
-    return {repos,runtime,registry,services:{accounts,products,content,batchStatus,analytics,tracking,media,campaigns,nodeAuth,browserNodes},ids,close:()=>client.$disconnect()};
-  } catch(error) {await client.$disconnect();throw error}
+    const analytics=new AnalyticsService(repos),products=new ProductsService(repos),content=new ContentService(repos),batchStatus=new BatchStatusService(repos,undefined,queue),tracking=new TrackingService(repos),media=new MediaService(repos,storage),campaigns=new CampaignsService(repos);
+    const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver(),queue),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),nodeAuth,browserNodes});
+    return {repos,runtime,registry,queue,services:{accounts,products,content,batchStatus,analytics,tracking,media,campaigns,nodeAuth,browserNodes},ids,close:async()=>{await queue!.close();await client.$disconnect()}};
+  } catch(error) {if(queue)await queue.close();await client.$disconnect();throw error}
 }

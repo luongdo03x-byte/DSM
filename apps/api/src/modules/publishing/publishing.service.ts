@@ -1,5 +1,6 @@
 import type {ContentType, ContentVariant, Platform, PublishJob} from '../../../../../packages/shared/src/domain.ts';
 import type {Repositories} from '../../../../../packages/shared/src/repositories.ts';
+import type {JobQueue} from '../../../../../packages/shared/src/job-queue.ts';
 import {id} from '../../../../../packages/shared/src/ids.ts';
 import {sha256} from '../../../../../packages/shared/src/security.ts';
 import {PublisherRegistry} from './publisher-registry.ts';
@@ -11,8 +12,9 @@ export class PublishingService {
   private readonly repos: Repositories;
   private readonly registry: PublisherRegistry;
   private readonly resolver: StrategyResolver;
-  constructor(repos: Repositories, registry: PublisherRegistry, resolver: StrategyResolver) {
-    this.repos = repos; this.registry = registry; this.resolver = resolver;
+  private readonly queue: JobQueue | undefined;
+  constructor(repos: Repositories, registry: PublisherRegistry, resolver: StrategyResolver, queue?: JobQueue) {
+    this.repos = repos; this.registry = registry; this.resolver = resolver; this.queue = queue;
   }
 
   async validateTargets(input: ValidationInput) {
@@ -76,7 +78,7 @@ export class PublishingService {
     const validation = await this.validateTargets(input);
     const batch = {id: id('batch'), brandId: input.brandId, contentItemId: content.id, createdBy: input.createdBy, createdAt: Date.now()};
     await this.repos.publishBatches.insert(batch);
-    const results = [];
+    const results: Array<{socialAccountId: string; platform: Platform; valid: boolean; errors: string[]; warnings: string[]; jobId?: string; strategy?: 'API' | 'BROWSER'; contentVariantId?: string}> = [];
     for (const result of validation) {
       if (!result.valid || !result.strategy || !result.contentVariantId) {results.push(result); continue}
       const scheduledAt = input.scheduledAt ?? Date.now();
@@ -86,6 +88,7 @@ export class PublishingService {
         contentVariantId: result.contentVariantId, platform: result.platform, strategy: result.strategy, scheduledAt,
         status: 'QUEUED', attemptCount: 0, maxAttempts: 4, idempotencyKey: key};
       if (!existing) await this.repos.publishJobs.insert(job);
+      if (job.status === 'QUEUED' || job.status === 'RETRYING') await this.queue?.schedule(job.id, job.scheduledAt);
       results.push({socialAccountId: result.socialAccountId, platform: result.platform, valid: true, errors: [], warnings: result.warnings, jobId: job.id});
     }
     return {batchId: batch.id, results};
