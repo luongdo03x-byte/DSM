@@ -4,6 +4,7 @@
 
 - Node 24.x and Corepack.
 - pnpm 10.17.1 (the repo pins this through `packageManager`).
+- `ffmpeg` and `ffprobe` in `PATH` for video fixtures, metadata probing, and media tests.
 - Docker Desktop/Engine only for PostgreSQL, Redis, and MinIO dependencies.
 - Windows + GPMLogin only when browser fallback is needed.
 
@@ -70,7 +71,7 @@ pnpm --filter @app/database migrate:deploy
 pnpm verify
 ```
 
-`pnpm verify` requires PostgreSQL and Redis because their contract and restart tests are mandatory. It runs lint, typecheck, 82 Node tests, Web build, Playwright E2E, and the evidence check.
+`pnpm verify` requires PostgreSQL, Redis, and `ffprobe` because their contract, restart, and media tests are mandatory. It runs lint, typecheck, at least 102 Node tests, Web build, Playwright E2E, and the evidence check.
 
 Requirements:
 

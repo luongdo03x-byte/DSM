@@ -65,6 +65,14 @@ Status: CI — PostgreSQL repository contracts, legacy snapshot loading, Redis q
 
 Local verification on the SP2 branch passed 82 Node tests and one Playwright E2E with PostgreSQL and Redis running in Docker. This is local evidence; the workflow has not produced a successful CI run yet.
 
+## Media pipeline (SP3)
+
+Status: CI — the workflow runs image normalization, HEIC decoding, EXIF removal, crop and size limits, video probing, ordered album, preflight, derived asset reuse, and HTTP album journey tests on every pull request head and push to `main`.
+
+Local verification on the SP3 branch passed 102 Node tests and one Playwright E2E. `verify-v1` enforces the 102 test floor. This is local evidence; no successful `CI / verify` run has been observed for SP3.
+
+The HTTP album journey publishes through `FakePublisher`. It verifies the media pipeline and job flow, while real platform album APIs and public media domain verification remain later integration work.
+
 ## Facebook live publish
 
 Status: BLOCKED_EXTERNAL — requires a real Meta app, Page/account authorization, approved permissions, and a safe test post target.
