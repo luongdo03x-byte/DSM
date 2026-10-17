@@ -26,6 +26,7 @@ async function bodyOf(req:any):Promise<unknown>{
   const chunks:any[]=[];for await(const chunk of req)chunks.push(chunk);
   if(!chunks.length)return undefined;
   const raw=Buffer.concat(chunks).toString('utf8');if(!raw)return undefined;
+  if(String(req.headers?.['content-type']??'').startsWith('application/x-www-form-urlencoded'))return Object.fromEntries(new URLSearchParams(raw));
   try{return JSON.parse(raw)}catch{throw new Error('INVALID_JSON')}
 }
 function stripRefresh(response:LocalResponse):{response:LocalResponse;cookies?:string[]}{

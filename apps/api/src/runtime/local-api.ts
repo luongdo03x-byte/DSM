@@ -14,6 +14,7 @@ import type {CampaignPerformanceService} from '../modules/campaigns/campaign-per
 import type {NodeAuthService} from '../modules/browser-nodes/node-auth.service.ts';
 import type {BrowserNodesService} from '../modules/browser-nodes/browser-nodes.service.ts';
 import type {IntegrationsService} from '../modules/integrations/integrations.service.ts';
+import type {MetaDataDeletionService} from '../modules/integrations/meta-data-deletion.service.ts';
 
 export interface LocalRequest {
   method: string;
@@ -45,6 +46,7 @@ type Dependencies={
   nodeAuth?:NodeAuthService;
   browserNodes?:BrowserNodesService;
   integrations?:IntegrationsService;
+  dataDeletion?:MetaDataDeletionService;
   webAppBaseUrl?:string;
 };
 
@@ -95,6 +97,10 @@ export class LocalApiRuntime {
         const result=await this.d.integrations.callback(req.query?.code??'',req.query?.state??'');
         const destination=`/app/brands/${encodeURIComponent(result.brandId)}/accounts?connect=${encodeURIComponent(result.token)}`;
         return{status:302,body:null,headers:{location:this.d.webAppBaseUrl?new URL(destination,this.d.webAppBaseUrl).toString():destination}};
+      }
+      if(method==='POST'&&req.path==='/integrations/meta/data-deletion'){
+        if(!this.d.dataDeletion)return{status:501,body:{error:'META_NOT_CONFIGURED'}};
+        const body=asObject(req.body);return{status:200,body:await this.d.dataDeletion.handle(String(body.signed_request??''))};
       }
 
       let nodeMatch:RegExpExecArray|null;

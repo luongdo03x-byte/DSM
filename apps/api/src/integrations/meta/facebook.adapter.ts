@@ -5,13 +5,13 @@ import type {SocialAccount} from '../../../../../packages/shared/src/domain.ts';
 import {MEDIA_RULES} from '../../../../../packages/shared/src/media-rules.ts';
 import {MetaGraphClient} from './meta-http.client.ts';
 
-type Deps={graph:MetaGraphClient;tokens:(socialAccountId:string)=>Promise<string>};
+type Deps={graph:MetaGraphClient;tokens:(socialAccountId:string)=>Promise<string>;refresh?:(account:SocialAccount)=>Promise<TokenRefreshResult>};
 export class FacebookAdapter implements PlatformAdapter {
   readonly platform='FACEBOOK' as const;
-  private readonly graph:MetaGraphClient;private readonly tokens:Deps['tokens'];
-  constructor(deps:Deps){this.graph=deps.graph;this.tokens=deps.tokens}
+  private readonly graph:MetaGraphClient;private readonly tokens:Deps['tokens'];private readonly refresh:Deps['refresh'];
+  constructor(deps:Deps){this.graph=deps.graph;this.tokens=deps.tokens;this.refresh=deps.refresh}
   capabilities(_account:SocialAccount):AdapterCapabilities{return {platform:this.platform,rule:MEDIA_RULES.FACEBOOK}}
-  async refreshToken(_account:SocialAccount):Promise<TokenRefreshResult>{return {refreshed:false}}
+  async refreshToken(account:SocialAccount):Promise<TokenRefreshResult>{return this.refresh?this.refresh(account):{refreshed:false}}
   async validate(input:PublishInput):Promise<ValidationResult>{
     const errors:string[]=[];const format=String(input.metadata?.format??(input.contentType==='ALBUM'?'ALBUM':input.contentType));
     if(!MEDIA_RULES.FACEBOOK.formats.includes(format as any))errors.push('FORMAT_UNSUPPORTED');

@@ -75,6 +75,8 @@ async function fixture(t: import('node:test').TestContext, count: number, delayM
 
 test('restart worker does not lose scheduled job', {timeout: 15000}, async t => {
   const f = await fixture(t, 1, 1500);
+  const errors:string[]=[];const originalError=console.error;console.error=(...args:unknown[])=>{errors.push(args.map(String).join(' '))};
+  try{
   const first = await startWorker({env: f.env, registry: f.registry});
   await new Promise(resolve => setTimeout(resolve, 300));
   await first.close();
@@ -84,6 +86,8 @@ test('restart worker does not lose scheduled job', {timeout: 15000}, async t => 
     await until(async () => (await f.repos.publishJobs.get(f.jobIds[0]!))?.status === 'PUBLISHED');
     assert.equal(f.publisher.publishCalls, 1);
   } finally {await restarted.close()}
+  assert.deepEqual(errors.filter(message=>message.includes('Meta token refresh failed')),[]);
+  }finally{console.error=originalError}
 });
 
 test('two workers publish five due jobs only once each', {timeout: 15000}, async t => {

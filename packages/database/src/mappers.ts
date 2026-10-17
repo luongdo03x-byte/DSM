@@ -23,7 +23,7 @@ const fields = {
   authSessions: ['id', 'userId', 'refreshTokenHash', 'expiresAt', 'revokedAt'],
   audit: ['id', 'workspaceId', 'userId', 'action', 'entityType', 'entityId', 'metadata', 'createdAt'],
   socialAccounts: ['id', 'brandId', 'platform', 'username', 'displayName', 'platformAccountId', 'publishMode', 'status', 'browserProfileId'],
-  credentials: ['id', 'socialAccountId', 'provider', 'ciphertext', 'iv', 'authTag', 'refreshCiphertext', 'expiresAt', 'scopes'],
+  credentials: ['id', 'socialAccountId', 'provider', 'ciphertext', 'iv', 'authTag', 'refreshCiphertext', 'expiresAt', 'scopes', 'providerUserId'],
   oauthPending: ['id', 'brandId', 'userId', 'tokenHash', 'ciphertext', 'iv', 'authTag', 'expiresAt', 'consumedAt'],
   browserNodes: ['id', 'workspaceId', 'name', 'host', 'port', 'status', 'provider', 'lastSeenAt', 'maxConcurrency', 'encryptedNodeKey'],
   browserProfiles: ['id', 'brandId', 'browserNodeId', 'socialAccountId', 'provider', 'providerProfileId', 'name', 'status', 'metadata'],

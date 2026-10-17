@@ -19,7 +19,7 @@ export interface Campaign{id:string;brandId:string;productId?:string;name:string
 export interface AuthSession{id:string;userId:string;refreshTokenHash:string;expiresAt:number;revokedAt?:number}
 export interface AuditLog{id:string;workspaceId:string;userId?:string;action:string;entityType:string;entityId?:string;metadata?:Record<string,unknown>;createdAt:number}
 export interface SocialAccount{id:string;brandId:string;platform:Platform;username?:string;displayName?:string;platformAccountId?:string;publishMode:PublishMode;status:'CONNECTED'|'EXPIRED'|'DISCONNECTED'|'ERROR';browserProfileId?:string}
-export interface EncryptedCredential{id:string;socialAccountId:string;provider:string;ciphertext:string;iv:string;authTag:string;refreshCiphertext?:string;expiresAt?:number;scopes?:string[]}
+export interface EncryptedCredential{id:string;socialAccountId:string;provider:string;ciphertext:string;iv:string;authTag:string;refreshCiphertext?:string;expiresAt?:number;scopes?:string[];providerUserId?:string}
 export interface OAuthPending{id:string;brandId:string;userId:string;tokenHash:string;ciphertext:string;iv:string;authTag:string;expiresAt:number;consumedAt?:number}
 export interface BrowserNode{id:string;workspaceId:string;name:string;host:string;port:number;status:'ONLINE'|'OFFLINE'|'DEGRADED';provider:'GPMLOGIN';lastSeenAt?:number;maxConcurrency:number;encryptedNodeKey?:string}
 export interface BrowserProfile{id:string;brandId:string;browserNodeId:string;provider:'GPMLOGIN';providerProfileId:string;name:string;status:'READY'|'RUNNING'|'STOPPED'|'ERROR';metadata?:Record<string,unknown>;socialAccountId?:string}

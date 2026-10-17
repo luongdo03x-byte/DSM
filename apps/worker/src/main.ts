@@ -6,6 +6,8 @@ import {BullJobQueue, PUBLISH_API_QUEUE} from './queue/bull-job-queue.ts';
 import {JobRunner} from './publishing/job-runner.service.ts';
 import {PublishInputBuilder} from './publishing/publish-input.builder.ts';
 import {RecoveryService} from './maintenance/recovery.service.ts';
+import {refreshExpiringTokens} from './maintenance/token-refresh.job.ts';
+import type {PlatformAdapter} from '../../../packages/platform-contracts/src/adapter.ts';
 
 export interface WorkerOptions {env: Record<string, string | undefined>; registry?: PublisherRegistry}
 
@@ -21,6 +23,8 @@ export async function startWorker(options: WorkerOptions): Promise<{close(): Pro
   const connection = new IORedis(env.REDIS_URL, {maxRetriesPerRequest: null});
   const name = env.PUBLISH_QUEUE_NAME ?? PUBLISH_API_QUEUE;
   const runner = new JobRunner(app.repos, options.registry ?? app.registry,undefined,queue);
+  const activeRegistry=app.registry;
+  const refreshTokens=async()=>refreshExpiringTokens({repos:app.repos,adapters:{FACEBOOK:activeRegistry.get('FACEBOOK','API') as PlatformAdapter,INSTAGRAM:activeRegistry.get('INSTAGRAM','API') as PlatformAdapter},now:Date.now()});
   const builder = new PublishInputBuilder(app.repos, app.services.media);
   const recovery = new RecoveryService(app.repos);
   const concurrency = Math.max(1, Number(env.WORKER_CONCURRENCY ?? 4));
@@ -43,11 +47,14 @@ export async function startWorker(options: WorkerOptions): Promise<{close(): Pro
     throw error;
   }
   const timer = setInterval(() => {void recovery.requeueMissing(queue).catch(error => console.error('worker recovery failed', error))}, 60_000);
+  const tokenTimer=setInterval(()=>{void refreshTokens().catch(error=>console.error('Meta token refresh failed',error))},60*60_000);
+  void refreshTokens().catch(error=>console.error('Meta token refresh failed',error));
   let closed = false;
   const close = async () => {
     if (closed) return;
     closed = true;
     clearInterval(timer);
+    clearInterval(tokenTimer);
     process.off('SIGTERM', onSigterm);
     await worker.close();
     connection.disconnect();

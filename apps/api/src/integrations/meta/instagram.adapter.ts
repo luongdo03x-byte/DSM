@@ -6,13 +6,13 @@ import {MEDIA_RULES} from '../../../../../packages/shared/src/media-rules.ts';
 import {MetaGraphClient} from './meta-http.client.ts';
 
 export const IG_CONTAINER_TIMEOUT_MS=10*60_000;
-type Deps={graph:MetaGraphClient;tokens:(socialAccountId:string)=>Promise<string>;accountIds:(socialAccountId:string)=>Promise<string>};
+type Deps={graph:MetaGraphClient;tokens:(socialAccountId:string)=>Promise<string>;accountIds:(socialAccountId:string)=>Promise<string>;refresh?:(account:SocialAccount)=>Promise<TokenRefreshResult>};
 export class InstagramAdapter implements PlatformAdapter {
   readonly platform='INSTAGRAM' as const;
-  private readonly graph:MetaGraphClient;private readonly tokens:Deps['tokens'];private readonly accountIds:Deps['accountIds'];
-  constructor(deps:Deps){this.graph=deps.graph;this.tokens=deps.tokens;this.accountIds=deps.accountIds}
+  private readonly graph:MetaGraphClient;private readonly tokens:Deps['tokens'];private readonly accountIds:Deps['accountIds'];private readonly refresh:Deps['refresh'];
+  constructor(deps:Deps){this.graph=deps.graph;this.tokens=deps.tokens;this.accountIds=deps.accountIds;this.refresh=deps.refresh}
   capabilities(_account:SocialAccount):AdapterCapabilities{return{platform:this.platform,rule:MEDIA_RULES.INSTAGRAM,dailyPublishLimit:100}}
-  async refreshToken(_account:SocialAccount):Promise<TokenRefreshResult>{return{refreshed:false}}
+  async refreshToken(account:SocialAccount):Promise<TokenRefreshResult>{return this.refresh?this.refresh(account):{refreshed:false}}
   async validate(input:PublishInput):Promise<ValidationResult>{
     const format=String(input.metadata?.format??(input.contentType==='ALBUM'?'ALBUM':input.contentType==='VIDEO'?'REEL':'IMAGE'));
     const errors:string[]=[];if(!MEDIA_RULES.INSTAGRAM.formats.includes(format as any))errors.push('FORMAT_UNSUPPORTED');

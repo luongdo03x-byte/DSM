@@ -26,6 +26,8 @@ import {LocalApiRuntime} from './local-api.ts';
 import {MetaHttpClient} from '../integrations/meta/meta-http.client.ts';
 import {MetaGraphClient} from '../integrations/meta/meta-http.client.ts';
 import {MetaOAuthConnector} from '../integrations/meta/meta-oauth.service.ts';
+import {MetaTokenRefreshService} from '../integrations/meta/meta-token-refresh.service.ts';
+import {MetaDataDeletionService} from '../modules/integrations/meta-data-deletion.service.ts';
 import {IntegrationsService} from '../modules/integrations/integrations.service.ts';
 import {metaConfig} from '../integrations/meta/meta.config.ts';
 import {FacebookAdapter} from '../integrations/meta/facebook.adapter.ts';
@@ -50,6 +52,12 @@ function metaIntegrations(repos:Repositories,crypto:CredentialCryptoService,env:
   const config=metaConfig(env);if(!env.META_APP_ID||!env.META_APP_SECRET||!config.redirectUri||!config.stateSecret)return undefined;
   return new IntegrationsService({repos,crypto,meta:new MetaOAuthConnector({graph:new MetaGraphClient({baseUrl:config.graphBaseUrl,version:config.graphVersion}),appId:env.META_APP_ID,appSecret:env.META_APP_SECRET,redirectUri:config.redirectUri,...(env.META_AUTH_BASE_URL?{authBaseUrl:env.META_AUTH_BASE_URL}:{})}),stateSecret:config.stateSecret});
 }
+function metaTokenRefresher(repos:Repositories,crypto:CredentialCryptoService,env:Record<string,string|undefined>){
+  const config=metaConfig(env);if(!env.META_APP_ID||!env.META_APP_SECRET||!config.redirectUri)return undefined;
+  const connector=new MetaOAuthConnector({graph:new MetaGraphClient({baseUrl:config.graphBaseUrl,version:config.graphVersion}),appId:env.META_APP_ID,appSecret:env.META_APP_SECRET,redirectUri:config.redirectUri});
+  return new MetaTokenRefreshService(repos,crypto,connector);
+}
+function metaDeletion(repos:Repositories,env:Record<string,string|undefined>){return env.META_APP_SECRET?new MetaDataDeletionService({repos,appSecret:env.META_APP_SECRET,statusBaseUrl:(env.WEB_APP_BASE_URL??'http://127.0.0.1:3000')+'/data-deletion'}):undefined}
 export function registeredNodeKey(repos:Repositories, crypto:CredentialCryptoService) {return async (nodeId:string)=>{
   const node=await repos.browserNodes.get(nodeId);
   if(!node?.encryptedNodeKey)throw new Error('NODE_KEY_NOT_REGISTERED');
@@ -69,8 +77,8 @@ export async function createDevelopmentRuntime(options:DevelopmentRuntimeOptions
   const credentialCrypto=new CredentialCryptoService(credentialKey(env)),accounts=new AccountsService(repos,credentialCrypto),nodeAuth=new NodeAuthService(repos,credentialCrypto),browserNodes=new BrowserNodesService(repos);
   const createdAccounts=new Map<string,Awaited<ReturnType<AccountsService['create']>>>();
   for(const platform of ['FACEBOOK','INSTAGRAM','THREADS','TIKTOK'] as const){const existing=(await repos.socialAccounts.findBy({brandId,platform}))[0];createdAccounts.set(platform,existing??await accounts.create(brandId,{platform,publishMode:'HYBRID'}))}
-  const registry=new PublisherRegistry(),http=new FetchHttpClient(),metaHttp=new MetaHttpClient(http,metaConfig(env));
-  registry.register('FACEBOOK','API',new FacebookAdapter({graph:new MetaGraphClient({baseUrl:metaConfig(env).graphBaseUrl,version:metaConfig(env).graphVersion}),tokens:accountId=>accounts.getAccessToken(accountId)}));registry.register('INSTAGRAM','API',new InstagramAdapter({graph:new MetaGraphClient({baseUrl:metaConfig(env).graphBaseUrl,version:metaConfig(env).graphVersion}),tokens:accountId=>accounts.getAccessToken(accountId),accountIds:async accountId=>(await repos.socialAccounts.get(accountId))?.platformAccountId??accountId}));registry.register('THREADS','API',new ThreadsPublisher(metaHttp,accounts));
+  const registry=new PublisherRegistry(),http=new FetchHttpClient(),metaHttp=new MetaHttpClient(http,metaConfig(env)),metaRefresh=metaTokenRefresher(repos,credentialCrypto,env);
+  registry.register('FACEBOOK','API',new FacebookAdapter({graph:new MetaGraphClient({baseUrl:metaConfig(env).graphBaseUrl,version:metaConfig(env).graphVersion}),tokens:accountId=>accounts.getAccessToken(accountId),...(metaRefresh?{refresh:account=>metaRefresh.refresh(account)}:{})}));registry.register('INSTAGRAM','API',new InstagramAdapter({graph:new MetaGraphClient({baseUrl:metaConfig(env).graphBaseUrl,version:metaConfig(env).graphVersion}),tokens:accountId=>accounts.getAccessToken(accountId),accountIds:async accountId=>(await repos.socialAccounts.get(accountId))?.platformAccountId??accountId,...(metaRefresh?{refresh:account=>metaRefresh.refresh(account)}:{})}));registry.register('THREADS','API',new ThreadsPublisher(metaHttp,accounts));
   const tc=tiktokConfig(env),th=new TikTokHttpClient(http,tc),creator=new TikTokCreatorInfoService(th,accounts),status=new TikTokStatusService(th,accounts),upload=new TikTokUploadService(th);
   registry.register('TIKTOK','API',new TikTokPublisher(th,accounts,new TikTokValidation(creator,tc),status,upload,tc));
 
@@ -85,7 +93,8 @@ export async function createDevelopmentRuntime(options:DevelopmentRuntimeOptions
   const storage=env.S3_ENDPOINT&&env.S3_REGION&&env.S3_ACCESS_KEY&&env.S3_SECRET_KEY&&env.S3_BUCKET?new S3CompatibleObjectStorage({endpoint:env.S3_ENDPOINT,region:env.S3_REGION,accessKey:env.S3_ACCESS_KEY,secretKey:env.S3_SECRET_KEY,bucket:env.S3_BUCKET}):new InMemoryObjectStorage();
   const analytics=new AnalyticsService(repos),products=new ProductsService(repos),content=new ContentService(repos),batchStatus=new BatchStatusService(repos),tracking=new TrackingService(repos),media=new MediaService(repos,storage),campaigns=new CampaignsService(repos);
   const integrations=metaIntegrations(repos,credentialCrypto,env);
-  const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver()),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),nodeAuth,browserNodes,webAppBaseUrl:env.WEB_APP_BASE_URL??'http://127.0.0.1:3000',...(integrations?{integrations}:{})});
+  const dataDeletion=metaDeletion(repos,env);
+  const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver()),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),nodeAuth,browserNodes,webAppBaseUrl:env.WEB_APP_BASE_URL??'http://127.0.0.1:3000',...(integrations?{integrations}:{}),...(dataDeletion?{dataDeletion}:{})});
   return{store,repos,runtime,registry,services:{accounts,products,content,batchStatus,analytics,tracking,media,campaigns,nodeAuth,browserNodes},ids:{ownerId,workspaceId,brandId}};
 }
 
@@ -117,9 +126,9 @@ export async function createRuntime(options:RuntimeOptions) {
     }
     const credentialCrypto=new CredentialCryptoService(credentialKey(env));
     const accounts=new AccountsService(repos,credentialCrypto),nodeAuth=new NodeAuthService(repos,credentialCrypto),browserNodes=new BrowserNodesService(repos);
-    const registry=new PublisherRegistry(),http=new FetchHttpClient(),metaHttp=new MetaHttpClient(http,metaConfig(env));
-    registry.register('FACEBOOK','API',new FacebookAdapter({graph:new MetaGraphClient({baseUrl:metaConfig(env).graphBaseUrl,version:metaConfig(env).graphVersion}),tokens:accountId=>accounts.getAccessToken(accountId)}));
-    registry.register('INSTAGRAM','API',new InstagramAdapter({graph:new MetaGraphClient({baseUrl:metaConfig(env).graphBaseUrl,version:metaConfig(env).graphVersion}),tokens:accountId=>accounts.getAccessToken(accountId),accountIds:async accountId=>(await repos.socialAccounts.get(accountId))?.platformAccountId??accountId}));
+    const registry=new PublisherRegistry(),http=new FetchHttpClient(),metaHttp=new MetaHttpClient(http,metaConfig(env)),metaRefresh=metaTokenRefresher(repos,credentialCrypto,env);
+    registry.register('FACEBOOK','API',new FacebookAdapter({graph:new MetaGraphClient({baseUrl:metaConfig(env).graphBaseUrl,version:metaConfig(env).graphVersion}),tokens:accountId=>accounts.getAccessToken(accountId),...(metaRefresh?{refresh:account=>metaRefresh.refresh(account)}:{})}));
+    registry.register('INSTAGRAM','API',new InstagramAdapter({graph:new MetaGraphClient({baseUrl:metaConfig(env).graphBaseUrl,version:metaConfig(env).graphVersion}),tokens:accountId=>accounts.getAccessToken(accountId),accountIds:async accountId=>(await repos.socialAccounts.get(accountId))?.platformAccountId??accountId,...(metaRefresh?{refresh:account=>metaRefresh.refresh(account)}:{})}));
     registry.register('THREADS','API',new ThreadsPublisher(metaHttp,accounts));
     const tc=tiktokConfig(env),th=new TikTokHttpClient(http,tc),creator=new TikTokCreatorInfoService(th,accounts),status=new TikTokStatusService(th,accounts),upload=new TikTokUploadService(th);
     registry.register('TIKTOK','API',new TikTokPublisher(th,accounts,new TikTokValidation(creator,tc),status,upload,tc));
@@ -128,7 +137,8 @@ export async function createRuntime(options:RuntimeOptions) {
     const storage=env.S3_ENDPOINT&&env.S3_REGION&&env.S3_ACCESS_KEY&&env.S3_SECRET_KEY&&env.S3_BUCKET?new S3CompatibleObjectStorage({endpoint:env.S3_ENDPOINT,region:env.S3_REGION,accessKey:env.S3_ACCESS_KEY,secretKey:env.S3_SECRET_KEY,bucket:env.S3_BUCKET}):new InMemoryObjectStorage();
     const analytics=new AnalyticsService(repos),products=new ProductsService(repos),content=new ContentService(repos),batchStatus=new BatchStatusService(repos,undefined,queue),tracking=new TrackingService(repos),media=new MediaService(repos,storage),campaigns=new CampaignsService(repos);
     const integrations=metaIntegrations(repos,credentialCrypto,env);
-    const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver(),queue),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),nodeAuth,browserNodes,webAppBaseUrl:env.WEB_APP_BASE_URL??'http://127.0.0.1:3000',...(integrations?{integrations}:{})});
+    const dataDeletion=metaDeletion(repos,env);
+    const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver(),queue),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),nodeAuth,browserNodes,webAppBaseUrl:env.WEB_APP_BASE_URL??'http://127.0.0.1:3000',...(integrations?{integrations}:{}),...(dataDeletion?{dataDeletion}:{})});
     return {repos,runtime,registry,queue,services:{accounts,products,content,batchStatus,analytics,tracking,media,campaigns,nodeAuth,browserNodes},ids,close:async()=>{await queue!.close();await client.$disconnect()}};
   } catch(error) {if(queue)await queue.close();await client.$disconnect();throw error}
 }

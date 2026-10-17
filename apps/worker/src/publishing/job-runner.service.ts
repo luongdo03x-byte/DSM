@@ -47,6 +47,7 @@ export class JobRunner {
     }catch(raw){
       const error=raw as Error&{code?:string;retryable?:boolean};
       if(error.retryable){await this.schedulePoll(job,now);return'PROCESSING'}
+      if((error as {type?:string}).type==='AUTH_ERROR')await this.repos.socialAccounts.update(job.socialAccountId,{status:'EXPIRED'});
       await this.repos.publishJobs.update(jobId,{status:'FAILED',errorCode:error.code??'PROCESSING_ERROR',errorMessage:String(error.message)});return'FAILED';
     }
   }
@@ -127,6 +128,7 @@ export class JobRunner {
     } catch (raw: unknown) {
       const failure = raw as Error & {code?: string; retryable?: boolean};
       const error = raw instanceof PublishError ? raw : new PublishError({type: 'UNKNOWN', code: failure?.code ?? 'UNKNOWN', message: String(failure?.message ?? raw), retryable: failure?.retryable ?? false});
+      if(error.type==='AUTH_ERROR')await this.repos.socialAccounts.update(job.socialAccountId,{status:'EXPIRED'});
       const decision = this.retry.decide(error, attemptNumber);
       const status = decision.retry ? 'RETRYING' : 'FAILED';
       await this.repos.publishJobs.update(jobId, {status, errorCode: error.code, errorMessage: error.message, ...(decision.retry ? {scheduledAt: Date.now() + (decision.delayMs ?? 0)} : {})});

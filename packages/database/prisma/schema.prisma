@@ -162,9 +162,11 @@ model EncryptedCredential {
   authTag               String
   expiresAt             BigInt?
   scopes                Json?
+  providerUserId        String?
   account               SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
 
   @@map("SocialCredential")
+  @@index([providerUserId])
 }
 
 model OAuthPending {

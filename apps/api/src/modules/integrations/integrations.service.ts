@@ -26,7 +26,7 @@ export class IntegrationsService {
     const accounts=JSON.parse(await this.crypto.decrypt(row,'oauth-pending:'+row.id)) as ConnectableAccount[];
     return {row,accounts};
   }
-  async pending(token:string):Promise<ConnectableAccount[]>{return (await this.load(token)).accounts.map(({tokens:_,...account})=>({...account,tokens:{accessToken:'',scopes:[]}}))}
+  async pending(token:string):Promise<ConnectableAccount[]>{return (await this.load(token)).accounts.map(({tokens:_,providerUserId:__,...account})=>({...account,tokens:{accessToken:'',scopes:[]}}))}
   async pendingOwner(token:string):Promise<{brandId:string;userId:string}>{const {row}=await this.load(token);return {brandId:row.brandId,userId:row.userId}}
   async confirm(token:string,platformAccountIds:string[]):Promise<SocialAccount[]>{
     const {row,accounts}=await this.load(token);const wanted=new Set(platformAccountIds);
@@ -40,7 +40,7 @@ export class IntegrationsService {
         else social=await tx.socialAccounts.insert({id:id('acc'),brandId:row.brandId,platform:account.platform,platformAccountId:account.platformAccountId,displayName:account.displayName,...(account.username?{username:account.username}:{}),publishMode:'API',status:'CONNECTED'});
         const aad='social-account:'+social.id+':META',encrypted=await this.crypto.encrypt(account.tokens.accessToken,aad);
         const refresh=account.tokens.refreshToken?await this.crypto.encrypt(account.tokens.refreshToken,aad):undefined;
-        const credential={provider:'META',...encrypted,...(refresh?{refreshCiphertext:JSON.stringify(refresh)}:{}),...(account.tokens.expiresAt?{expiresAt:account.tokens.expiresAt}:{}),scopes:account.tokens.scopes};
+        const credential={provider:'META',...encrypted,...(refresh?{refreshCiphertext:JSON.stringify(refresh)}:{}),...(account.tokens.expiresAt?{expiresAt:account.tokens.expiresAt}:{}),...(account.providerUserId?{providerUserId:account.providerUserId}:{}),scopes:account.tokens.scopes};
         const existing=(await tx.credentials.findBy({socialAccountId:social.id}))[0];if(existing)await tx.credentials.update(existing.id,credential);else await tx.credentials.insert({id:id('cred'),socialAccountId:social.id,...credential});
         result.push(social);
       }

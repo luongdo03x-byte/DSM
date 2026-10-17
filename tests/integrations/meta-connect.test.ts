@@ -13,6 +13,7 @@ import {startApiServer} from '../../apps/api/src/main.ts';
 test('Meta exchanges code for long-lived user token and lists Page with linked Instagram', async () => {
   const stub=await startMetaGraphStub();
   try {
+    stub.setResponse('/v24.0/me',()=>({status:200,body:{id:'meta-user'}}));
     stub.setResponse('/v24.0/oauth/access_token', req => ({status:200,body:req.query.grant_type==='fb_exchange_token'?{access_token:'long-user',expires_in:5184000}:{access_token:'short-user',expires_in:3600}}));
     stub.setResponse('/v24.0/me/accounts', () => ({status:200,body:{data:[{id:'page-1',name:'Page One',access_token:'page-secret',instagram_business_account:{id:'ig-1',username:'ig-one'}}]}}));
     const connector=new MetaOAuthConnector({graph:new MetaGraphClient({baseUrl:stub.url,version:'v24.0'}),appId:'app',appSecret:'secret',redirectUri:'https://local.test/callback'});
@@ -26,6 +27,7 @@ test('Meta exchanges code for long-lived user token and lists Page with linked I
 
 test('Meta lists every Page across Graph cursor pages', async () => {
   const stub=await startMetaGraphStub();try {
+    stub.setResponse('/v24.0/me',()=>({status:200,body:{id:'meta-user'}}));
     stub.setResponse('/v24.0/me/accounts',req=>({status:200,body:req.query.after?{data:[{id:'page-2',name:'Two',access_token:'two'}]}:{data:[{id:'page-1',name:'One',access_token:'one'}],paging:{next:'http://stub/next',cursors:{after:'cursor-1'}}}}));
     const connector=new MetaOAuthConnector({graph:new MetaGraphClient({baseUrl:stub.url,version:'v24.0'}),appId:'app',appSecret:'secret',redirectUri:'http://local/callback'});
     assert.deepEqual((await connector.listAccounts({accessToken:'user',scopes:[]})).map(x=>x.platformAccountId),['page-1','page-2']);
@@ -35,6 +37,7 @@ test('Meta lists every Page across Graph cursor pages', async () => {
 test('Meta confirmation stores only selected Page and encrypted credential', async () => {
   const stub=await startMetaGraphStub();
   try {
+    stub.setResponse('/v24.0/me',()=>({status:200,body:{id:'meta-user'}}));
     stub.setResponse('/v24.0/oauth/access_token', req => ({status:200,body:{access_token:req.query.grant_type==='fb_exchange_token'?'long-user':'short-user',expires_in:3600}}));
     stub.setResponse('/v24.0/me/accounts', () => ({status:200,body:{data:[{id:'page-1',name:'One',access_token:'secret-1',instagram_business_account:{id:'ig-1',username:'ig-one'}},{id:'page-2',name:'Two',access_token:'secret-2'}]}}));
     const store=new MemoryStore(),repos=new MemoryRepositories(store),crypto=new CredentialCryptoService(new Uint8Array(32).fill(7));
@@ -50,6 +53,7 @@ test('Meta confirmation stores only selected Page and encrypted credential', asy
     assert.equal((await repos.socialAccounts.findBy({brandId:'brand'})).length,1);
     const credential=(await repos.credentials.findBy({socialAccountId:selected[0]!.id}))[0]!;
     assert.ok(!credential.ciphertext.includes('secret-1'));
+    assert.equal(credential.providerUserId,'meta-user');
     assert.equal(await crypto.decrypt(credential,'social-account:'+selected[0]!.id+':META'),'secret-1');
     await assert.rejects(service.confirm(callback.token,['page-2']),/OAUTH_PENDING_CONSUMED/);
   } finally {await stub.close()}
@@ -57,6 +61,7 @@ test('Meta confirmation stores only selected Page and encrypted credential', asy
 
 test('Meta HTTP routes carry query parameters and require account owner', async () => {
   const stub=await startMetaGraphStub();
+  stub.setResponse('/v24.0/me',()=>({status:200,body:{id:'meta-user'}}));
   stub.setResponse('/v24.0/oauth/access_token',req=>({status:200,body:{access_token:req.query.grant_type?'long-user':'short-user'}}));
   stub.setResponse('/v24.0/me/accounts',()=>({status:200,body:{data:[{id:'page-1',name:'One',access_token:'page-secret'}]}}));
   const app=await createDevelopmentRuntime({env:{DEV_OWNER_PASSWORD:'password',CREDENTIAL_ENCRYPTION_KEY:Buffer.alloc(32,7).toString('base64'),META_APP_ID:'app',META_APP_SECRET:'secret',META_REDIRECT_URI:'http://127.0.0.1/callback',OAUTH_STATE_SECRET:'state-secret',META_GRAPH_BASE_URL:stub.url}});
