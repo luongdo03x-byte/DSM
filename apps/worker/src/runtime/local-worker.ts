@@ -30,6 +30,9 @@ export class LocalWorkerRuntime {
       const result = await this.runner.run(job.id, current => this.builder.build(current));
       if (result !== 'SKIPPED') count++;
     }
+    for(const job of await this.repos.publishJobs.findBy({status:'PROCESSING'})){
+      if(job.strategy==='API'&&job.remoteCorrelationId&&job.scheduledAt<=now){await this.runner.poll(job.id);count++}
+    }
     return count;
   }
 

@@ -4,16 +4,51 @@ import type {PublishInput, PublishedPostData} from '../../../../packages/platfor
 import type {PublishJob} from '../../../../packages/shared/src/domain.ts';
 import type {Repositories} from '../../../../packages/shared/src/repositories.ts';
 import type {PublisherRegistry} from '../../../api/src/modules/publishing/publisher-registry.ts';
+import type {JobQueue} from '../../../../packages/shared/src/job-queue.ts';
+import type {PlatformAdapter} from '../../../../packages/platform-contracts/src/adapter.ts';
+import {IG_CONTAINER_TIMEOUT_MS} from '../../../api/src/integrations/meta/instagram.adapter.ts';
 import {RetryPolicy} from './retry-policy.ts';
 
-export type JobRunResult = 'PUBLISHED' | 'RETRYING' | 'FAILED' | 'SKIPPED';
+export const POLL_INTERVALS_MS=[5_000,10_000,20_000,30_000,60_000] as const;
+export type JobRunResult = 'PUBLISHED' | 'PROCESSING' | 'RETRYING' | 'FAILED' | 'SKIPPED';
 
 export class JobRunner {
   private readonly repos: Repositories;
   private readonly registry: PublisherRegistry;
   private readonly retry: RetryPolicy;
-  constructor(repos: Repositories, registry: PublisherRegistry, retry = new RetryPolicy()) {
-    this.repos = repos; this.registry = registry; this.retry = retry;
+  private readonly queue:JobQueue|undefined;
+  private readonly now:()=>number;
+  constructor(repos: Repositories, registry: PublisherRegistry, retry = new RetryPolicy(), queue?:JobQueue, now:()=>number=Date.now) {
+    this.repos = repos; this.registry = registry; this.retry = retry;this.queue=queue;this.now=now;
+  }
+
+  private nextPollAt(startedAt:number,now:number):number{
+    const elapsed=Math.max(0,now-startedAt);let cumulative=0;
+    for(const delay of POLL_INTERVALS_MS){cumulative+=delay;if(elapsed<cumulative)return startedAt+cumulative}
+    return startedAt+cumulative+(Math.floor((elapsed-cumulative)/60_000)+1)*60_000;
+  }
+  private async schedulePoll(job:PublishJob,now:number){
+    const runAt=this.nextPollAt(job.processingStartedAt??now,now);
+    await this.repos.publishJobs.update(job.id,{scheduledAt:runAt});
+    try{await this.queue?.schedulePoll(job.id,runAt)}catch(error){console.error('poll scheduling failed; recovery will reschedule',error)}
+  }
+
+  async poll(jobId:string):Promise<'PUBLISHED'|'PROCESSING'|'FAILED'>{
+    const job=await this.repos.publishJobs.get(jobId);if(!job)throw new Error('JOB_NOT_FOUND');
+    if(job.status==='PUBLISHED')return'PUBLISHED';if(job.status!=='PROCESSING'||!job.remoteCorrelationId)return'FAILED';
+    const now=this.now();
+    if(now-(job.processingStartedAt??now)>IG_CONTAINER_TIMEOUT_MS){await this.repos.publishJobs.update(jobId,{status:'FAILED',errorCode:'PROCESSING_TIMEOUT',errorMessage:'Platform processing timed out'});return'FAILED'}
+    const adapter=this.registry.get(job.platform,job.strategy) as PlatformAdapter;
+    if(typeof adapter.pollStatus!=='function'){await this.repos.publishJobs.update(jobId,{status:'FAILED',errorCode:'POLL_UNSUPPORTED'});return'FAILED'}
+    try{
+      const result=await adapter.pollStatus({socialAccountId:job.socialAccountId,remoteCorrelationId:job.remoteCorrelationId});
+      if(result.externalPostId){await this.persistPost(job,{externalPostId:result.externalPostId,exists:true,...(result.externalUrl?{externalUrl:result.externalUrl}:{}),...(result.publishedAt?{publishedAt:result.publishedAt}:{})});return'PUBLISHED'}
+      await this.schedulePoll(job,now);return'PROCESSING';
+    }catch(raw){
+      const error=raw as Error&{code?:string;retryable?:boolean};
+      if(error.retryable){await this.schedulePoll(job,now);return'PROCESSING'}
+      await this.repos.publishJobs.update(jobId,{status:'FAILED',errorCode:error.code??'PROCESSING_ERROR',errorMessage:String(error.message)});return'FAILED';
+    }
   }
 
   async run(jobId: string, buildInput: (job: PublishJob) => Promise<PublishInput>): Promise<JobRunResult> {
@@ -22,6 +57,7 @@ export class JobRunner {
       if (!await this.repos.publishJobs.get(jobId)) throw new Error('JOB_NOT_FOUND');
       return 'SKIPPED';
     }
+    await this.repos.publishJobs.update(jobId,{processingStartedAt:this.now()});
     const job = (await this.repos.publishJobs.get(jobId))!;
     const existing = (await this.repos.publishedPosts.findBy({publishJobId: jobId}))[0];
     if (existing) {
@@ -61,7 +97,7 @@ export class JobRunner {
     }
 
     const attemptNumber = job.attemptCount + 1;
-    const startedAt = Date.now();
+    const startedAt = this.now();
     await this.repos.publishJobs.update(jobId, {attemptCount: attemptNumber});
     try {
       if (job.strategy === 'BROWSER') {
@@ -82,9 +118,10 @@ export class JobRunner {
         return 'PUBLISHED';
       }
       if (result.processing && result.remoteCorrelationId) {
-        await this.repos.publishJobs.update(jobId, {status: 'RETRYING', scheduledAt: Date.now() + 30_000});
-        await this.repos.publishAttempts.append({id: id('attempt'), publishJobId: jobId, attemptNumber, strategy: job.strategy, startedAt, finishedAt: Date.now(), status: 'RETRYING'});
-        return 'RETRYING';
+        await this.repos.publishJobs.update(jobId, {status: 'PROCESSING'});
+        await this.schedulePoll({...job,processingStartedAt:startedAt},this.now());
+        await this.repos.publishAttempts.append({id: id('attempt'), publishJobId: jobId, attemptNumber, strategy: job.strategy, startedAt, finishedAt: this.now(), status: 'PROCESSING'});
+        return 'PROCESSING';
       }
       throw new PublishError({type: 'PLATFORM_ERROR', code: 'NO_POST_ID', message: 'No post id', retryable: true});
     } catch (raw: unknown) {

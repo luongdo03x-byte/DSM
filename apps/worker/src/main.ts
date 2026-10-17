@@ -20,11 +20,11 @@ export async function startWorker(options: WorkerOptions): Promise<{close(): Pro
   const queue = app.queue;
   const connection = new IORedis(env.REDIS_URL, {maxRetriesPerRequest: null});
   const name = env.PUBLISH_QUEUE_NAME ?? PUBLISH_API_QUEUE;
-  const runner = new JobRunner(app.repos, options.registry ?? app.registry);
+  const runner = new JobRunner(app.repos, options.registry ?? app.registry,undefined,queue);
   const builder = new PublishInputBuilder(app.repos, app.services.media);
   const recovery = new RecoveryService(app.repos);
   const concurrency = Math.max(1, Number(env.WORKER_CONCURRENCY ?? 4));
-  const worker = new Worker(name, async job => runner.run(String(job.data.jobId), current => builder.build(current)),
+  const worker = new Worker(name, async job => job.data.poll?runner.poll(String(job.data.jobId)):runner.run(String(job.data.jobId), current => builder.build(current)),
     {connection, concurrency, autorun: false});
   worker.on('completed', (job, status) => {
     if (status !== 'RETRYING' && status !== 'SKIPPED') return;

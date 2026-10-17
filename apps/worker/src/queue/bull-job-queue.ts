@@ -21,6 +21,11 @@ export class BullJobQueue implements JobQueue {
     await this.queue.add('publish', {jobId}, {jobId, delay: Math.max(0, runAt - Date.now()), attempts: 1,
       removeOnComplete: 1000, removeOnFail: 5000});
   }
+  async schedulePoll(jobId:string,runAt:number):Promise<void>{
+    const pollId=`poll-${jobId}-${runAt}`;
+    if(await this.queue.getJob(pollId))return;
+    await this.queue.add('poll',{jobId,poll:true},{jobId:pollId,delay:Math.max(0,runAt-Date.now()),attempts:1,removeOnComplete:1000,removeOnFail:5000});
+  }
   async reschedule(jobId: string, runAt: number): Promise<void> {
     const job = await this.queue.getJob(jobId);
     if (job && await job.getState() === 'active') return;
