@@ -8,3 +8,5 @@ export interface PublishedPostData{externalPostId:string;externalUrl?:string|und
 export interface PostMetricsData{views?:number|undefined;likes?:number|undefined;comments?:number|undefined;shares?:number|undefined;saves?:number|undefined;raw:Record<string,unknown>}
 export interface PlatformPublisher{validate(input:PublishInput):Promise<ValidationResult>;publish(input:PublishInput):Promise<PublishResult>;fetchPost(postId:string,context?:{socialAccountId?:string}):Promise<PublishedPostData>;fetchMetrics(postId:string,context?:{socialAccountId?:string}):Promise<PostMetricsData>}
 export interface PlatformCapability{platform:Platform;contentType:ContentType;strategy:PublishStrategy;supported:boolean}
+export type {AdapterCapabilities,TokenRefreshResult,PlatformAdapter} from './adapter.ts';
+export type {OAuthTokens,ConnectableAccount,OAuthConnector} from './oauth.ts';
