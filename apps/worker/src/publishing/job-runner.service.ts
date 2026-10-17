@@ -68,7 +68,13 @@ export class JobRunner {
         correlationId ??= `${job.id}:${attemptNumber}`;
         await this.repos.publishJobs.update(jobId, {remoteCorrelationId: correlationId});
       }
-      const result = await publisher.publish(await buildInput(job.strategy === 'BROWSER' ? {...job, remoteCorrelationId: correlationId!} : job));
+      const input=await buildInput(job.strategy === 'BROWSER' ? {...job, remoteCorrelationId: correlationId!} : job);
+      if(job.strategy==='API'&&job.attemptCount>0){
+        const prior=await this.repos.publishAttempts.findBy({publishJobId:jobId});
+        const first=Math.min(...prior.map(attempt=>attempt.startedAt));
+        if(Number.isFinite(first))input.metadata={...input.metadata,retrySince:Math.floor(first/1000)};
+      }
+      const result = await publisher.publish(input);
       if (result.remoteCorrelationId) await this.repos.publishJobs.update(jobId, {remoteCorrelationId: result.remoteCorrelationId});
       if (result.externalPostId) {
         await this.persistPost(job, {externalPostId: result.externalPostId, exists: true, ...(result.externalUrl ? {externalUrl: result.externalUrl} : {}), ...(result.publishedAt ? {publishedAt: result.publishedAt} : {})});

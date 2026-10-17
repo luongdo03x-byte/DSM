@@ -28,7 +28,7 @@ import {MetaGraphClient} from '../integrations/meta/meta-http.client.ts';
 import {MetaOAuthConnector} from '../integrations/meta/meta-oauth.service.ts';
 import {IntegrationsService} from '../modules/integrations/integrations.service.ts';
 import {metaConfig} from '../integrations/meta/meta.config.ts';
-import {FacebookPublisher} from '../modules/publishing/platforms/facebook/facebook.publisher.ts';
+import {FacebookAdapter} from '../integrations/meta/facebook.adapter.ts';
 import {InstagramPublisher} from '../modules/publishing/platforms/instagram/instagram.publisher.ts';
 import {ThreadsPublisher} from '../modules/publishing/platforms/threads/threads.publisher.ts';
 import {TikTokHttpClient} from '../integrations/tiktok/tiktok-http.client.ts';
@@ -70,7 +70,7 @@ export async function createDevelopmentRuntime(options:DevelopmentRuntimeOptions
   const createdAccounts=new Map<string,Awaited<ReturnType<AccountsService['create']>>>();
   for(const platform of ['FACEBOOK','INSTAGRAM','THREADS','TIKTOK'] as const){const existing=(await repos.socialAccounts.findBy({brandId,platform}))[0];createdAccounts.set(platform,existing??await accounts.create(brandId,{platform,publishMode:'HYBRID'}))}
   const registry=new PublisherRegistry(),http=new FetchHttpClient(),metaHttp=new MetaHttpClient(http,metaConfig(env));
-  registry.register('FACEBOOK','API',new FacebookPublisher(metaHttp,accounts));registry.register('INSTAGRAM','API',new InstagramPublisher(metaHttp,accounts));registry.register('THREADS','API',new ThreadsPublisher(metaHttp,accounts));
+  registry.register('FACEBOOK','API',new FacebookAdapter({graph:new MetaGraphClient({baseUrl:metaConfig(env).graphBaseUrl,version:metaConfig(env).graphVersion}),tokens:accountId=>accounts.getAccessToken(accountId)}));registry.register('INSTAGRAM','API',new InstagramPublisher(metaHttp,accounts));registry.register('THREADS','API',new ThreadsPublisher(metaHttp,accounts));
   const tc=tiktokConfig(env),th=new TikTokHttpClient(http,tc),creator=new TikTokCreatorInfoService(th,accounts),status=new TikTokStatusService(th,accounts),upload=new TikTokUploadService(th);
   registry.register('TIKTOK','API',new TikTokPublisher(th,accounts,new TikTokValidation(creator,tc),status,upload,tc));
 
@@ -118,7 +118,7 @@ export async function createRuntime(options:RuntimeOptions) {
     const credentialCrypto=new CredentialCryptoService(credentialKey(env));
     const accounts=new AccountsService(repos,credentialCrypto),nodeAuth=new NodeAuthService(repos,credentialCrypto),browserNodes=new BrowserNodesService(repos);
     const registry=new PublisherRegistry(),http=new FetchHttpClient(),metaHttp=new MetaHttpClient(http,metaConfig(env));
-    registry.register('FACEBOOK','API',new FacebookPublisher(metaHttp,accounts));
+    registry.register('FACEBOOK','API',new FacebookAdapter({graph:new MetaGraphClient({baseUrl:metaConfig(env).graphBaseUrl,version:metaConfig(env).graphVersion}),tokens:accountId=>accounts.getAccessToken(accountId)}));
     registry.register('INSTAGRAM','API',new InstagramPublisher(metaHttp,accounts));
     registry.register('THREADS','API',new ThreadsPublisher(metaHttp,accounts));
     const tc=tiktokConfig(env),th=new TikTokHttpClient(http,tc),creator=new TikTokCreatorInfoService(th,accounts),status=new TikTokStatusService(th,accounts),upload=new TikTokUploadService(th);

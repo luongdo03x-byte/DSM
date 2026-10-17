@@ -1,14 +1,14 @@
 import type {HttpClient} from '../../../../../packages/shared/src/http.ts';import {PublishError} from '../../../../../packages/platform-contracts/src/index.ts';import type {MetaConfig} from './meta.config.ts';
 
 export class MetaGraphClient {
-  private readonly baseUrl:string;private readonly version:string;private readonly fetchImpl:typeof fetch;
-  constructor(opts:{baseUrl:string;version:string;fetchImpl?:typeof fetch}){this.baseUrl=opts.baseUrl.replace(/\/$/,'');this.version=opts.version.replace(/^\//,'');this.fetchImpl=opts.fetchImpl??fetch}
+  private readonly baseUrl:string;private readonly version:string;private readonly fetchImpl:typeof fetch;private readonly timeoutMs:number;
+  constructor(opts:{baseUrl:string;version:string;fetchImpl?:typeof fetch;timeoutMs?:number}){this.baseUrl=opts.baseUrl.replace(/\/$/,'');this.version=opts.version.replace(/^\//,'');this.fetchImpl=opts.fetchImpl??fetch;this.timeoutMs=opts.timeoutMs??30_000}
   async get<T>(path:string,token:string,params:Record<string,string>={}):Promise<T>{return this.request<T>('GET',path,token,params)}
   async post<T>(path:string,token:string,body:Record<string,unknown>|FormData):Promise<T>{return this.request<T>('POST',path,token,{},body)}
   private async request<T>(method:string,path:string,token:string,params:Record<string,string>,body?:Record<string,unknown>|FormData):Promise<T>{
     const url=new URL(`${this.baseUrl}/${this.version}/${path.replace(/^\//,'')}`);
     for(const [key,value] of Object.entries(params))url.searchParams.set(key,value);
-    const init:RequestInit={method,headers:token?{authorization:`Bearer ${token}`}:{}};
+    const init:RequestInit={method,headers:token?{authorization:`Bearer ${token}`}:{},signal:AbortSignal.timeout(this.timeoutMs)};
     if(body instanceof FormData)init.body=body;
     else if(body){init.headers={...init.headers,'content-type':'application/json'};init.body=JSON.stringify(body)}
     let response:Response;try{response=await this.fetchImpl(url,init)}catch{throw new PublishError({type:'NETWORK_ERROR',code:'NETWORK',message:'Meta request failed',retryable:true})}

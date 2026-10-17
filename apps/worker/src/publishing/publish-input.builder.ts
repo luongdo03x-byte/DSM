@@ -18,6 +18,8 @@ export class PublishInputBuilder {
     if (!content || content.brandId !== job.brandId) throw new Error('CONTENT_NOT_FOUND');
     const brand = await this.repos.brands.get(job.brandId);
     if (!brand) throw new Error('BRAND_NOT_FOUND');
+    const account=await this.repos.socialAccounts.get(job.socialAccountId);
+    const product=content.productId?await this.repos.products.get(content.productId):undefined;
     const assets=await prepareVariantMedia(this.repos,this.media.storage,variant.id,MEDIA_RULES[job.platform]);
     const media=[];
     for(const asset of assets){
@@ -27,6 +29,7 @@ export class PublishInputBuilder {
     const mediaUrl=media[0]?.url;
     return {brandId: job.brandId, socialAccountId: job.socialAccountId, contentVariantId: variant.id, platform: job.platform, contentType: content.type,
       ...(variant.caption ? {caption: variant.caption} : {}), ...(variant.body ? {body: variant.body} : {}),
-      ...(mediaUrl ? {mediaUrl} : {}),...(media.length?{media}:{}), ...(job.remoteCorrelationId ? {remoteCorrelationId: job.remoteCorrelationId} : {})};
+      ...(mediaUrl ? {mediaUrl} : {}),...(media.length?{media}:{}), ...(job.remoteCorrelationId ? {remoteCorrelationId: job.remoteCorrelationId} : {}),
+      metadata:{...(variant.format?{format:variant.format}:{}),...(account?.platformAccountId?{pageId:account.platformAccountId}:{}),...(product?.landingUrl?{link:product.landingUrl}:{})}};
   }
 }

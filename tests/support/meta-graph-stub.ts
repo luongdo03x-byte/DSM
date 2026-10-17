@@ -1,7 +1,7 @@
 import {createServer} from 'node:http';
 
 type Request={method:string;path:string;query:Record<string,string>;body:unknown};
-type Reply={status:number;body:unknown};
+type Reply={status:number;body:unknown;delayMs?:number};
 export async function startMetaGraphStub(){
   const calls:Request[]=[];
   const handlers=new Map<string,(request:Request)=>Reply>();
@@ -12,6 +12,7 @@ export async function startMetaGraphStub(){
     let body:unknown=undefined;try{body=JSON.parse(raw)}catch{if(raw)body=Object.fromEntries(new URLSearchParams(raw))}
     const request:Request={method:req.method??'GET',path:url.pathname,query:Object.fromEntries(url.searchParams),body};calls.push(request);
     const reply=handlers.get(url.pathname)?.(request)??{status:404,body:{error:{message:'No stub for '+url.pathname}}};
+    if(reply.delayMs)await new Promise(resolve=>setTimeout(resolve,reply.delayMs));
     res.writeHead(reply.status,{'content-type':'application/json'});res.end(JSON.stringify(reply.body));
   });
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));

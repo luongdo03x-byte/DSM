@@ -56,3 +56,14 @@ test('video gốc được probe một lần và giữ asset gốc',async()=>{
   assert.equal((await repos.variants.get(variant.id))?.format,'SHORT');
   assert.equal((await repos.media.findBy({derivedFromAssetId:'video'})).length,0);
 });
+
+test('Facebook publish input carries Page ID, format and product link',async()=>{
+  const repos=new MemoryRepositories(new MemoryStore()),storage=new InMemoryObjectStorage();
+  await repos.workspaces.insert({id:'w',name:'W'});await repos.brands.insert({id:'b',workspaceId:'w',name:'B',slug:'b',language:'vi',timezone:'UTC',currency:'USD',status:'ACTIVE'});
+  await repos.products.insert({id:'p',brandId:'b',name:'P',slug:'p',landingUrl:'https://shop.test/p',currency:'USD',status:'ACTIVE'});
+  await repos.contents.insert({id:'c',brandId:'b',productId:'p',type:'TEXT',title:'Link',status:'READY'});
+  await repos.socialAccounts.insert({id:'a',brandId:'b',platform:'FACEBOOK',platformAccountId:'page-123',publishMode:'API',status:'CONNECTED'});
+  await repos.variants.insert({id:'v',contentItemId:'c',platform:'FACEBOOK',socialAccountId:'a',format:'LINK',caption:'Buy',hashtags:[],status:'READY'});
+  const input=await new PublishInputBuilder(repos,new MediaService(repos,storage)).build({brandId:'b',socialAccountId:'a',contentVariantId:'v',platform:'FACEBOOK'});
+  assert.deepEqual(input.metadata,{pageId:'page-123',format:'LINK',link:'https://shop.test/p'});
+});
