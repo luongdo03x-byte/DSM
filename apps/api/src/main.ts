@@ -1,6 +1,6 @@
 import {createServer} from 'node:http';
 import type {LocalApiRuntime,LocalRequest,LocalResponse} from './runtime/local-api.ts';
-import {createDevelopmentRuntime} from './runtime/dev-runtime.ts';
+import {createDevelopmentRuntime,createRuntime} from './runtime/dev-runtime.ts';
 import {LocalWorkerRuntime,metricsCaptureKey} from '../../worker/src/runtime/local-worker.ts';
 import {JsonStorePersistence} from './runtime/json-store-persistence.ts';
 
@@ -65,7 +65,8 @@ export function startApiServer(portNumber=port,runtime?:LocalApiRuntime){
 }
 
 async function boot(){
-  if(process.env.DEV_IN_MEMORY==='1'){
+  const mode=process.env.RUNTIME_STORE??(process.env.DEV_IN_MEMORY==='1'?'memory':'postgres');
+  if(mode==='memory'){
     if(process.env.APP_ENV==='production')throw new Error('DEV_IN_MEMORY_FORBIDDEN_IN_PRODUCTION');
     const persistence=process.env.DEV_STORE_FILE?new JsonStorePersistence(process.env.DEV_STORE_FILE):undefined;
     const store=persistence?await persistence.load():undefined;
@@ -75,7 +76,11 @@ async function boot(){
     let saving=false;const persist=async()=>{if(!persistence||saving)return;saving=true;try{await persistence.save(app.store)}catch(error){console.error('local store persistence failed',error)}finally{saving=false}};
     const persistenceTimer=persistence?setInterval(()=>void persist(),Number(process.env.LOCAL_STORE_FLUSH_MS??2000)):undefined;
     server.once('close',()=>{clearInterval(timer);if(persistenceTimer)clearInterval(persistenceTimer);void persist()})
-  }else startApiServer(port);
+  }else{
+    const app=await createRuntime({env:process.env});
+    const server=startApiServer(port,app.runtime);
+    server.once('close',()=>{void app.close()});
+  }
   console.log(`api listening on ${port}`)
 }
 if(process.argv[1]?.endsWith('/main.ts'))void boot().catch(error=>{console.error(error);process.exitCode=1})

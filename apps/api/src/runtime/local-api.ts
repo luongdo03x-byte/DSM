@@ -1,4 +1,4 @@
-import type {MemoryStore} from '../../../../packages/shared/src/store.ts';
+import type {Repositories} from '../../../../packages/shared/src/repositories.ts';
 import type {AuthService} from '../modules/auth/auth.service.ts';
 import type {BrandAccessService} from '../modules/identity/brand-access.service.ts';
 import type {ProductsService} from '../modules/products/products.service.ts';
@@ -27,7 +27,7 @@ export interface LocalResponse {
 }
 
 type Dependencies={
-  store:MemoryStore;
+  repos:Repositories;
   auth:AuthService;
   brandAccess:BrandAccessService;
   products:ProductsService;
@@ -74,11 +74,11 @@ export class LocalApiRuntime {
       }
       if(method==='GET'&&req.path==='/auth/me'){
         const userId=await this.authenticate(req);
-        const user=this.d.store.users.get(userId);if(!user)throw new Error('UNAUTHORIZED');
+        const user=await this.d.repos.users.get(userId);if(!user)throw new Error('UNAUTHORIZED');
         return{status:200,body:{id:user.id,email:user.email}};
       }
       if(method==='GET'&&req.path==='/auth/context'){
-        const userId=await this.authenticate(req);const memberships=this.d.store.memberships.filter(x=>x.userId===userId);const workspaceIds=new Set(memberships.map(x=>x.workspaceId));const workspaces=[...this.d.store.workspaces.values()].filter(x=>workspaceIds.has(x.id));const brands=[...this.d.store.brands.values()].filter(x=>workspaceIds.has(x.workspaceId));return{status:200,body:{workspaces,brands,memberships}};
+        const userId=await this.authenticate(req);const memberships=await this.d.repos.memberships.findBy({userId});const workspaceIds=new Set(memberships.map(x=>x.workspaceId));const workspaces=(await this.d.repos.workspaces.findBy({})).filter(x=>workspaceIds.has(x.id));const brands=(await this.d.repos.brands.findBy({})).filter(x=>workspaceIds.has(x.workspaceId));return{status:200,body:{workspaces,brands,memberships}};
       }
       let publicMatch:RegExpExecArray|null;
       if(method==='GET'&&(publicMatch=route(req.path,/^\/r\/([^/]+)$/))){
@@ -94,12 +94,12 @@ export class LocalApiRuntime {
       let m:RegExpExecArray|null;
 
       if(method==='POST'&&req.path==='/browser-nodes/registration'){
-        if(!this.d.nodeAuth)return{status:501,body:{error:'NODE_AUTH_NOT_CONFIGURED'}};const b=asObject(req.body),workspaceId=String(b.workspaceId??this.d.store.memberships.find(x=>x.userId===userId)?.workspaceId??'');if(!workspaceId||!this.d.store.memberships.some(x=>x.userId===userId&&x.workspaceId===workspaceId))throw new Error('BRAND_NOT_FOUND');return{status:201,body:await this.d.nodeAuth.createRegistration(workspaceId,String(b.name??'Browser Node'),String(b.host??'127.0.0.1'),Number(b.port??4010))}
+        if(!this.d.nodeAuth)return{status:501,body:{error:'NODE_AUTH_NOT_CONFIGURED'}};const b=asObject(req.body),memberships=await this.d.repos.memberships.findBy({userId}),workspaceId=String(b.workspaceId??memberships[0]?.workspaceId??'');if(!workspaceId||!memberships.some(x=>x.workspaceId===workspaceId))throw new Error('BRAND_NOT_FOUND');return{status:201,body:await this.d.nodeAuth.createRegistration(workspaceId,String(b.name??'Browser Node'),String(b.host??'127.0.0.1'),Number(b.port??4010))}
       }
 
       if((m=route(req.path,/^\/brands\/([^/]+)$/))){
         const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
-        if(method==='GET')return{status:200,body:this.d.store.brands.get(brandId)};
+        if(method==='GET')return{status:200,body:await this.d.repos.brands.get(brandId)};
       }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/accounts$/))){
@@ -108,7 +108,7 @@ export class LocalApiRuntime {
         if(method==='POST'){const b=asObject(req.body);return{status:201,body:await this.d.accounts.create(brandId,{platform:b.platform,username:b.username,publishMode:b.publishMode})}}
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/accounts\/([^/]+)\/credentials$/))){
-        const brandId=decodeURIComponent(m[1]!),accountId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);const account=this.d.store.socialAccounts.get(accountId);if(!account||account.brandId!==brandId)throw new Error('ACCOUNT_NOT_FOUND');if(method==='POST'){const b=asObject(req.body);const updated=await this.d.accounts.saveCredential(accountId,String(b.provider??account.platform.toLowerCase()),String(b.accessToken??''),b.refreshToken!==undefined?String(b.refreshToken):undefined);return{status:200,body:{id:updated.id,status:updated.status}}}
+        const brandId=decodeURIComponent(m[1]!),accountId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);const account=await this.d.repos.socialAccounts.get(accountId);if(!account||account.brandId!==brandId)throw new Error('ACCOUNT_NOT_FOUND');if(method==='POST'){const b=asObject(req.body);const updated=await this.d.accounts.saveCredential(accountId,String(b.provider??account.platform.toLowerCase()),String(b.accessToken??''),b.refreshToken!==undefined?String(b.refreshToken):undefined);return{status:200,body:{id:updated.id,status:updated.status}}}
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/accounts\/([^/]+)\/browser-profile$/))){
         const brandId=decodeURIComponent(m[1]!),accountId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);if(method==='POST'){const b=asObject(req.body);return{status:200,body:await this.d.accounts.attachBrowserProfile(brandId,accountId,String(b.browserNodeId??''),String(b.providerProfileId??''),String(b.name??'Browser profile'))}}
@@ -118,7 +118,7 @@ export class LocalApiRuntime {
         if(method==='POST')return{status:200,body:await this.d.accounts.disconnect(brandId,accountId,userId)};
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/browser-nodes$/))){
-        const brandId=decodeURIComponent(m[1]!);const access=await this.authorize(userId,brandId);if(method==='GET')return{status:200,body:[...this.d.store.browserNodes.values()].filter(x=>x.workspaceId===access.workspaceId)};
+        const brandId=decodeURIComponent(m[1]!);const access=await this.authorize(userId,brandId);if(method==='GET')return{status:200,body:await this.d.repos.browserNodes.findBy({workspaceId:access.workspaceId})};
       }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/media\/uploads$/))){
@@ -133,7 +133,7 @@ export class LocalApiRuntime {
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/campaigns$/))){
         const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
-        if(method==='GET')return{status:200,body:[...this.d.store.campaigns.values()].filter(x=>x.brandId===brandId)};
+        if(method==='GET')return{status:200,body:await this.d.repos.campaigns.findBy({brandId})};
         if(method==='POST'){if(!this.d.campaigns)return{status:501,body:{error:'CAMPAIGNS_NOT_CONFIGURED'}};const b=asObject(req.body);return{status:201,body:await this.d.campaigns.create(brandId,{name:String(b.name??''),...(b.productId!==undefined?{productId:String(b.productId)}:{}),...(b.description!==undefined?{description:String(b.description)}:{})})}}
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/campaigns\/([^/]+)\/content$/))){
@@ -151,15 +151,15 @@ export class LocalApiRuntime {
       }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/calendar$/))){
-        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);if(method==='GET')return{status:200,body:[...this.d.store.publishJobs.values()].filter(x=>x.brandId===brandId).sort((a,b)=>a.scheduledAt-b.scheduledAt)};
+        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);if(method==='GET')return{status:200,body:(await this.d.repos.publishJobs.findBy({brandId})).sort((a,b)=>a.scheduledAt-b.scheduledAt)};
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/calendar\/([^/]+)$/))){
-        const brandId=decodeURIComponent(m[1]!),jobId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);const job=this.d.store.publishJobs.get(jobId);if(!job||job.brandId!==brandId)throw new Error('JOB_NOT_FOUND');
+        const brandId=decodeURIComponent(m[1]!),jobId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);const job=await this.d.repos.publishJobs.get(jobId);if(!job||job.brandId!==brandId)throw new Error('JOB_NOT_FOUND');
         if(method==='PATCH'){const b=asObject(req.body);return{status:200,body:await this.d.batchStatus.reschedule(jobId,Number(b.scheduledAt))}}
         if(method==='DELETE')return{status:200,body:await this.d.batchStatus.cancel(jobId)};
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/publish-jobs\/([^/]+)\/retry$/))){
-        const brandId=decodeURIComponent(m[1]!),jobId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);const job=this.d.store.publishJobs.get(jobId);if(!job||job.brandId!==brandId)throw new Error('JOB_NOT_FOUND');if(method==='POST')return{status:200,body:await this.d.batchStatus.manualRetry(jobId,userId)};
+        const brandId=decodeURIComponent(m[1]!),jobId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);const job=await this.d.repos.publishJobs.get(jobId);if(!job||job.brandId!==brandId)throw new Error('JOB_NOT_FOUND');if(method==='POST')return{status:200,body:await this.d.batchStatus.manualRetry(jobId,userId)};
       }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/products$/))){
@@ -183,7 +183,7 @@ export class LocalApiRuntime {
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/content$/))){
         const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
-        if(method==='GET')return{status:200,body:[...this.d.store.contents.values()].filter(x=>x.brandId===brandId)};
+        if(method==='GET')return{status:200,body:await this.d.repos.contents.findBy({brandId})};
         if(method==='POST'){
           const b=asObject(req.body);
           const content=await this.d.content.create(brandId,{
@@ -236,8 +236,8 @@ export class LocalApiRuntime {
 
       if((m=route(req.path,/^\/publish\/batches\/([^/]+)$/))){
         if(method==='GET'){
-          const batchId=decodeURIComponent(m[1]!);const batch=this.d.store.publishBatches.get(batchId);if(!batch)throw new Error('BATCH_NOT_FOUND');await this.authorize(userId,batch.brandId);
-          const jobs=[...this.d.store.publishJobs.values()].filter(j=>j.batchId===batchId);
+          const batchId=decodeURIComponent(m[1]!);const batch=await this.d.repos.publishBatches.get(batchId);if(!batch)throw new Error('BATCH_NOT_FOUND');await this.authorize(userId,batch.brandId);
+          const jobs=await this.d.repos.publishJobs.findBy({batchId});
           return{status:200,body:{batchId,status:await this.d.batchStatus.get(batchId),jobs}};
         }
       }
@@ -249,10 +249,12 @@ export class LocalApiRuntime {
   private async authenticate(req:LocalRequest){
     const header=req.headers?.authorization??req.headers?.Authorization;
     if(!header?.startsWith('Bearer '))throw new Error('UNAUTHORIZED');
-    try {const claims=await this.d.auth.me(header.slice(7));return claims.sub}catch{throw new Error('UNAUTHORIZED')}
+    try {const claims=await this.d.auth.me(header.slice(7));return claims.sub}catch(error){if(this.storeUnavailable(error))throw error;throw new Error('UNAUTHORIZED')}
   }
-  private async authorize(userId:string,brandId:string){try{return await this.d.brandAccess.assertAccess(userId,brandId)}catch{throw new Error('BRAND_NOT_FOUND')}}
+  private async authorize(userId:string,brandId:string){try{return await this.d.brandAccess.assertAccess(userId,brandId)}catch(error){if(this.storeUnavailable(error))throw error;throw new Error('BRAND_NOT_FOUND')}}
+  private storeUnavailable(error:unknown){const code=(error as {code?:unknown})?.code;return ['ECONNREFUSED','ECONNRESET','P1001','P1017'].includes(String(code))}
   private mapError(error:unknown):LocalResponse{
+    if(this.storeUnavailable(error))return{status:503,body:{error:'STORE_UNAVAILABLE'}};
     const message=error instanceof Error?error.message:'INTERNAL_ERROR';
     if(['UNAUTHORIZED','INVALID_CREDENTIALS','INVALID_REFRESH','NODE_AUTH','INVALID_REGISTRATION','STALE_SIGNATURE','REPLAY','BAD_SIGNATURE'].includes(message))return{status:401,body:{error:message}};
     if(['BRAND_NOT_FOUND','PRODUCT_NOT_FOUND','CONTENT_NOT_FOUND','ACCOUNT_NOT_FOUND','BATCH_NOT_FOUND','JOB_NOT_FOUND','LINK_NOT_FOUND'].includes(message))return{status:404,body:{error:'NOT_FOUND'}};

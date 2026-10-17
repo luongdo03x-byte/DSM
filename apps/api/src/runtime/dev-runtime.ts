@@ -1,5 +1,8 @@
 import {MemoryStore} from '../../../../packages/shared/src/store.ts';
 import {MemoryRepositories} from '../../../../packages/shared/src/memory-repositories.ts';
+import type {Repositories} from '../../../../packages/shared/src/repositories.ts';
+import {createPrismaClient} from '../../../../packages/database/src/client.ts';
+import {PrismaRepositories} from '../../../../packages/database/src/prisma-repositories.ts';
 import {FetchHttpClient} from '../../../../packages/shared/src/http.ts';
 import type {PasswordHasher} from '../modules/auth/auth.service.ts';
 import {AuthService,Node24Argon2idHasher} from '../modules/auth/auth.service.ts';
@@ -37,6 +40,7 @@ import {NodeAuthService} from '../modules/browser-nodes/node-auth.service.ts';
 import {BrowserNodesService} from '../modules/browser-nodes/browser-nodes.service.ts';
 
 export interface DevelopmentRuntimeOptions{env?:Record<string,string|undefined>;hasher?:PasswordHasher;store?:MemoryStore}
+export interface RuntimeOptions {env:Record<string,string|undefined>;hasher?:PasswordHasher;store?:MemoryStore}
 function credentialKey(env:Record<string,string|undefined>){const raw=env.CREDENTIAL_ENCRYPTION_KEY;if(!raw)throw new Error('CREDENTIAL_ENCRYPTION_KEY_REQUIRED');const bytes=Buffer.from(raw,'base64');if(bytes.byteLength!==32)throw new Error('CREDENTIAL_ENCRYPTION_KEY_MUST_BE_32_BYTES');return new Uint8Array(bytes)}
 
 export async function createDevelopmentRuntime(options:DevelopmentRuntimeOptions={}){
@@ -67,6 +71,48 @@ export async function createDevelopmentRuntime(options:DevelopmentRuntimeOptions
 
   const storage=env.S3_ENDPOINT&&env.S3_REGION&&env.S3_ACCESS_KEY&&env.S3_SECRET_KEY&&env.S3_BUCKET?new S3CompatibleObjectStorage({endpoint:env.S3_ENDPOINT,region:env.S3_REGION,accessKey:env.S3_ACCESS_KEY,secretKey:env.S3_SECRET_KEY,bucket:env.S3_BUCKET}):new InMemoryObjectStorage();
   const analytics=new AnalyticsService(repos),products=new ProductsService(repos),content=new ContentService(repos),batchStatus=new BatchStatusService(repos),tracking=new TrackingService(repos),media=new MediaService(repos,storage),campaigns=new CampaignsService(repos);
-  const runtime=new LocalApiRuntime({store,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver()),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),nodeAuth,browserNodes});
+  const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver()),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),nodeAuth,browserNodes});
   return{store,repos,runtime,registry,services:{accounts,products,content,batchStatus,analytics,tracking,media,campaigns,nodeAuth,browserNodes},ids:{ownerId,workspaceId,brandId}};
+}
+
+export async function createRuntime(options:RuntimeOptions) {
+  const env=options.env;
+  const mode=env.RUNTIME_STORE??(env.DEV_IN_MEMORY==='1'?'memory':'postgres');
+  if(mode==='memory'){
+    if(env.APP_ENV==='production')throw new Error('DEV_IN_MEMORY_FORBIDDEN_IN_PRODUCTION');
+    const app=await createDevelopmentRuntime(options);
+    return {...app,close:async()=>{}};
+  }
+  if(mode!=='postgres')throw new Error('RUNTIME_STORE_INVALID');
+  if(!env.DATABASE_URL)throw new Error('DATABASE_URL_REQUIRED');
+  const client=createPrismaClient(env.DATABASE_URL);
+  try {
+    await client.$connect();
+    const repos:Repositories=new PrismaRepositories(client);
+    const hasher=options.hasher??new Node24Argon2idHasher();
+    const ids={ownerId:'local-owner',workspaceId:'local-workspace',brandId:'local-brand'};
+    if(env.DEV_SEED==='1'){
+      if(!env.DEV_OWNER_PASSWORD)throw new Error('DEV_OWNER_PASSWORD_REQUIRED');
+      if(!await repos.users.get(ids.ownerId))await repos.users.insert({id:ids.ownerId,email:env.DEV_OWNER_EMAIL??'owner@local.test',passwordHash:await hasher.hash(env.DEV_OWNER_PASSWORD),status:'ACTIVE'});
+      if(!await repos.workspaces.get(ids.workspaceId))await repos.workspaces.insert({id:ids.workspaceId,name:env.DEV_WORKSPACE_NAME??'Local Workspace'});
+      if(!(await repos.memberships.findBy({workspaceId:ids.workspaceId,userId:ids.ownerId})).length)await repos.memberships.append({workspaceId:ids.workspaceId,userId:ids.ownerId,role:'OWNER'});
+      if(!await repos.brands.get(ids.brandId))await repos.brands.insert({id:ids.brandId,workspaceId:ids.workspaceId,name:env.DEV_BRAND_NAME??'Local Brand',slug:env.DEV_BRAND_SLUG??'local-brand',language:env.DEV_BRAND_LANGUAGE??'en',timezone:env.DEV_BRAND_TIMEZONE??'UTC',currency:env.DEV_BRAND_CURRENCY??'USD',status:'ACTIVE'});
+    }
+    const credentialCrypto=new CredentialCryptoService(credentialKey(env));
+    const accounts=new AccountsService(repos,credentialCrypto),nodeAuth=new NodeAuthService(repos,credentialCrypto),browserNodes=new BrowserNodesService(repos);
+    const registry=new PublisherRegistry(),http=new FetchHttpClient(),metaHttp=new MetaHttpClient(http,metaConfig(env));
+    registry.register('FACEBOOK','API',new FacebookPublisher(metaHttp,accounts));
+    registry.register('INSTAGRAM','API',new InstagramPublisher(metaHttp,accounts));
+    registry.register('THREADS','API',new ThreadsPublisher(metaHttp,accounts));
+    const tc=tiktokConfig(env),th=new TikTokHttpClient(http,tc),creator=new TikTokCreatorInfoService(th,accounts),status=new TikTokStatusService(th,accounts),upload=new TikTokUploadService(th);
+    registry.register('TIKTOK','API',new TikTokPublisher(th,accounts,new TikTokValidation(creator,tc),status,upload,tc));
+    if(env.BROWSER_NODE_KEY&&env.BROWSER_GATEWAY_HOST){
+      const browserClient=new BrowserGatewayClient(async()=>env.BROWSER_NODE_KEY!);
+      for(const platform of ['FACEBOOK','INSTAGRAM','THREADS','TIKTOK'] as const)registry.register(platform,'BROWSER',new BrowserPublisherProxy(platform,repos,browserClient));
+    }
+    const storage=env.S3_ENDPOINT&&env.S3_REGION&&env.S3_ACCESS_KEY&&env.S3_SECRET_KEY&&env.S3_BUCKET?new S3CompatibleObjectStorage({endpoint:env.S3_ENDPOINT,region:env.S3_REGION,accessKey:env.S3_ACCESS_KEY,secretKey:env.S3_SECRET_KEY,bucket:env.S3_BUCKET}):new InMemoryObjectStorage();
+    const analytics=new AnalyticsService(repos),products=new ProductsService(repos),content=new ContentService(repos),batchStatus=new BatchStatusService(repos),tracking=new TrackingService(repos),media=new MediaService(repos,storage),campaigns=new CampaignsService(repos);
+    const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver()),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),nodeAuth,browserNodes});
+    return {repos,runtime,registry,services:{accounts,products,content,batchStatus,analytics,tracking,media,campaigns,nodeAuth,browserNodes},ids,close:()=>client.$disconnect()};
+  } catch(error) {await client.$disconnect();throw error}
 }
