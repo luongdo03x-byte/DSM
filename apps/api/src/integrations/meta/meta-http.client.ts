@@ -5,6 +5,7 @@ export class MetaGraphClient {
   constructor(opts:{baseUrl:string;version:string;fetchImpl?:typeof fetch;timeoutMs?:number}){this.baseUrl=opts.baseUrl.replace(/\/$/,'');this.version=opts.version.replace(/^\//,'');this.fetchImpl=opts.fetchImpl??fetch;this.timeoutMs=opts.timeoutMs??30_000}
   async get<T>(path:string,token:string,params:Record<string,string>={}):Promise<T>{return this.request<T>('GET',path,token,params)}
   async post<T>(path:string,token:string,body:Record<string,unknown>|FormData):Promise<T>{return this.request<T>('POST',path,token,{},body)}
+  async delete<T>(path:string,token:string):Promise<T>{return this.request<T>('DELETE',path,token,{})}
   private async request<T>(method:string,path:string,token:string,params:Record<string,string>,body?:Record<string,unknown>|FormData):Promise<T>{
     const url=new URL(`${this.baseUrl}/${this.version}/${path.replace(/^\//,'')}`);
     for(const [key,value] of Object.entries(params))url.searchParams.set(key,value);

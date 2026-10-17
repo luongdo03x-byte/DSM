@@ -46,7 +46,7 @@ Scope limits:
 
 - The harness and the HTTP smoke publish through `FakePublisher` (`apps/worker/src/testing/fake-publisher.ts`); no real platform API is called.
 - The UI E2E covers login, navigation (Tổng quan, Sản phẩm, Nội dung, Lịch đăng, Phân tích), reload with session refresh, and logout on a production build. It does not publish through the UI.
-- The real Meta and TikTok publisher wiring is not covered by any automated test (see the live publish sections below).
+- The Facebook and Instagram adapters, OAuth, token refresh, data deletion, and smoke script are covered with a local Graph stub. Real platform posting still needs the live checks below.
 
 ## CI baseline (SP1)
 
@@ -75,11 +75,11 @@ The HTTP album journey publishes through `FakePublisher`. It verifies the media 
 
 ## Facebook live publish
 
-Status: BLOCKED_EXTERNAL — requires a real Meta app, Page/account authorization, approved permissions, and a safe test post target.
+Status: BLOCKED_EXTERNAL — the scripted text/image publish and delete check awaits an owner controlled test Page, Page token, public JPEG URL, and approved Meta permissions. See `docs/runbooks/meta-live-smoke.md`.
 
 ## Instagram live publish
 
-Status: BLOCKED_EXTERNAL — requires an eligible Instagram professional account linked to Meta authorization and safe test media.
+Status: BLOCKED_EXTERNAL — adapter tests use a local Graph stub; live image, carousel, Reel, Story, and container polling need an eligible Instagram professional account linked to Meta authorization and safe test media.
 
 ## Threads live publish
 
