@@ -9,6 +9,7 @@ const supported: Record<Platform, Set<string>> = {
   INSTAGRAM: new Set(['IMAGE', 'VIDEO']),
   THREADS: new Set(['TEXT', 'IMAGE', 'VIDEO']),
   TIKTOK: new Set(['IMAGE', 'VIDEO']),
+  YOUTUBE: new Set(),
 };
 
 export class BrowserPublisherProxy implements PlatformPublisher {

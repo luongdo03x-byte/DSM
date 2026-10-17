@@ -1,7 +1,7 @@
 import type {
   AuditLog, AuthSession, Brand, BrowserNode, BrowserProfile, BrowserRegistration,
   Campaign, ClickEvent, ContentItem, ContentVariant, EncryptedCredential, JobStatus,
-  MediaAsset, PostMetric, Product, PublishAttempt, PublishBatch, PublishedPost,
+  MediaAsset, ContentMedia, VariantMedia, PostMetric, Product, PublishAttempt, PublishBatch, PublishedPost,
   PublishJob, SocialAccount, TrackedLink, User, Workspace, WorkspaceMember,
 } from './domain.ts';
 
@@ -31,6 +31,8 @@ export interface Repositories {
   memberships: AppendRepo<WorkspaceMember>;
   products: Repo<Product>;
   media: Repo<MediaAsset>;
+  contentMedia: Repo<ContentMedia>;
+  variantMedia: Repo<VariantMedia>;
   contents: Repo<ContentItem>;
   variants: Repo<ContentVariant>;
   campaigns: Repo<Campaign>;

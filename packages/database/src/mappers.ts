@@ -1,6 +1,6 @@
 import type {
   AuditLog, AuthSession, Brand, BrowserNode, BrowserProfile, BrowserRegistration,
-  Campaign, ClickEvent, ContentItem, ContentVariant, EncryptedCredential,
+  Campaign, ClickEvent, ContentItem, ContentVariant, ContentMedia, VariantMedia, EncryptedCredential,
   MediaAsset, PostMetric, Product, PublishAttempt, PublishBatch, PublishedPost,
   PublishJob, SocialAccount, TrackedLink, User, Workspace, WorkspaceMember,
 } from '../../shared/src/domain.ts';
@@ -14,9 +14,11 @@ const fields = {
   memberships: ['workspaceId', 'userId', 'role'],
   brands: ['id', 'workspaceId', 'name', 'slug', 'language', 'timezone', 'currency', 'status'],
   products: ['id', 'brandId', 'name', 'slug', 'description', 'imageAssetId', 'supplierUrl', 'landingUrl', 'cost', 'sellingPrice', 'currency', 'status'],
-  media: ['id', 'brandId', 'workspaceId', 'type', 'storageKey', 'mimeType', 'sizeBytes', 'width', 'height', 'durationMs'],
+  media: ['id', 'brandId', 'workspaceId', 'type', 'storageKey', 'mimeType', 'sizeBytes', 'width', 'height', 'durationMs', 'derivedFromAssetId', 'variantKey', 'exifStripped', 'codec'],
   contents: ['id', 'brandId', 'productId', 'type', 'title', 'hook', 'body', 'cta', 'masterAssetId', 'status'],
-  variants: ['id', 'contentItemId', 'socialAccountId', 'platform', 'caption', 'body', 'hashtags', 'cta', 'assetId', 'status'],
+  contentMedia: ['id', 'contentItemId', 'mediaAssetId', 'position'],
+  variantMedia: ['id', 'contentVariantId', 'mediaAssetId', 'position', 'crop', 'isCover'],
+  variants: ['id', 'contentItemId', 'socialAccountId', 'platform', 'caption', 'body', 'hashtags', 'cta', 'assetId', 'status', 'format', 'title', 'skippedReason'],
   campaigns: ['id', 'brandId', 'productId', 'name', 'description', 'status', 'startAt', 'endAt', 'contentIds'],
   authSessions: ['id', 'userId', 'refreshTokenHash', 'expiresAt', 'revokedAt'],
   audit: ['id', 'workspaceId', 'userId', 'action', 'entityType', 'entityId', 'metadata', 'createdAt'],
@@ -99,6 +101,10 @@ export const toDomainContentItem = (row: RecordValue): ContentItem => toDomain('
 export const toRowContentItem = (row: ContentItem) => toRow('contents', row);
 export const toDomainContentVariant = (row: RecordValue): ContentVariant => toDomain('variants', row) as ContentVariant;
 export const toRowContentVariant = (row: ContentVariant) => toRow('variants', row);
+export const toDomainContentMedia = (row: RecordValue): ContentMedia => toDomain('contentMedia', row) as ContentMedia;
+export const toRowContentMedia = (row: ContentMedia) => toRow('contentMedia', row);
+export const toDomainVariantMedia = (row: RecordValue): VariantMedia => toDomain('variantMedia', row) as VariantMedia;
+export const toRowVariantMedia = (row: VariantMedia) => toRow('variantMedia', row);
 export const toDomainCampaign = (row: RecordValue): Campaign => toDomain('campaigns', row) as Campaign;
 export const toRowCampaign = (row: Campaign) => toRow('campaigns', row);
 export const toDomainAuthSession = (row: RecordValue): AuthSession => toDomain('authSessions', row) as AuthSession;

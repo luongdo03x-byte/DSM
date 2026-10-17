@@ -71,6 +71,16 @@ export function runRepositoryContract(name: string, make: () => Promise<Fixture>
     assert.deepEqual((await repos.variants.findBy({contentItemId: content.id, platform: 'THREADS'})).map(v => v.id), ['variant-threads']);
   });
 
+  check('contentMedia giữ thứ tự position', async repos => {
+    await seedBase(repos);
+    await repos.contents.insert(content);
+    for (const index of [0, 1, 2]) await repos.media.insert({id: `media-${index}`, brandId: brand.id, workspaceId: workspace.id,
+      type: 'IMAGE', storageKey: `media/${index}`, mimeType: 'image/jpeg'});
+    for (const position of [2, 0, 1]) await repos.contentMedia.insert({id: `cm-${position}`, contentItemId: content.id,
+      mediaAssetId: `media-${position}`, position});
+    assert.deepEqual((await repos.contentMedia.findBy({contentItemId: content.id})).map(row => row.position), [0, 1, 2]);
+  });
+
   check('findDue lọc status và giờ, sắp tăng dần, tôn trọng limit', async repos => {
     await seedPublishing(repos);
     for (const row of [

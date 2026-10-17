@@ -51,6 +51,12 @@ class ArrayRepo<T> implements AppendRepo<T> {
   }
 }
 
+class OrderedMapRepo<T extends {id: string; position: number}> extends MapRepo<T> {
+  async findBy(where: Partial<T>): Promise<T[]> {
+    return (await super.findBy(where)).sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
+  }
+}
+
 class MemoryPublishJobRepo extends MapRepo<PublishJob> implements PublishJobRepo {
   private readonly jobs: Map<string, PublishJob>;
   constructor(jobs: Map<string, PublishJob>) {super(jobs); this.jobs = jobs}
@@ -89,6 +95,8 @@ export class MemoryRepositories implements Repositories {
   readonly memberships: Repositories['memberships'];
   readonly products: Repositories['products'];
   readonly media: Repositories['media'];
+  readonly contentMedia: Repositories['contentMedia'];
+  readonly variantMedia: Repositories['variantMedia'];
   readonly contents: Repositories['contents'];
   readonly variants: Repositories['variants'];
   readonly campaigns: Repositories['campaigns'];
@@ -115,6 +123,8 @@ export class MemoryRepositories implements Repositories {
     this.memberships = new ArrayRepo(store.memberships);
     this.products = new MapRepo(store.products);
     this.media = new MapRepo(store.media);
+    this.contentMedia = new OrderedMapRepo(store.contentMedia);
+    this.variantMedia = new OrderedMapRepo(store.variantMedia);
     this.contents = new MapRepo(store.contents);
     this.variants = new MapRepo(store.variants);
     this.campaigns = new MapRepo(store.campaigns);

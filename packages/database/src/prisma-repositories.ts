@@ -23,10 +23,12 @@ class TableRepo<T extends {id: string}> implements Repo<T> {
   protected readonly delegate: Delegate;
   protected readonly table: DomainTable;
   private readonly include: Record<string, boolean> | undefined;
-  constructor(delegate: Delegate, table: DomainTable, include?: Record<string, boolean>) {
+  private readonly orderBy: Array<Record<string, string>> | undefined;
+  constructor(delegate: Delegate, table: DomainTable, include?: Record<string, boolean>, orderBy?: Array<Record<string, string>>) {
     this.delegate = delegate;
     this.table = table;
     this.include = include;
+    this.orderBy = orderBy;
   }
 
   async get(id: string): Promise<T | undefined> {
@@ -35,7 +37,7 @@ class TableRepo<T extends {id: string}> implements Repo<T> {
   }
 
   async findBy(where: Partial<T>): Promise<T[]> {
-    const rows = await this.delegate.findMany({where: toWhere(this.table, where), ...(this.include ? {include: this.include} : {})});
+    const rows = await this.delegate.findMany({where: toWhere(this.table, where), ...(this.include ? {include: this.include} : {}), ...(this.orderBy ? {orderBy: this.orderBy} : {})});
     return rows.map(row => toDomain(this.table, row) as T);
   }
 
@@ -108,6 +110,8 @@ export class PrismaRepositories implements Repositories {
   readonly memberships: Repositories['memberships'];
   readonly products: Repositories['products'];
   readonly media: Repositories['media'];
+  readonly contentMedia: Repositories['contentMedia'];
+  readonly variantMedia: Repositories['variantMedia'];
   readonly contents: Repositories['contents'];
   readonly variants: Repositories['variants'];
   readonly campaigns: Repositories['campaigns'];
@@ -135,6 +139,8 @@ export class PrismaRepositories implements Repositories {
     this.memberships = new TableAppendRepo(db.workspaceMember!, 'memberships');
     this.products = new TableRepo(db.product!, 'products');
     this.media = new TableRepo(db.mediaAsset!, 'media');
+    this.contentMedia = new TableRepo(db.contentMedia!, 'contentMedia', undefined, [{position: 'asc'}, {id: 'asc'}]);
+    this.variantMedia = new TableRepo(db.variantMedia!, 'variantMedia', undefined, [{position: 'asc'}, {id: 'asc'}]);
     this.contents = new TableRepo(db.contentItem!, 'contents');
     this.variants = new TableRepo(db.contentVariant!, 'variants');
     this.campaigns = new TableRepo(db.campaign!, 'campaigns', {contents: true});

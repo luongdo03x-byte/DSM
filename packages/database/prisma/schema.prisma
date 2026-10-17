@@ -20,6 +20,7 @@ enum Platform {
   INSTAGRAM
   THREADS
   TIKTOK
+  YOUTUBE
 }
 enum PublishMode {
   API
@@ -29,7 +30,18 @@ enum PublishMode {
 enum ContentType {
   VIDEO
   IMAGE
+  ALBUM
   TEXT
+}
+enum ContentFormat {
+  TEXT
+  LINK
+  IMAGE
+  ALBUM
+  VIDEO
+  REEL
+  STORY
+  SHORT
 }
 enum AccountStatus {
   CONNECTED
@@ -211,9 +223,18 @@ model MediaAsset {
   width           Int?
   height          Int?
   durationMs      Int?
+  derivedFromAssetId String?
+  variantKey      String?
+  exifStripped    Boolean?
+  codec           String?
   brand           Brand    @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  derivedFrom     MediaAsset? @relation("DerivedMedia", fields: [derivedFromAssetId], references: [id], onDelete: SetNull)
+  derivatives     MediaAsset[] @relation("DerivedMedia")
+  contentMedia    ContentMedia[]
+  variantMedia    VariantMedia[]
 
   @@unique([storageProvider, storageKey])
+  @@unique([derivedFromAssetId, variantKey])
   @@index([brandId])
 }
 
@@ -231,6 +252,7 @@ model ContentItem {
   brand         Brand             @relation(fields: [brandId], references: [id], onDelete: Restrict)
   product       Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
   variants      ContentVariant[]
+  media         ContentMedia[]
   campaignLinks CampaignContent[]
   publishBatches PublishBatch[]
   trackedLinks  TrackedLink[]
@@ -250,13 +272,43 @@ model ContentVariant {
   cta             String?
   assetId         String?
   status          String
+  format          ContentFormat?
+  title           String?
+  skippedReason   String?
   content         ContentItem    @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
   socialAccount   SocialAccount? @relation(fields: [socialAccountId], references: [id], onDelete: SetNull)
   publishJobs     PublishJob[]
   publishedPosts  PublishedPost[]
+  media           VariantMedia[]
 
   @@index([contentItemId, platform])
   @@index([socialAccountId])
+}
+
+model ContentMedia {
+  id            String      @id @default(uuid())
+  contentItemId String
+  mediaAssetId  String
+  position      Int
+  content       ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+  asset         MediaAsset  @relation(fields: [mediaAssetId], references: [id], onDelete: Restrict)
+
+  @@unique([contentItemId, position])
+  @@index([mediaAssetId])
+}
+
+model VariantMedia {
+  id               String         @id @default(uuid())
+  contentVariantId String
+  mediaAssetId     String
+  position         Int
+  crop             Json?
+  isCover          Boolean        @default(false)
+  variant          ContentVariant @relation(fields: [contentVariantId], references: [id], onDelete: Cascade)
+  asset            MediaAsset     @relation(fields: [mediaAssetId], references: [id], onDelete: Restrict)
+
+  @@unique([contentVariantId, position])
+  @@index([mediaAssetId])
 }
 
 model Campaign {
