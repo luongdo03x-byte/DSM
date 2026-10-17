@@ -35,9 +35,11 @@ test('derive JPEG theo crop, tái dùng asset và giữ thứ tự publish input
   assert.deepEqual(second.map(asset=>asset.id),first.map(asset=>asset.id));
   assert.equal((await repos.media.findBy({derivedFromAssetId:'m0'})).length,1);
   const builder=new PublishInputBuilder(repos,new MediaService(repos,storage),{publicMediaBaseUrl:'https://media.example.test/'});
+  await repos.socialAccounts.insert({id:'ig',brandId:'b',platform:'INSTAGRAM',platformAccountId:'ig-platform',publishMode:'API',status:'CONNECTED'});
   const input=await builder.build({brandId:'b',socialAccountId:'ig',contentVariantId:variant.id,platform:'INSTAGRAM'});
   assert.deepEqual(input.media?.map(media=>media.url),first.map(asset=>`https://media.example.test/${asset.storageKey}`));
   assert.equal(input.mediaUrl,input.media?.[0]?.url);
+  assert.equal(input.metadata?.platformAccountId,'ig-platform');
 });
 
 test('video gốc được probe một lần và giữ asset gốc',async()=>{
