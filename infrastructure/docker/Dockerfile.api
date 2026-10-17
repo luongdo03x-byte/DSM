@@ -1,0 +1,10 @@
+FROM node:24-bookworm-slim
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && corepack enable
+COPY . .
+RUN pnpm install --frozen-lockfile --prod=false && pnpm db:generate
+ENV NODE_ENV=production API_BIND_HOST=0.0.0.0
+EXPOSE 4000
+CMD ["node", "--experimental-strip-types", "apps/api/src/main.ts"]

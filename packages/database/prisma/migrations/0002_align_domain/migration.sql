@@ -40,4 +40,6 @@ CREATE UNIQUE INDEX "BrowserRegistration_nodeId_key" ON "BrowserRegistration"("n
 ALTER TABLE "BrowserRegistration" ADD CONSTRAINT "BrowserRegistration_nodeId_fkey"
   FOREIGN KEY ("nodeId") REFERENCES "BrowserNode"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
+ALTER TABLE "PublishJob" ADD COLUMN "processingStartedAt" BIGINT;
+
 COMMIT;

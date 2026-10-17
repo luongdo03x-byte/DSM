@@ -59,9 +59,11 @@ How this section changes:
 - `LOCAL`: after `pnpm install --frozen-lockfile && pnpm verify` passed on a clean clone of the latest code commit; the evidence line points at that commit and is committed afterwards, because a commit cannot contain its own SHA.
 - `PASS`: after a successful `CI / verify` run on `main`, with the run URL and the SHA it checked; the annotated tag `gd0-sp1-ci-green` points at the same SHA.
 
-## Local-first persistence
+## Persistent runtime (SP2)
 
-Status: NOT_VERIFIED — no automated test restores business state from `DEV_STORE_FILE` snapshots; sub-project SP2 replaces this runtime.
+Status: CI — PostgreSQL repository contracts, legacy snapshot loading, Redis queue contracts, worker restart, and two-worker duplicate prevention run in `CI / verify` with PostgreSQL 17 and Redis 7 service containers.
+
+Local verification on the SP2 branch passed 69 Node tests and one Playwright E2E with PostgreSQL and Redis running in Docker. This is local evidence; the workflow has not produced a successful CI run yet.
 
 ## Facebook live publish
 
@@ -85,4 +87,4 @@ Status: BLOCKED_EXTERNAL — requires a Windows runner with GPMLogin installed, 
 
 ## Docker/Node 24 environment
 
-Status: BLOCKED_LOCAL_ENV — this ChatGPT sandbox currently exposes Node 22 and no Docker daemon. CI is pinned to Node 24; Docker Compose and native GPMLogin must be verified on the target machine.
+Status: NOT_VERIFIED — the staging VPS deployment and external object storage backup/restore still require an operational dry run. Local development has Node 24 and Docker available.

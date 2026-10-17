@@ -22,7 +22,7 @@ Paste the generated value into `CREDENTIAL_ENCRYPTION_KEY`. Change `DEV_OWNER_PA
 docker compose -f infrastructure/docker/docker-compose.yml up -d
 ```
 
-This starts PostgreSQL, Redis, MinIO, and creates the private `social-v1` bucket. V1 local core uses the deterministic in-memory business store (`DEV_IN_MEMORY=1`) with an embedded worker, while MinIO is used for real media uploads. The Prisma schema/migration is included for the cloud/persistent runtime path.
+This starts PostgreSQL, Redis, MinIO, and creates the private `social-v1` bucket. The default `RUNTIME_STORE=memory` keeps the local snapshot workflow and embedded worker. Set `RUNTIME_STORE=postgres` to use PostgreSQL and a separate BullMQ worker.
 
 ## 3. Install dependencies and run the core app
 
@@ -34,13 +34,17 @@ npm run dev
 
 `npm run dev` starts only Web + API. Open `http://127.0.0.1:3000`, then log in with `DEV_OWNER_EMAIL` / `DEV_OWNER_PASSWORD`. The API listens on port 4000 and runs the embedded local publish/metrics worker. With the default `DEV_STORE_FILE=.data/local-store.json`, business state is atomically snapshotted every two seconds and restored after restart; encrypted social credentials remain encrypted in the snapshot. Use the same hostname for Web and API (the default API URL is `http://127.0.0.1:4000`) so the CSRF cookie is accessible to Web after login. The refresh cookie remains HttpOnly and limited to `/auth`.
 
-Optional standalone worker:
+Persistent runtime:
 
 ```bash
-npm run dev:worker
+docker exec docker-postgres-1 psql -U postgres -d postgres -c "CREATE DATABASE social_v1_test"
+# Set RUNTIME_STORE=postgres and DEV_IN_MEMORY=0 in .env; set DEV_SEED=1 only for a disposable local DB.
+pnpm --filter @app/database migrate:deploy
+pnpm dev
+pnpm dev:worker
 ```
 
-Use it only with the persistent Redis/PostgreSQL runtime; it is not needed by `DEV_IN_MEMORY=1`.
+`pnpm dev:worker` runs separately from the API in PostgreSQL mode. The worker reconstructs scheduled jobs from the database when it starts. Create `social_v1_test` once; an existing database may report that it already exists.
 
 ## 4. Optional Windows Browser Gateway
 
@@ -55,10 +59,17 @@ The gateway registers/heartbeats to `CORE_API_URL`, starts the configured GPM pr
 ## 5. Verify
 
 ```bash
+docker compose -f infrastructure/docker/docker-compose.yml up -d postgres redis
+docker exec docker-postgres-1 psql -U postgres -d postgres -c "CREATE DATABASE social_v1_test"
+# PowerShell:
+$env:DATABASE_URL='postgresql://postgres:postgres@127.0.0.1:5432/social_v1_test'
+$env:DATABASE_URL_TEST=$env:DATABASE_URL
+$env:REDIS_URL_TEST='redis://127.0.0.1:6379'
+pnpm --filter @app/database migrate:deploy
 pnpm verify
 ```
 
-`pnpm verify` runs the same chain as the `CI / verify` job: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` (a real `next build`), `pnpm test:e2e` (Playwright starts the API on 127.0.0.1:4000 and `next start` on 127.0.0.1:3000 by itself) and `node scripts/verify-v1.mjs` (checks the test reports and `docs/verification/v1-acceptance.md`).
+`pnpm verify` requires PostgreSQL and Redis because their contract and restart tests are mandatory. It runs lint, typecheck, 69 Node tests, Web build, Playwright E2E, and the evidence check.
 
 Requirements:
 

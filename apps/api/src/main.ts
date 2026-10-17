@@ -61,7 +61,7 @@ export function startApiServer(portNumber=port,runtime?:LocalApiRuntime){
       json(res,500,{error:'INTERNAL_ERROR'},cors);
     }
   });
-  server.listen(portNumber,'127.0.0.1');return server;
+  server.listen(portNumber,process.env.API_BIND_HOST??'127.0.0.1');return server;
 }
 
 async function boot(){
