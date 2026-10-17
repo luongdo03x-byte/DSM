@@ -50,7 +50,7 @@ export class BrowserPublisherProxy implements PlatformPublisher {
   async fetchPost(taskId: string, context?: {socialAccountId?: string}): Promise<PublishedPostData> {
     if (!context?.socialAccountId) throw new Error('ACCOUNT_CONTEXT_REQUIRED');
     const {node} = await this.context(context.socialAccountId), task = await this.client.getTask(node, taskId);
-    if (task.state === 'FAILED') throw new PublishError({type: 'BROWSER_ERROR', code: task.error?.code ?? 'BROWSER_FAILED', message: task.error?.message ?? 'Browser publish failed', retryable: task.error?.retryable ?? true});
+    if (task.state === 'FAILED') throw new PublishError({type: 'BROWSER_ERROR', code: task.error?.retryable ? 'TASK_RETRYABLE_FAILURE' : task.error?.code ?? 'BROWSER_FAILED', message: task.error?.message ?? 'Browser publish failed', retryable: task.error?.retryable ?? false});
     const externalPostId = task.result?.externalPostId;
     return {externalPostId: String(externalPostId ?? taskId), ...(task.result?.externalUrl ? {externalUrl: String(task.result.externalUrl)} : {}),
       exists: task.state === 'DONE' && !!externalPostId};

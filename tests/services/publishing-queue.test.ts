@@ -26,6 +26,11 @@ test('publishing schedules jobs and calendar reschedule/cancel updates the queue
   const first = await publishing.createBatch({brandId: 'b', contentId: 'c', createdBy: 'owner', socialAccountIds: ['a'], scheduledAt: 1000});
   const firstId = first.results[0]?.jobId;
   assert.ok(firstId);
+  const duplicate = await publishing.createBatch({brandId: 'b', contentId: 'c', createdBy: 'owner', socialAccountIds: ['a'], scheduledAt: 1000});
+  assert.equal(duplicate.batchId, first.batchId);
+  assert.equal(duplicate.results[0]?.jobId, firstId);
+  assert.equal((await repos.publishJobs.findBy({batchId: first.batchId})).length, 1);
+  assert.equal((await repos.publishBatches.findBy({brandId: 'b'})).length, 1);
   await status.reschedule(firstId, 2000);
   now = 1000;
   await queue.tick();

@@ -1,7 +1,7 @@
 import type {PublishJob} from '../../shared/src/domain.ts';
 import type {AppendRepo, PublishJobRepo, Repo, Repositories} from '../../shared/src/repositories.ts';
 import type {PrismaClient} from './client.ts';
-import {toDomain, toRow, toWhere, type DomainTable} from './mappers.ts';
+import {toCreateRow, toDomain, toRow, toWhere, type DomainTable} from './mappers.ts';
 
 type Delegate = {
   findUnique(args: any): Promise<any>;
@@ -41,7 +41,7 @@ class TableRepo<T extends {id: string}> implements Repo<T> {
 
   async insert(row: T): Promise<T> {
     try {
-      const created = await this.delegate.create({data: toRow(this.table, row), ...(this.include ? {include: this.include} : {})});
+      const created = await this.delegate.create({data: toCreateRow(this.table, row), ...(this.include ? {include: this.include} : {})});
       return toDomain(this.table, created) as T;
     } catch (error) {return domainError(error)}
   }
@@ -86,8 +86,8 @@ class PrismaPublishJobRepo extends TableRepo<PublishJob> implements PublishJobRe
     return rows.map(row => toDomain('publishJobs', row) as PublishJob);
   }
 
-  async claim(id: string, from: PublishJob['status'][], to: PublishJob['status']): Promise<boolean> {
-    const result = await this.delegate.updateMany({where: {id, status: {in: from}}, data: {status: to, processingStartedAt: to === 'PROCESSING' ? BigInt(Date.now()) : null}});
+  async claim(id: string, from: PublishJob['status'][], to: PublishJob['status'], options: {patch?: Partial<PublishJob>; dueAt?: number} = {}): Promise<boolean> {
+    const result = await this.delegate.updateMany({where: {id, status: {in: from}, ...(options.dueAt !== undefined ? {scheduledAt: {lte: BigInt(options.dueAt)}} : {})}, data: {...(options.patch ?? {}), status: to, processingStartedAt: to === 'PROCESSING' ? BigInt(Date.now()) : null}});
     return result.count === 1;
   }
 

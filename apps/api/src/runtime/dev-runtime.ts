@@ -43,6 +43,11 @@ import {BrowserNodesService} from '../modules/browser-nodes/browser-nodes.servic
 export interface DevelopmentRuntimeOptions{env?:Record<string,string|undefined>;hasher?:PasswordHasher;store?:MemoryStore}
 export interface RuntimeOptions {env:Record<string,string|undefined>;hasher?:PasswordHasher;store?:MemoryStore}
 function credentialKey(env:Record<string,string|undefined>){const raw=env.CREDENTIAL_ENCRYPTION_KEY;if(!raw)throw new Error('CREDENTIAL_ENCRYPTION_KEY_REQUIRED');const bytes=Buffer.from(raw,'base64');if(bytes.byteLength!==32)throw new Error('CREDENTIAL_ENCRYPTION_KEY_MUST_BE_32_BYTES');return new Uint8Array(bytes)}
+export function registeredNodeKey(repos:Repositories, crypto:CredentialCryptoService) {return async (nodeId:string)=>{
+  const node=await repos.browserNodes.get(nodeId);
+  if(!node?.encryptedNodeKey)throw new Error('NODE_KEY_NOT_REGISTERED');
+  return crypto.decrypt(JSON.parse(node.encryptedNodeKey),'browser-node:'+nodeId);
+}}
 
 export async function createDevelopmentRuntime(options:DevelopmentRuntimeOptions={}){
   const env=options.env??process.env,password=env.DEV_OWNER_PASSWORD;if(!password)throw new Error('DEV_OWNER_PASSWORD_REQUIRED');
@@ -110,10 +115,8 @@ export async function createRuntime(options:RuntimeOptions) {
     registry.register('THREADS','API',new ThreadsPublisher(metaHttp,accounts));
     const tc=tiktokConfig(env),th=new TikTokHttpClient(http,tc),creator=new TikTokCreatorInfoService(th,accounts),status=new TikTokStatusService(th,accounts),upload=new TikTokUploadService(th);
     registry.register('TIKTOK','API',new TikTokPublisher(th,accounts,new TikTokValidation(creator,tc),status,upload,tc));
-    if(env.BROWSER_NODE_KEY&&env.BROWSER_GATEWAY_HOST){
-      const browserClient=new BrowserGatewayClient(async()=>env.BROWSER_NODE_KEY!);
-      for(const platform of ['FACEBOOK','INSTAGRAM','THREADS','TIKTOK'] as const)registry.register(platform,'BROWSER',new BrowserPublisherProxy(platform,repos,browserClient));
-    }
+    const browserClient=new BrowserGatewayClient(registeredNodeKey(repos,credentialCrypto));
+    for(const platform of ['FACEBOOK','INSTAGRAM','THREADS','TIKTOK'] as const)registry.register(platform,'BROWSER',new BrowserPublisherProxy(platform,repos,browserClient));
     const storage=env.S3_ENDPOINT&&env.S3_REGION&&env.S3_ACCESS_KEY&&env.S3_SECRET_KEY&&env.S3_BUCKET?new S3CompatibleObjectStorage({endpoint:env.S3_ENDPOINT,region:env.S3_REGION,accessKey:env.S3_ACCESS_KEY,secretKey:env.S3_SECRET_KEY,bucket:env.S3_BUCKET}):new InMemoryObjectStorage();
     const analytics=new AnalyticsService(repos),products=new ProductsService(repos),content=new ContentService(repos),batchStatus=new BatchStatusService(repos,undefined,queue),tracking=new TrackingService(repos),media=new MediaService(repos,storage),campaigns=new CampaignsService(repos);
     const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver(),queue),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),nodeAuth,browserNodes});

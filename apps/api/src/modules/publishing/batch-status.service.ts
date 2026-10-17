@@ -26,18 +26,18 @@ export class BatchStatusService {
     const job = await this.repos.publishJobs.get(jobId);
     if (!job) throw new Error('JOB_NOT_FOUND');
     if (job.status === 'PROCESSING' || job.status === 'PUBLISHED') throw new Error('CONFLICT');
-    const changed = await this.repos.publishJobs.update(jobId, {scheduledAt: when, status: 'QUEUED'});
+    if (!await this.repos.publishJobs.claim(jobId, ['QUEUED', 'RETRYING', 'FAILED', 'CANCELLED'], 'QUEUED', {patch: {scheduledAt: when}})) throw new Error('CONFLICT');
     await this.queue?.reschedule(jobId, when);
-    return changed;
+    return this.repos.publishJobs.get(jobId);
   }
 
   async cancel(jobId: string) {
     const job = await this.repos.publishJobs.get(jobId);
     if (!job) throw new Error('JOB_NOT_FOUND');
     if (job.status === 'PROCESSING' || job.status === 'PUBLISHED') throw new Error('CONFLICT');
-    const changed = await this.repos.publishJobs.update(jobId, {status: 'CANCELLED'});
+    if (!await this.repos.publishJobs.claim(jobId, ['QUEUED', 'RETRYING', 'FAILED', 'CANCELLED'], 'CANCELLED')) throw new Error('CONFLICT');
     await this.queue?.cancel(jobId);
-    return changed;
+    return this.repos.publishJobs.get(jobId);
   }
 
   async manualRetry(jobId: string, userId?: string) {
@@ -46,7 +46,8 @@ export class BatchStatusService {
     if (['PUBLISHED', 'CANCELLED', 'PROCESSING'].includes(job.status)) throw new Error('RETRY_NOT_ALLOWED');
     const workspaceId = this.audit ? await this.audit.workspaceForBrand(job.brandId) : undefined;
     const changed = await this.repos.transaction(async tx => {
-      const changed = await tx.publishJobs.update(jobId, {status: 'RETRYING', scheduledAt: Date.now()});
+      if (!await tx.publishJobs.claim(jobId, ['QUEUED', 'RETRYING', 'FAILED'], 'RETRYING', {patch: {scheduledAt: Date.now()}})) throw new Error('RETRY_NOT_ALLOWED');
+      const changed = (await tx.publishJobs.get(jobId))!;
       if (this.audit && workspaceId) await this.audit.record({workspaceId, ...(userId ? {userId} : {}),
         action: 'PUBLISH_RETRY', entityType: 'PUBLISH_JOB', entityId: job.id}, tx);
       return changed;

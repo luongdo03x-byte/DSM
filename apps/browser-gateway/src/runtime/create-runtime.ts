@@ -9,7 +9,7 @@ import type {BrowserProvider} from '../../../../packages/browser-contracts/src/i
 export interface BrowserGatewayRuntimeDeps{provider?:BrowserProvider;driverFactory?:BrowserDriverFactory;executor?:TaskExecutor}
 export function createBrowserGatewayRuntime(env:Record<string,string|undefined>=process.env,deps:BrowserGatewayRuntimeDeps={}){
   const nodeId=env.BROWSER_NODE_ID;if(!nodeId)throw new Error('BROWSER_NODE_ID_REQUIRED');const nodeKey=env.BROWSER_NODE_KEY;if(!nodeKey)throw new Error('BROWSER_NODE_KEY_REQUIRED');
-  const executor=deps.executor??new TaskExecutor(Number(env.BROWSER_MAX_CONCURRENCY??2));
+  const executor=deps.executor??new TaskExecutor(Number(env.BROWSER_MAX_CONCURRENCY??2),env.BROWSER_TASK_STATE_FILE??`.data/browser-gateway-tasks-${nodeId}.json`);
   const provider=deps.provider??new GpmLoginProvider(new GpmLoginClient(env.GPMLOGIN_BASE_URL??'http://127.0.0.1:9495/api/v1',env.GPMLOGIN_ALLOW_NON_LOOPBACK==='1'));
   const driverFactory=deps.driverFactory??new PlaywrightDriverFactory();
   registerPublishHandler(executor,provider,driverFactory);

@@ -27,9 +27,9 @@ export async function startWorker(options: WorkerOptions): Promise<{close(): Pro
   const worker = new Worker(name, async job => runner.run(String(job.data.jobId), current => builder.build(current)),
     {connection, concurrency, autorun: false});
   worker.on('completed', (job, status) => {
-    if (status !== 'RETRYING') return;
+    if (status !== 'RETRYING' && status !== 'SKIPPED') return;
     void app.repos.publishJobs.get(String(job.data.jobId)).then(current => {
-      if (current?.status === 'RETRYING') return queue.reschedule(current.id, current.scheduledAt);
+      if (current?.status === 'RETRYING' || current?.status === 'QUEUED') return queue.reschedule(current.id, current.scheduledAt);
     }).catch(error => console.error('worker retry scheduling failed', error));
   });
   worker.on('error', error => console.error('worker error', error));

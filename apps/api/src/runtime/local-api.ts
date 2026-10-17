@@ -258,7 +258,7 @@ export class LocalApiRuntime {
     const message=error instanceof Error?error.message:'INTERNAL_ERROR';
     if(['UNAUTHORIZED','INVALID_CREDENTIALS','INVALID_REFRESH','NODE_AUTH','INVALID_REGISTRATION','STALE_SIGNATURE','REPLAY','BAD_SIGNATURE'].includes(message))return{status:401,body:{error:message}};
     if(['BRAND_NOT_FOUND','PRODUCT_NOT_FOUND','CONTENT_NOT_FOUND','ACCOUNT_NOT_FOUND','BATCH_NOT_FOUND','JOB_NOT_FOUND','LINK_NOT_FOUND'].includes(message))return{status:404,body:{error:'NOT_FOUND'}};
-    if(['CONFLICT','RETRY_NOT_ALLOWED'].includes(message))return{status:409,body:{error:message}};
+    if(['CONFLICT','RETRY_NOT_ALLOWED','IDEMPOTENCY_CONFLICT'].includes(message))return{status:409,body:{error:message}};
     if(message.startsWith('INVALID_')||message.endsWith('_INVALID')||message.includes('UNSUPPORTED')||message==='TEXT_MEDIA_INVALID')return{status:400,body:{error:message}};
     return{status:500,body:{error:'INTERNAL_ERROR'}};
   }

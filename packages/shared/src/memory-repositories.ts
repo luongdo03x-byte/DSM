@@ -63,10 +63,10 @@ class MemoryPublishJobRepo extends MapRepo<PublishJob> implements PublishJobRepo
       .map(job => structuredClone(job));
   }
 
-  async claim(id: string, from: PublishJob['status'][], to: PublishJob['status']): Promise<boolean> {
+  async claim(id: string, from: PublishJob['status'][], to: PublishJob['status'], options: {patch?: Partial<PublishJob>; dueAt?: number} = {}): Promise<boolean> {
     const job = this.jobs.get(id);
-    if (!job || !from.includes(job.status)) return false;
-    const changed: PublishJob = {...job, status: to};
+    if (!job || !from.includes(job.status) || (options.dueAt !== undefined && job.scheduledAt > options.dueAt)) return false;
+    const changed: PublishJob = {...job, ...options.patch, status: to};
     if (to === 'PROCESSING') changed.processingStartedAt = Date.now();
     else delete changed.processingStartedAt;
     this.jobs.set(id, changed);

@@ -55,6 +55,7 @@ npm run dev:gateway
 ```
 
 The gateway registers/heartbeats to `CORE_API_URL`, starts the configured GPM profile, connects Playwright through CDP, and executes fail-closed platform browser flows. Configure the four `*_GPM_PROFILE_ID` values on the API machine to enable HYBRID browser strategies for the seeded local accounts.
+Keep `BROWSER_TASK_STATE_FILE` on persistent storage on the gateway machine (default `.data/browser-gateway-tasks-<nodeId>.json`). It records accepted browser task IDs and outcomes across restarts. Preserve it when upgrading the gateway; a task interrupted during submission is marked `OUTCOME_UNKNOWN` for manual reconciliation rather than submitted again.
 
 ## 5. Verify
 
@@ -69,7 +70,7 @@ pnpm --filter @app/database migrate:deploy
 pnpm verify
 ```
 
-`pnpm verify` requires PostgreSQL and Redis because their contract and restart tests are mandatory. It runs lint, typecheck, 69 Node tests, Web build, Playwright E2E, and the evidence check.
+`pnpm verify` requires PostgreSQL and Redis because their contract and restart tests are mandatory. It runs lint, typecheck, 82 Node tests, Web build, Playwright E2E, and the evidence check.
 
 Requirements:
 

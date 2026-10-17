@@ -20,7 +20,7 @@ export interface AppendRepo<T> {
 
 export interface PublishJobRepo extends Repo<PublishJob> {
   findDue(now: number, limit: number): Promise<PublishJob[]>;
-  claim(id: string, from: JobStatus[], to: JobStatus): Promise<boolean>;
+  claim(id: string, from: JobStatus[], to: JobStatus, options?: {patch?: Partial<PublishJob>; dueAt?: number}): Promise<boolean>;
   findInRange(brandId: string, from: number, to: number): Promise<PublishJob[]>;
 }
 

@@ -63,7 +63,7 @@ How this section changes:
 
 Status: CI — PostgreSQL repository contracts, legacy snapshot loading, Redis queue contracts, worker restart, and two-worker duplicate prevention run in `CI / verify` with PostgreSQL 17 and Redis 7 service containers.
 
-Local verification on the SP2 branch passed 69 Node tests and one Playwright E2E with PostgreSQL and Redis running in Docker. This is local evidence; the workflow has not produced a successful CI run yet.
+Local verification on the SP2 branch passed 82 Node tests and one Playwright E2E with PostgreSQL and Redis running in Docker. This is local evidence; the workflow has not produced a successful CI run yet.
 
 ## Facebook live publish
 

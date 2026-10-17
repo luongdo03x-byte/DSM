@@ -91,6 +91,15 @@ export function runRepositoryContract(name: string, make: () => Promise<Fixture>
     assert.equal((await repos.publishJobs.get('claimable'))?.status, 'PROCESSING');
   });
 
+  check('claim cập nhật trạng thái và lịch nguyên tử, chỉ nhận việc đến hạn', async repos => {
+    await seedPublishing(repos);
+    await repos.publishJobs.insert(job('rescheduled', 100, 'QUEUED'));
+    assert.equal(await repos.publishJobs.claim('rescheduled', ['QUEUED'], 'QUEUED', {patch: {scheduledAt: 500}}), true);
+    assert.equal(await repos.publishJobs.claim('rescheduled', ['QUEUED'], 'PROCESSING', {dueAt: 100}), false);
+    assert.equal((await repos.publishJobs.get('rescheduled'))?.scheduledAt, 500);
+    assert.equal(await repos.publishJobs.claim('rescheduled', ['QUEUED'], 'PROCESSING', {dueAt: 500}), true);
+  });
+
   check('transaction rollback khi fn ném', async repos => {
     await seedBase(repos);
     await assert.rejects(repos.transaction(async tx => {

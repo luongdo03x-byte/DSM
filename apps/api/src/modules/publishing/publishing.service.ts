@@ -76,22 +76,43 @@ export class PublishingService {
     const content = await this.repos.contents.get(input.contentId);
     if (!content || content.brandId !== input.brandId) throw new Error('CONTENT_NOT_FOUND');
     const validation = await this.validateTargets(input);
-    const batch = {id: id('batch'), brandId: input.brandId, contentItemId: content.id, createdBy: input.createdBy, createdAt: Date.now()};
-    await this.repos.publishBatches.insert(batch);
-    const results: Array<{socialAccountId: string; platform: Platform; valid: boolean; errors: string[]; warnings: string[]; jobId?: string; strategy?: 'API' | 'BROWSER'; contentVariantId?: string}> = [];
-    for (const result of validation) {
-      if (!result.valid || !result.strategy || !result.contentVariantId) {results.push(result); continue}
-      const scheduledAt = input.scheduledAt ?? Date.now();
-      const key = await sha256([input.brandId, result.socialAccountId, result.contentVariantId, new Date(scheduledAt).toISOString()].join('|'));
-      const existing = (await this.repos.publishJobs.findBy({idempotencyKey: key}))[0];
-      const job: PublishJob = existing ?? {id: id('job'), batchId: batch.id, brandId: input.brandId, socialAccountId: result.socialAccountId,
-        contentVariantId: result.contentVariantId, platform: result.platform, strategy: result.strategy, scheduledAt,
-        status: 'QUEUED', attemptCount: 0, maxAttempts: 4, idempotencyKey: key};
-      if (!existing) await this.repos.publishJobs.insert(job);
-      if (job.status === 'QUEUED' || job.status === 'RETRYING') await this.queue?.schedule(job.id, job.scheduledAt);
-      results.push({socialAccountId: result.socialAccountId, platform: result.platform, valid: true, errors: [], warnings: result.warnings, jobId: job.id});
+    const scheduledAt = input.scheduledAt ?? Date.now();
+    const create = async (repos: Repositories) => {
+      const existingByAccount = new Map<string, PublishJob>();
+      for (const result of validation) {
+        if (!result.valid || !result.contentVariantId) continue;
+        const key = await sha256([input.brandId, result.socialAccountId, result.contentVariantId, new Date(scheduledAt).toISOString()].join('|'));
+        const existing = (await repos.publishJobs.findBy({idempotencyKey: key}))[0];
+        if (existing) existingByAccount.set(result.socialAccountId, existing);
+      }
+      const valid = validation.filter(result => result.valid);
+      const originalBatchIds = new Set([...existingByAccount.values()].map(job => job.batchId));
+      if (existingByAccount.size && (existingByAccount.size !== valid.length || originalBatchIds.size !== 1)) throw new Error('IDEMPOTENCY_CONFLICT');
+      const batchId = originalBatchIds.values().next().value ?? id('batch');
+      if (!existingByAccount.size) await repos.publishBatches.insert({id: batchId, brandId: input.brandId, contentItemId: content.id, createdBy: input.createdBy, createdAt: Date.now()});
+      const results: Array<{socialAccountId: string; platform: Platform; valid: boolean; errors: string[]; warnings: string[]; jobId?: string; strategy?: 'API' | 'BROWSER'; contentVariantId?: string}> = [];
+      const jobsToSchedule: PublishJob[] = [];
+      for (const result of validation) {
+        if (!result.valid || !result.strategy || !result.contentVariantId) {results.push(result); continue}
+        const key = await sha256([input.brandId, result.socialAccountId, result.contentVariantId, new Date(scheduledAt).toISOString()].join('|'));
+        const existing = existingByAccount.get(result.socialAccountId);
+        const job: PublishJob = existing ?? {id: id('job'), batchId, brandId: input.brandId, socialAccountId: result.socialAccountId,
+          contentVariantId: result.contentVariantId, platform: result.platform, strategy: result.strategy, scheduledAt,
+          status: 'QUEUED', attemptCount: 0, maxAttempts: 4, idempotencyKey: key};
+        if (!existing) await repos.publishJobs.insert(job);
+        if (job.status === 'QUEUED' || job.status === 'RETRYING') jobsToSchedule.push(job);
+        results.push({socialAccountId: result.socialAccountId, platform: result.platform, valid: true, errors: [], warnings: result.warnings, jobId: job.id});
+      }
+      return {batchId, results, jobsToSchedule};
+    };
+    let created;
+    try {created = await this.repos.transaction(create)}
+    catch (error) {
+      if ((error as Error).message !== 'DUPLICATE_ID') throw error;
+      created = await this.repos.transaction(create);
     }
-    return {batchId: batch.id, results};
+    for (const job of created.jobsToSchedule) await this.queue?.schedule(job.id, job.scheduledAt);
+    return {batchId: created.batchId, results: created.results};
   }
 
   private tryPublisher(platform: Platform, strategy: 'API' | 'BROWSER') {

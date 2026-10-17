@@ -17,7 +17,7 @@ export class JobRunner {
   }
 
   async run(jobId: string, buildInput: (job: PublishJob) => Promise<PublishInput>): Promise<JobRunResult> {
-    const claimed = await this.repos.publishJobs.claim(jobId, ['QUEUED', 'RETRYING'], 'PROCESSING');
+    const claimed = await this.repos.publishJobs.claim(jobId, ['QUEUED', 'RETRYING'], 'PROCESSING', {dueAt: Date.now()});
     if (!claimed) {
       if (!await this.repos.publishJobs.get(jobId)) throw new Error('JOB_NOT_FOUND');
       return 'SKIPPED';
@@ -30,11 +30,33 @@ export class JobRunner {
     }
 
     const publisher = this.registry.get(job.platform, job.strategy);
+    let correlationId = job.remoteCorrelationId;
     if (job.remoteCorrelationId) {
-      const remote = await publisher.fetchPost(job.remoteCorrelationId, {socialAccountId: job.socialAccountId});
-      if (remote.exists) {
-        await this.persistPost(job, remote);
-        return 'PUBLISHED';
+      try {
+        const remote = await publisher.fetchPost(job.remoteCorrelationId, {socialAccountId: job.socialAccountId});
+        if (remote.exists) {
+          await this.persistPost(job, remote);
+          return 'PUBLISHED';
+        }
+        if (job.strategy === 'BROWSER') {
+          await this.repos.publishJobs.update(jobId, {status: 'RETRYING', scheduledAt: Date.now() + 30_000});
+          return 'RETRYING';
+        }
+      } catch (error) {
+        if (job.strategy !== 'BROWSER') throw error;
+        const failure = error as Error & {code?: string; retryable?: boolean};
+        const code = failure.code ?? 'BROWSER_OUTCOME_UNKNOWN';
+        if (code === 'TASK_NOT_FOUND') {
+          // The gateway journal has no acceptance record; submit the same correlation again.
+        } else if (code === 'TASK_RETRYABLE_FAILURE') {
+          // A definitive pre-submission failure may use a new attempt correlation.
+          correlationId = `${job.id}:${job.attemptCount + 1}`;
+        } else {
+          const status = code === 'NODE_OFFLINE' || failure.retryable ? 'RETRYING' : 'FAILED';
+          await this.repos.publishJobs.update(jobId, {status, errorCode: code, errorMessage: String(failure.message),
+            ...(status === 'RETRYING' ? {scheduledAt: Date.now() + 30_000} : {})});
+          return status;
+        }
       }
     }
 
@@ -42,7 +64,11 @@ export class JobRunner {
     const startedAt = Date.now();
     await this.repos.publishJobs.update(jobId, {attemptCount: attemptNumber});
     try {
-      const result = await publisher.publish(await buildInput(job));
+      if (job.strategy === 'BROWSER') {
+        correlationId ??= `${job.id}:${attemptNumber}`;
+        await this.repos.publishJobs.update(jobId, {remoteCorrelationId: correlationId});
+      }
+      const result = await publisher.publish(await buildInput(job.strategy === 'BROWSER' ? {...job, remoteCorrelationId: correlationId!} : job));
       if (result.remoteCorrelationId) await this.repos.publishJobs.update(jobId, {remoteCorrelationId: result.remoteCorrelationId});
       if (result.externalPostId) {
         await this.persistPost(job, {externalPostId: result.externalPostId, exists: true, ...(result.externalUrl ? {externalUrl: result.externalUrl} : {}), ...(result.publishedAt ? {publishedAt: result.publishedAt} : {})});
@@ -56,7 +82,8 @@ export class JobRunner {
       }
       throw new PublishError({type: 'PLATFORM_ERROR', code: 'NO_POST_ID', message: 'No post id', retryable: true});
     } catch (raw: unknown) {
-      const error = raw instanceof PublishError ? raw : new PublishError({type: 'UNKNOWN', code: 'UNKNOWN', message: String((raw as Error)?.message ?? raw), retryable: false});
+      const failure = raw as Error & {code?: string; retryable?: boolean};
+      const error = raw instanceof PublishError ? raw : new PublishError({type: 'UNKNOWN', code: failure?.code ?? 'UNKNOWN', message: String(failure?.message ?? raw), retryable: failure?.retryable ?? false});
       const decision = this.retry.decide(error, attemptNumber);
       const status = decision.retry ? 'RETRYING' : 'FAILED';
       await this.repos.publishJobs.update(jobId, {status, errorCode: error.code, errorMessage: error.message, ...(decision.retry ? {scheduledAt: Date.now() + (decision.delayMs ?? 0)} : {})});

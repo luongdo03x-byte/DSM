@@ -69,6 +69,12 @@ export function toRow(table: DomainTable, entity: RecordValue): RecordValue {
   return result;
 }
 
+export function toCreateRow(table: DomainTable, entity: RecordValue): RecordValue {
+  const result = toRow(table, entity);
+  if (table === 'campaigns' && result.contents) delete result.contents.deleteMany;
+  return result;
+}
+
 export function toWhere(table: DomainTable, where: RecordValue): RecordValue {
   const result = toRow(table, where);
   if (table === 'media') delete result.storageProvider;
