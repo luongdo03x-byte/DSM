@@ -4,15 +4,20 @@ import type {Repositories} from '../../../../../packages/shared/src/repositories
 export interface ObjectStorage {
   putSignedUrl(key: string, mime: string, ttl: number): Promise<string>;
   getSignedUrl(key: string, ttl: number): Promise<string>;
+  putObject(key: string, bytes: Buffer, mime: string): Promise<void>;
+  getObject(key: string): Promise<Buffer>;
 }
 export class InMemoryObjectStorage implements ObjectStorage {
+  private readonly objects=new Map<string,Buffer>();
   async putSignedUrl(key: string, _mime: string, ttl: number) {return `https://storage.local/put/${encodeURIComponent(key)}?ttl=${ttl}`}
   async getSignedUrl(key: string, ttl: number) {return `https://storage.local/get/${encodeURIComponent(key)}?ttl=${ttl}`}
+  async putObject(key:string,bytes:Buffer,_mime:string){this.objects.set(key,Buffer.from(bytes))}
+  async getObject(key:string){const bytes=this.objects.get(key);if(!bytes)throw new Error('OBJECT_NOT_FOUND');return Buffer.from(bytes)}
 }
 
 export class MediaService {
   private readonly repos: Repositories;
-  private readonly storage: ObjectStorage;
+  readonly storage: ObjectStorage;
   constructor(repos: Repositories, storage: ObjectStorage) {this.repos = repos; this.storage = storage}
 
   async createUpload(access: {workspaceId: string; brandId: string}, input: {type: 'VIDEO' | 'IMAGE'; mimeType: string; category?: string}) {

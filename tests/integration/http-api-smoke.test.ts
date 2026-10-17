@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {once} from 'node:events';
 import {randomBytes} from 'node:crypto';
+import {readFile} from 'node:fs/promises';
+import {join} from 'node:path';
 import type {AddressInfo} from 'node:net';
 import {createDevelopmentRuntime} from '../../apps/api/src/runtime/dev-runtime.ts';
 import {startApiServer} from '../../apps/api/src/main.ts';
@@ -127,6 +129,7 @@ test('http api smoke journey', async (t) => {
   const upload = await call('POST', `/brands/${BRAND}/media/uploads`, {token, body: {type: 'VIDEO', mimeType: 'video/mp4'}});
   assert.equal(upload.status, 201);
   assert.equal(typeof upload.body.assetId, 'string');
+  await app.services.media.storage.putObject(upload.body.storageKey,await readFile(join(import.meta.dirname,'../fixtures/media/vertical-3s.mp4')),'video/mp4');
 
   // 8. VIDEO content with masterAssetId
   const content = await call('POST', `/brands/${BRAND}/content`, {

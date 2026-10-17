@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import {randomBytes} from 'node:crypto';
 import {once} from 'node:events';
+import {readFile} from 'node:fs/promises';
 import type {AddressInfo} from 'node:net';
+import {join} from 'node:path';
 import {test} from 'node:test';
 import {createDevelopmentRuntime} from '../../apps/api/src/runtime/dev-runtime.ts';
 import {startApiServer} from '../../apps/api/src/main.ts';
@@ -21,7 +23,7 @@ test('http api album journey',async t=>{
   assert.equal(login.status,200);token=login.body.accessToken;
   const root='/brands/local-brand';
   const assetIds:string[]=[];
-  for(let i=0;i<3;i++){const upload=await call('POST',`${root}/media/uploads`,{type:'IMAGE',mimeType:'image/jpeg'});assert.equal(upload.status,201);assetIds.push(upload.body.assetId)}
+  for(let i=0;i<3;i++){const upload=await call('POST',`${root}/media/uploads`,{type:'IMAGE',mimeType:'image/jpeg'});assert.equal(upload.status,201);assetIds.push(upload.body.assetId);await app.services.media.storage.putObject(upload.body.storageKey,await readFile(join(import.meta.dirname,'../fixtures/media/gps.jpg')),'image/jpeg')}
   const created=await call('POST',`${root}/content`,{type:'ALBUM',title:'Three images',body:'Album caption',mediaAssetIds:assetIds});
   assert.equal(created.status,201);
   const variants=await call('POST',`${root}/content/${created.body.id}/variants/copy`);
