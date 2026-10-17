@@ -46,3 +46,23 @@ test('preflight chặn Instagram album 11 ảnh khi validate', async () => {
   assert.equal(result?.valid,false);
   assert.ok(result?.errors.includes('IG_ALBUM_MAX'));
 });
+
+test('legacy assetId thay ảnh thực tế trong variant',async()=>{
+  const {repos,content,assets}=await setup(2);
+  const item=await content.create('b',{type:'IMAGE',title:'Single',masterAssetId:assets[0]!});
+  const variant=(await content.copyMasterToAll('b',item.id)).find(row=>row.platform==='FACEBOOK')!;
+  const updated=await content.updateVariant('b',variant.id,{assetId:assets[1]!});
+  assert.equal(updated.assetId,assets[1]);
+  assert.deepEqual((await repos.variantMedia.findBy({contentVariantId:variant.id})).map(row=>row.mediaAssetId),[assets[1]]);
+});
+
+test('preflight cập nhật SHORT sau khi metadata video xuất hiện',async()=>{
+  const {repos,content}=await setup(2);
+  await repos.media.insert({id:'clip',brandId:'b',workspaceId:'w',type:'VIDEO',storageKey:'raw/clip',mimeType:'video/mp4'});
+  const item=await content.create('b',{type:'VIDEO',title:'Clip',masterAssetId:'clip'});
+  const variant=(await content.copyMasterToAll('b',item.id)).find(row=>row.platform==='YOUTUBE')!;
+  assert.equal(variant.format,'VIDEO');
+  await repos.media.update('clip',{width:1080,height:1920,durationMs:70_000});
+  await content.preflightVariant('b',variant.id);
+  assert.equal((await repos.variants.get(variant.id))?.format,'SHORT');
+});

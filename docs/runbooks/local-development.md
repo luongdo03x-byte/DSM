@@ -71,7 +71,7 @@ pnpm --filter @app/database migrate:deploy
 pnpm verify
 ```
 
-`pnpm verify` requires PostgreSQL, Redis, and `ffprobe` because their contract, restart, and media tests are mandatory. It runs lint, typecheck, at least 102 Node tests, Web build, Playwright E2E, and the evidence check.
+`pnpm verify` requires PostgreSQL, Redis, and `ffprobe` because their contract, restart, and media tests are mandatory. It runs lint, typecheck, at least 104 Node tests, Web build, Playwright E2E, and the evidence check.
 
 Requirements:
 

@@ -6,6 +6,7 @@ import {id} from '../../../../packages/shared/src/ids.ts';
 import type {MediaAsset,VariantMedia} from '../../../../packages/shared/src/domain.ts';
 import type {Repositories} from '../../../../packages/shared/src/repositories.ts';
 import type {PlatformRule} from '../../../../packages/shared/src/media-rules.ts';
+import {inferFormat} from '../../../../packages/shared/src/preflight.ts';
 import type {ObjectStorage} from '../../../api/src/modules/media/media.service.ts';
 import {normalizeImage} from './image-normalizer.ts';
 import {probeVideo} from './video-probe.ts';
@@ -26,6 +27,13 @@ export async function prepareVariantMedia(repos:Repositories,storage:ObjectStora
     if(source.type==='VIDEO'){result.push(await videoFacts(repos,storage,source));continue}
     if(!rule.supportsImage)throw new Error('IMAGE_UNSUPPORTED');
     result.push(await deriveImage(repos,storage,source,row,variant.platform,rule));
+  }
+  if(content.type==='VIDEO'){
+    const video=result.find(asset=>asset.type==='VIDEO');
+    if(video?.width&&video.height&&video.durationMs!==undefined){
+      const inferred=inferFormat(variant.platform,content.type,[{kind:'VIDEO',mimeType:video.mimeType,width:video.width,height:video.height,sizeBytes:video.sizeBytes??0,durationMs:video.durationMs}]);
+      if('format' in inferred&&variant.format!==inferred.format)await repos.variants.update(variantId,{format:inferred.format});
+    }
   }
   return result;
 }

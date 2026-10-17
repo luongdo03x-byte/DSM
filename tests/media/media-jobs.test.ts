@@ -53,5 +53,6 @@ test('video gốc được probe một lần và giữ asset gốc',async()=>{
   const [asset]=await prepareVariantMedia(repos,storage,variant.id,MEDIA_RULES.YOUTUBE);
   assert.equal(asset?.id,'video');assert.equal(asset?.width,1080);assert.equal(asset?.height,1920);
   assert.ok(Math.abs((asset?.durationMs??0)-3000)<100);assert.equal(asset?.codec,'h264');
+  assert.equal((await repos.variants.get(variant.id))?.format,'SHORT');
   assert.equal((await repos.media.findBy({derivedFromAssetId:'video'})).length,0);
 });

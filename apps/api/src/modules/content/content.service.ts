@@ -97,7 +97,13 @@ export class ContentService {
     if (variant.skippedReason) return [{code:'VARIANT_SKIPPED',severity:'error',message:variant.skippedReason,field:'media'}];
     const rows=await this.variantMedia(variant);
     const media=await this.mediaFacts(rows.map(row=>row.mediaAssetId));
-    const format=variant.format??inferFormat(variant.platform,content.type,media);
+    const inferred=inferFormat(variant.platform,content.type,media);
+    const videoFactsReady=content.type==='VIDEO'&&media.some(item=>item.kind==='VIDEO'&&item.width>0&&item.height>0&&item.durationMs!==undefined);
+    if(videoFactsReady&&'format' in inferred&&variant.format!==inferred.format){
+      await this.repos.variants.update(variant.id,{format:inferred.format});
+      variant.format=inferred.format;
+    }
+    const format=variant.format??inferred;
     if (typeof format==='object' && 'skipped' in format) return [{code:'VARIANT_SKIPPED',severity:'error',message:format.skipped,field:'media'}];
     return preflight({platform:variant.platform,format:typeof format==='string'?format:format.format,hashtags:variant.hashtags,media,
       ...(variant.caption?{caption:variant.caption}:{}),...(variant.title?{title:variant.title}:{})});
@@ -142,7 +148,13 @@ export class ContentService {
       const asset = await this.repos.media.get(input.assetId);
       if (!asset || asset.brandId !== brandId) throw new Error('MEDIA_NOT_FOUND');
     }
-    return this.repos.variants.update(variantId, input);
+    if(!input.assetId)return this.repos.variants.update(variantId,input);
+    return this.repos.transaction(async tx=>{
+      const updated=await tx.variants.update(variantId,input);
+      for(const row of await tx.variantMedia.findBy({contentVariantId:variantId}))await tx.variantMedia.remove(row.id);
+      await tx.variantMedia.insert({id:id('vm'),contentVariantId:variantId,mediaAssetId:input.assetId!,position:0,isCover:true});
+      return updated;
+    });
   }
 
   async listVariants(brandId: string, contentId: string): Promise<ContentVariant[]> {
