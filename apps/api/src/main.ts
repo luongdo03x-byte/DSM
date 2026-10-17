@@ -39,7 +39,7 @@ function stripRefresh(response:LocalResponse):{response:LocalResponse;cookies?:s
 function corsHeaders(req:any){const origin=String(req.headers?.origin??'');const allowed=(process.env.WEB_ORIGINS??'http://127.0.0.1:3000,http://localhost:3000').split(',').map(x=>x.trim()).filter(Boolean);if(!origin||!allowed.includes(origin))return{};return{'access-control-allow-origin':origin,'access-control-allow-credentials':'true','access-control-allow-methods':'GET,POST,PATCH,DELETE,OPTIONS','access-control-allow-headers':'authorization,content-type,x-csrf-token','vary':'Origin'}}
 export function startApiServer(portNumber=port,runtime?:LocalApiRuntime){
   const server=createServer(async(req:any,res:any)=>{
-    const path=String(req.url??'/').split('?')[0]??'/',cors=corsHeaders(req);
+    const parsedUrl=new URL(String(req.url??'/'),'http://localhost'),path=parsedUrl.pathname,cors=corsHeaders(req);
     if(req.method==='OPTIONS'){res.writeHead(204,cors);res.end();return}
     if(req.method==='GET'&&path==='/health'){json(res,200,{status:'HEALTHY',service:'api'},cors);return}
     if(!runtime){json(res,404,{error:'NOT_FOUND'},cors);return}
@@ -51,7 +51,7 @@ export function startApiServer(portNumber=port,runtime?:LocalApiRuntime){
         if(!csrfCookie||!csrfHeader||csrfCookie!==csrfHeader){json(res,403,{error:'CSRF_MISMATCH'},cors);return}
         body={refreshToken:refresh};
       }
-      const request:LocalRequest={method:String(req.method??'GET'),path,headers};if(body!==undefined)request.body=body;
+      const request:LocalRequest={method:String(req.method??'GET'),path,query:Object.fromEntries(parsedUrl.searchParams),headers};if(body!==undefined)request.body=body;
       let response=await runtime.handle(request);
       const transformed=stripRefresh(response);response=transformed.response;
       const outHeaders:Record<string,unknown>={...cors,...(response.headers??{})};if(transformed.cookies)outHeaders['set-cookie']=transformed.cookies;if(path==='/auth/logout'&&response.status===204)outHeaders['set-cookie']=clearAuthCookies();

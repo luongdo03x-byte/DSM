@@ -99,6 +99,7 @@ model Brand {
   workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
   products       Product[]
   socialAccounts SocialAccount[]
+  oauthPending    OAuthPending[]
   browserProfiles BrowserProfile[]
   media          MediaAsset[]
   content        ContentItem[]
@@ -164,6 +165,21 @@ model EncryptedCredential {
   account               SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
 
   @@map("SocialCredential")
+}
+
+model OAuthPending {
+  id         String @id
+  brandId    String
+  userId     String
+  tokenHash  String @unique
+  ciphertext String
+  iv         String
+  authTag    String
+  expiresAt  BigInt
+  consumedAt BigInt?
+  brand      Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
 }
 
 model BrowserNode {

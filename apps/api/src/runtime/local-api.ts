@@ -13,10 +13,12 @@ import type {CampaignsService} from '../modules/campaigns/campaigns.service.ts';
 import type {CampaignPerformanceService} from '../modules/campaigns/campaign-performance.service.ts';
 import type {NodeAuthService} from '../modules/browser-nodes/node-auth.service.ts';
 import type {BrowserNodesService} from '../modules/browser-nodes/browser-nodes.service.ts';
+import type {IntegrationsService} from '../modules/integrations/integrations.service.ts';
 
 export interface LocalRequest {
   method: string;
   path: string;
+  query?: Record<string,string>;
   headers?: Record<string,string>;
   body?: unknown;
 }
@@ -42,6 +44,8 @@ type Dependencies={
   campaignPerformance?:CampaignPerformanceService;
   nodeAuth?:NodeAuthService;
   browserNodes?:BrowserNodesService;
+  integrations?:IntegrationsService;
+  webAppBaseUrl?:string;
 };
 
 function asObject(value:unknown):Record<string,any>{
@@ -86,12 +90,36 @@ export class LocalApiRuntime {
         return{status:302,body:null,headers:{location:target}};
       }
 
+      if(method==='GET'&&req.path==='/integrations/meta/callback'){
+        if(!this.d.integrations)return{status:501,body:{error:'META_NOT_CONFIGURED'}};
+        const result=await this.d.integrations.callback(req.query?.code??'',req.query?.state??'');
+        const destination=`/app/brands/${encodeURIComponent(result.brandId)}/accounts?connect=${encodeURIComponent(result.token)}`;
+        return{status:302,body:null,headers:{location:this.d.webAppBaseUrl?new URL(destination,this.d.webAppBaseUrl).toString():destination}};
+      }
+
       let nodeMatch:RegExpExecArray|null;
       if(method==='POST'&&(nodeMatch=route(req.path,/^\/browser-nodes\/([^/]+)\/register$/))){if(!this.d.nodeAuth)return{status:501,body:{error:'NODE_AUTH_NOT_CONFIGURED'}};const b=asObject(req.body);return{status:200,body:await this.d.nodeAuth.register(decodeURIComponent(nodeMatch[1]!),String(b.registrationToken??''))}}
       if(method==='POST'&&(nodeMatch=route(req.path,/^\/browser-nodes\/([^/]+)\/heartbeat$/))){if(!this.d.nodeAuth||!this.d.browserNodes)return{status:501,body:{error:'NODE_AUTH_NOT_CONFIGURED'}};const nodeId=decodeURIComponent(nodeMatch[1]!),timestamp=req.headers?.['x-node-ts']??'',signature=req.headers?.['x-node-signature']??'',body=asObject(req.body),raw=JSON.stringify(body);await this.d.nodeAuth.verify({nodeId,timestamp,method,path:req.path,body:raw,signature});return{status:200,body:await this.d.browserNodes.heartbeat(nodeId,{status:body.status==='DEGRADED'?'DEGRADED':'ONLINE',...(body.maxConcurrency!==undefined?{maxConcurrency:Number(body.maxConcurrency)}:{})})}}
 
       const userId=await this.authenticate(req);
       let m:RegExpExecArray|null;
+
+      if((method==='GET'||method==='POST')&&req.path==='/integrations/meta/start'){
+        if(!this.d.integrations)return{status:501,body:{error:'META_NOT_CONFIGURED'}};
+        const brandId=method==='GET'?req.query?.brandId??'':String(asObject(req.body).brandId??'');await this.authorize(userId,brandId);
+        const result=await this.d.integrations.start('META',brandId,userId);
+        return method==='GET'?{status:302,body:null,headers:{location:result.url}}:{status:200,body:result};
+      }
+      if((m=route(req.path,/^\/brands\/([^/]+)\/integrations\/(pending|confirm)$/))){
+        if(!this.d.integrations)return{status:501,body:{error:'META_NOT_CONFIGURED'}};
+        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
+        const action=m[2];const body=action==='confirm'?asObject(req.body):undefined;
+        const token=action==='pending'?req.query?.token??'':String(body?.token??'');
+        const owner=await this.d.integrations.pendingOwner(token);
+        if(owner.brandId!==brandId||owner.userId!==userId)throw new Error('OAUTH_PENDING_INVALID');
+        if(method==='GET'&&action==='pending')return{status:200,body:await this.d.integrations.pending(token)};
+        if(method==='POST'&&action==='confirm')return{status:200,body:await this.d.integrations.confirm(token,Array.isArray(body?.platformAccountIds)?body.platformAccountIds.map(String):[])};
+      }
 
       if(method==='POST'&&req.path==='/browser-nodes/registration'){
         if(!this.d.nodeAuth)return{status:501,body:{error:'NODE_AUTH_NOT_CONFIGURED'}};const b=asObject(req.body),memberships=await this.d.repos.memberships.findBy({userId}),workspaceId=String(b.workspaceId??memberships[0]?.workspaceId??'');if(!workspaceId||!memberships.some(x=>x.workspaceId===workspaceId))throw new Error('BRAND_NOT_FOUND');return{status:201,body:await this.d.nodeAuth.createRegistration(workspaceId,String(b.name??'Browser Node'),String(b.host??'127.0.0.1'),Number(b.port??4010))}
@@ -270,6 +298,7 @@ export class LocalApiRuntime {
     if(this.storeUnavailable(error))return{status:503,body:{error:'STORE_UNAVAILABLE'}};
     const message=error instanceof Error?error.message:'INTERNAL_ERROR';
     if(['UNAUTHORIZED','INVALID_CREDENTIALS','INVALID_REFRESH','NODE_AUTH','INVALID_REGISTRATION','STALE_SIGNATURE','REPLAY','BAD_SIGNATURE'].includes(message))return{status:401,body:{error:message}};
+    if(['OAUTH_PENDING_CONSUMED','OAUTH_STATE_REPLAY'].includes(message))return{status:409,body:{error:message}};
     if(['BRAND_NOT_FOUND','PRODUCT_NOT_FOUND','CONTENT_NOT_FOUND','ACCOUNT_NOT_FOUND','BATCH_NOT_FOUND','JOB_NOT_FOUND','LINK_NOT_FOUND'].includes(message))return{status:404,body:{error:'NOT_FOUND'}};
     if(['CONFLICT','RETRY_NOT_ALLOWED','IDEMPOTENCY_CONFLICT'].includes(message))return{status:409,body:{error:message}};
     if(message.startsWith('INVALID_')||message.endsWith('_INVALID')||message.includes('UNSUPPORTED')||message==='TEXT_MEDIA_INVALID')return{status:400,body:{error:message}};

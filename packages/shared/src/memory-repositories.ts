@@ -104,6 +104,7 @@ export class MemoryRepositories implements Repositories {
   readonly audit: Repositories['audit'];
   readonly socialAccounts: Repositories['socialAccounts'];
   readonly credentials: Repositories['credentials'];
+  readonly oauthPending: Repositories['oauthPending'];
   readonly browserNodes: Repositories['browserNodes'];
   readonly browserProfiles: Repositories['browserProfiles'];
   readonly browserRegistrations: Repositories['browserRegistrations'];
@@ -132,6 +133,7 @@ export class MemoryRepositories implements Repositories {
     this.audit = new ArrayRepo(store.audit);
     this.socialAccounts = new MapRepo(store.socialAccounts);
     this.credentials = new MapRepo(store.credentials);
+    this.oauthPending = new MapRepo(store.oauthPending);
     this.browserNodes = new MapRepo(store.browserNodes);
     this.browserProfiles = new MapRepo(store.browserProfiles);
     this.browserRegistrations = new MapRepo(store.browserRegistrations as Map<string, BrowserRegistration & {id: string}>);

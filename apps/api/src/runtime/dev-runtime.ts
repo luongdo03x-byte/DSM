@@ -24,6 +24,9 @@ import {AnalyticsService} from '../modules/analytics/analytics.service.ts';
 import {TrackingService} from '../modules/tracking/tracking.service.ts';
 import {LocalApiRuntime} from './local-api.ts';
 import {MetaHttpClient} from '../integrations/meta/meta-http.client.ts';
+import {MetaGraphClient} from '../integrations/meta/meta-http.client.ts';
+import {MetaOAuthConnector} from '../integrations/meta/meta-oauth.service.ts';
+import {IntegrationsService} from '../modules/integrations/integrations.service.ts';
 import {metaConfig} from '../integrations/meta/meta.config.ts';
 import {FacebookPublisher} from '../modules/publishing/platforms/facebook/facebook.publisher.ts';
 import {InstagramPublisher} from '../modules/publishing/platforms/instagram/instagram.publisher.ts';
@@ -43,6 +46,10 @@ import {BrowserNodesService} from '../modules/browser-nodes/browser-nodes.servic
 export interface DevelopmentRuntimeOptions{env?:Record<string,string|undefined>;hasher?:PasswordHasher;store?:MemoryStore}
 export interface RuntimeOptions {env:Record<string,string|undefined>;hasher?:PasswordHasher;store?:MemoryStore}
 function credentialKey(env:Record<string,string|undefined>){const raw=env.CREDENTIAL_ENCRYPTION_KEY;if(!raw)throw new Error('CREDENTIAL_ENCRYPTION_KEY_REQUIRED');const bytes=Buffer.from(raw,'base64');if(bytes.byteLength!==32)throw new Error('CREDENTIAL_ENCRYPTION_KEY_MUST_BE_32_BYTES');return new Uint8Array(bytes)}
+function metaIntegrations(repos:Repositories,crypto:CredentialCryptoService,env:Record<string,string|undefined>){
+  const config=metaConfig(env);if(!env.META_APP_ID||!env.META_APP_SECRET||!config.redirectUri||!config.stateSecret)return undefined;
+  return new IntegrationsService({repos,crypto,meta:new MetaOAuthConnector({graph:new MetaGraphClient({baseUrl:config.graphBaseUrl,version:config.graphVersion}),appId:env.META_APP_ID,appSecret:env.META_APP_SECRET,redirectUri:config.redirectUri,...(env.META_AUTH_BASE_URL?{authBaseUrl:env.META_AUTH_BASE_URL}:{})}),stateSecret:config.stateSecret});
+}
 export function registeredNodeKey(repos:Repositories, crypto:CredentialCryptoService) {return async (nodeId:string)=>{
   const node=await repos.browserNodes.get(nodeId);
   if(!node?.encryptedNodeKey)throw new Error('NODE_KEY_NOT_REGISTERED');
@@ -77,7 +84,8 @@ export async function createDevelopmentRuntime(options:DevelopmentRuntimeOptions
 
   const storage=env.S3_ENDPOINT&&env.S3_REGION&&env.S3_ACCESS_KEY&&env.S3_SECRET_KEY&&env.S3_BUCKET?new S3CompatibleObjectStorage({endpoint:env.S3_ENDPOINT,region:env.S3_REGION,accessKey:env.S3_ACCESS_KEY,secretKey:env.S3_SECRET_KEY,bucket:env.S3_BUCKET}):new InMemoryObjectStorage();
   const analytics=new AnalyticsService(repos),products=new ProductsService(repos),content=new ContentService(repos),batchStatus=new BatchStatusService(repos),tracking=new TrackingService(repos),media=new MediaService(repos,storage),campaigns=new CampaignsService(repos);
-  const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver()),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),nodeAuth,browserNodes});
+  const integrations=metaIntegrations(repos,credentialCrypto,env);
+  const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver()),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),nodeAuth,browserNodes,webAppBaseUrl:env.WEB_APP_BASE_URL??'http://127.0.0.1:3000',...(integrations?{integrations}:{})});
   return{store,repos,runtime,registry,services:{accounts,products,content,batchStatus,analytics,tracking,media,campaigns,nodeAuth,browserNodes},ids:{ownerId,workspaceId,brandId}};
 }
 
@@ -119,7 +127,8 @@ export async function createRuntime(options:RuntimeOptions) {
     for(const platform of ['FACEBOOK','INSTAGRAM','THREADS','TIKTOK'] as const)registry.register(platform,'BROWSER',new BrowserPublisherProxy(platform,repos,browserClient));
     const storage=env.S3_ENDPOINT&&env.S3_REGION&&env.S3_ACCESS_KEY&&env.S3_SECRET_KEY&&env.S3_BUCKET?new S3CompatibleObjectStorage({endpoint:env.S3_ENDPOINT,region:env.S3_REGION,accessKey:env.S3_ACCESS_KEY,secretKey:env.S3_SECRET_KEY,bucket:env.S3_BUCKET}):new InMemoryObjectStorage();
     const analytics=new AnalyticsService(repos),products=new ProductsService(repos),content=new ContentService(repos),batchStatus=new BatchStatusService(repos,undefined,queue),tracking=new TrackingService(repos),media=new MediaService(repos,storage),campaigns=new CampaignsService(repos);
-    const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver(),queue),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),nodeAuth,browserNodes});
+    const integrations=metaIntegrations(repos,credentialCrypto,env);
+    const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver(),queue),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),nodeAuth,browserNodes,webAppBaseUrl:env.WEB_APP_BASE_URL??'http://127.0.0.1:3000',...(integrations?{integrations}:{})});
     return {repos,runtime,registry,queue,services:{accounts,products,content,batchStatus,analytics,tracking,media,campaigns,nodeAuth,browserNodes},ids,close:async()=>{await queue!.close();await client.$disconnect()}};
   } catch(error) {if(queue)await queue.close();await client.$disconnect();throw error}
 }

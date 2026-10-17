@@ -1,6 +1,6 @@
 import type {
   AuditLog, AuthSession, Brand, BrowserNode, BrowserProfile, BrowserRegistration,
-  Campaign, ClickEvent, ContentItem, ContentVariant, ContentMedia, VariantMedia, EncryptedCredential,
+  Campaign, ClickEvent, ContentItem, ContentVariant, ContentMedia, VariantMedia, EncryptedCredential, OAuthPending,
   MediaAsset, PostMetric, Product, PublishAttempt, PublishBatch, PublishedPost,
   PublishJob, SocialAccount, TrackedLink, User, Workspace, WorkspaceMember,
 } from '../../shared/src/domain.ts';
@@ -24,6 +24,7 @@ const fields = {
   audit: ['id', 'workspaceId', 'userId', 'action', 'entityType', 'entityId', 'metadata', 'createdAt'],
   socialAccounts: ['id', 'brandId', 'platform', 'username', 'displayName', 'platformAccountId', 'publishMode', 'status', 'browserProfileId'],
   credentials: ['id', 'socialAccountId', 'provider', 'ciphertext', 'iv', 'authTag', 'refreshCiphertext', 'expiresAt', 'scopes'],
+  oauthPending: ['id', 'brandId', 'userId', 'tokenHash', 'ciphertext', 'iv', 'authTag', 'expiresAt', 'consumedAt'],
   browserNodes: ['id', 'workspaceId', 'name', 'host', 'port', 'status', 'provider', 'lastSeenAt', 'maxConcurrency', 'encryptedNodeKey'],
   browserProfiles: ['id', 'brandId', 'browserNodeId', 'socialAccountId', 'provider', 'providerProfileId', 'name', 'status', 'metadata'],
   browserRegistrations: ['id', 'nodeId', 'tokenHash', 'expiresAt', 'consumedAt'],
@@ -115,6 +116,7 @@ export const toDomainSocialAccount = (row: RecordValue): SocialAccount => toDoma
 export const toRowSocialAccount = (row: SocialAccount) => toRow('socialAccounts', row);
 export const toDomainEncryptedCredential = (row: RecordValue): EncryptedCredential => toDomain('credentials', row) as EncryptedCredential;
 export const toRowEncryptedCredential = (row: EncryptedCredential) => toRow('credentials', row);
+export const toDomainOAuthPending = (row: RecordValue): OAuthPending => toDomain('oauthPending', row) as OAuthPending;
 export const toDomainBrowserNode = (row: RecordValue): BrowserNode => toDomain('browserNodes', row) as BrowserNode;
 export const toRowBrowserNode = (row: BrowserNode) => toRow('browserNodes', row);
 export const toDomainBrowserProfile = (row: RecordValue): BrowserProfile => toDomain('browserProfiles', row) as BrowserProfile;
