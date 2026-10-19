@@ -185,11 +185,14 @@ export class LocalApiRuntime {
       }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/calendar$/))){
-        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);if(method==='GET')return{status:200,body:(await this.d.repos.publishJobs.findBy({brandId})).sort((a,b)=>a.scheduledAt-b.scheduledAt)};
+        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);if(method==='GET'){
+          if(req.query?.from!==undefined||req.query?.to!==undefined)return{status:200,body:await this.d.publishing.listCalendar(brandId,Number(req.query.from),Number(req.query.to))};
+          return{status:200,body:(await this.d.repos.publishJobs.findBy({brandId})).sort((a,b)=>a.scheduledAt-b.scheduledAt)};
+        }
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/calendar\/([^/]+)$/))){
         const brandId=decodeURIComponent(m[1]!),jobId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);const job=await this.d.repos.publishJobs.get(jobId);if(!job||job.brandId!==brandId)throw new Error('JOB_NOT_FOUND');
-        if(method==='PATCH'){const b=asObject(req.body);return{status:200,body:await this.d.batchStatus.reschedule(jobId,Number(b.scheduledAt))}}
+        if(method==='PATCH'){const b=asObject(req.body);return{status:200,body:await this.d.publishing.reschedule(brandId,jobId,Number(b.scheduledAt),Date.now())}}
         if(method==='DELETE')return{status:200,body:await this.d.batchStatus.cancel(jobId)};
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/publish-jobs\/([^/]+)\/retry$/))){
@@ -306,7 +309,8 @@ export class LocalApiRuntime {
     if(['UNAUTHORIZED','INVALID_CREDENTIALS','INVALID_REFRESH','NODE_AUTH','INVALID_REGISTRATION','STALE_SIGNATURE','REPLAY','BAD_SIGNATURE'].includes(message))return{status:401,body:{error:message}};
     if(['OAUTH_PENDING_CONSUMED','OAUTH_STATE_REPLAY'].includes(message))return{status:409,body:{error:message}};
     if(['BRAND_NOT_FOUND','PRODUCT_NOT_FOUND','CONTENT_NOT_FOUND','ACCOUNT_NOT_FOUND','BATCH_NOT_FOUND','JOB_NOT_FOUND','LINK_NOT_FOUND'].includes(message))return{status:404,body:{error:'NOT_FOUND'}};
-    if(['CONFLICT','RETRY_NOT_ALLOWED','IDEMPOTENCY_CONFLICT'].includes(message))return{status:409,body:{error:message}};
+    if(['CONFLICT','RETRY_NOT_ALLOWED','IDEMPOTENCY_CONFLICT','JOB_NOT_RESCHEDULABLE'].includes(message))return{status:409,body:{error:message}};
+    if(['SCHEDULE_TOO_SOON','SCHEDULE_TOO_FAR'].includes(message))return{status:400,body:{error:message}};
     if(message.startsWith('INVALID_')||message.endsWith('_INVALID')||message.includes('UNSUPPORTED')||message==='TEXT_MEDIA_INVALID')return{status:400,body:{error:message}};
     return{status:500,body:{error:'INTERNAL_ERROR'}};
   }

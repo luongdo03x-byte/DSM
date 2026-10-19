@@ -1,4 +1,4 @@
-import type {ContentType, ContentVariant, Platform, PublishJob} from '../../../../../packages/shared/src/domain.ts';
+import type {ContentFormat, ContentType, ContentVariant, JobStatus, Platform, PublishJob} from '../../../../../packages/shared/src/domain.ts';
 import type {Repositories} from '../../../../../packages/shared/src/repositories.ts';
 import type {JobQueue} from '../../../../../packages/shared/src/job-queue.ts';
 import {id} from '../../../../../packages/shared/src/ids.ts';
@@ -8,6 +8,8 @@ import {StrategyResolver} from './strategy-resolver.ts';
 import {ContentService} from '../content/content.service.ts';
 
 type ValidationInput = {brandId: string; contentId: string; socialAccountIds: string[]; apiHealth?: Record<string, boolean>; browserHealth?: Record<string, boolean>};
+export const MAX_SCHEDULE_AHEAD_DAYS=75;
+export interface CalendarEntry {jobId:string;contentItemId:string;title:string;platform:Platform;socialAccountId:string;format?:ContentFormat;scheduledAt:number;status:JobStatus;publishedUrl?:string;errorCode?:string}
 
 export class PublishingService {
   private readonly repos: Repositories;
@@ -16,6 +18,31 @@ export class PublishingService {
   private readonly queue: JobQueue | undefined;
   constructor(repos: Repositories, registry: PublisherRegistry, resolver: StrategyResolver, queue?: JobQueue) {
     this.repos = repos; this.registry = registry; this.resolver = resolver; this.queue = queue;
+  }
+
+  async listCalendar(brandId:string,from:number,to:number):Promise<CalendarEntry[]>{
+    if(!Number.isFinite(from)||!Number.isFinite(to)||from>=to)throw new Error('INVALID_CALENDAR_RANGE');
+    const jobs=(await this.repos.publishJobs.findInRange(brandId,from,to)).filter(job=>job.scheduledAt<to);
+    return Promise.all(jobs.map(job=>this.calendarEntry(job)));
+  }
+
+  async reschedule(brandId:string,jobId:string,scheduledAt:number,now:number):Promise<CalendarEntry>{
+    const job=await this.repos.publishJobs.get(jobId);
+    if(!job||job.brandId!==brandId)throw new Error('JOB_NOT_FOUND');
+    if(!['QUEUED','RETRYING'].includes(job.status))throw new Error('JOB_NOT_RESCHEDULABLE');
+    if(!Number.isFinite(scheduledAt)||scheduledAt<now+5*60_000)throw new Error('SCHEDULE_TOO_SOON');
+    if(scheduledAt>now+MAX_SCHEDULE_AHEAD_DAYS*24*60*60_000)throw new Error('SCHEDULE_TOO_FAR');
+    if(!await this.repos.publishJobs.claim(jobId,['QUEUED','RETRYING'],'QUEUED',{patch:{scheduledAt}}))throw new Error('JOB_NOT_RESCHEDULABLE');
+    await this.queue?.reschedule(jobId,scheduledAt);
+    return this.calendarEntry((await this.repos.publishJobs.get(jobId))!);
+  }
+
+  private async calendarEntry(job:PublishJob):Promise<CalendarEntry>{
+    const batch=await this.repos.publishBatches.get(job.batchId);
+    const content=batch?await this.repos.contents.get(batch.contentItemId):undefined;
+    const variant=await this.repos.variants.get(job.contentVariantId);
+    const published=(await this.repos.publishedPosts.findBy({publishJobId:job.id}))[0];
+    return{jobId:job.id,contentItemId:batch?.contentItemId??variant?.contentItemId??'',title:content?.title??'',platform:job.platform,socialAccountId:job.socialAccountId,...(variant?.format?{format:variant.format}:{}),scheduledAt:job.scheduledAt,status:job.status,...(published?.platformPostUrl?{publishedUrl:published.platformPostUrl}:{}),...(job.errorCode?{errorCode:job.errorCode}:{})};
   }
 
   async validateTargets(input: ValidationInput) {
