@@ -8,6 +8,10 @@ import {PublishInputBuilder} from './publishing/publish-input.builder.ts';
 import {RecoveryService} from './maintenance/recovery.service.ts';
 import {refreshExpiringTokens} from './maintenance/token-refresh.job.ts';
 import type {PlatformAdapter} from '../../../packages/platform-contracts/src/adapter.ts';
+import {NotificationDispatcher} from './notifications/notification-dispatcher.ts';
+import {TelegramNotifier} from './notifications/telegram.notifier.ts';
+import {EmailNotifier} from './notifications/email.notifier.ts';
+import type {NotificationEvent} from '../../../packages/shared/src/notifications.ts';
 
 export interface WorkerOptions {env: Record<string, string | undefined>; registry?: PublisherRegistry}
 
@@ -22,9 +26,12 @@ export async function startWorker(options: WorkerOptions): Promise<{close(): Pro
   const queue = app.queue;
   const connection = new IORedis(env.REDIS_URL, {maxRetriesPerRequest: null});
   const name = env.PUBLISH_QUEUE_NAME ?? PUBLISH_API_QUEUE;
-  const runner = new JobRunner(app.repos, options.registry ?? app.registry,undefined,queue);
+  const appUrl=env.WEB_APP_BASE_URL??'http://127.0.0.1:3000';
+  const dispatcher=new NotificationDispatcher(app.repos,{TELEGRAM:new TelegramNotifier({token:env.TELEGRAM_BOT_TOKEN??'',appUrl,...(env.TELEGRAM_API_BASE_URL?{baseUrl:env.TELEGRAM_API_BASE_URL}:{})}),EMAIL:new EmailNotifier({host:env.SMTP_HOST??'',port:Number(env.SMTP_PORT??587),secure:env.SMTP_SECURE==='true',from:env.SMTP_FROM??'',appUrl,...(env.SMTP_USER?{user:env.SMTP_USER}:{}),...(env.SMTP_PASSWORD?{password:env.SMTP_PASSWORD}:{})})});
+  const notify=async(event:NotificationEvent)=>{try{const brand=await app.repos.brands.get(event.brandId);if(brand)await dispatcher.dispatch(brand.workspaceId,event)}catch(error){console.error('notification dispatch failed',error)}};
+  const runner = new JobRunner(app.repos, options.registry ?? app.registry,undefined,queue,Date.now,dispatcher);
   const activeRegistry=app.registry;
-  const refreshTokens=async()=>refreshExpiringTokens({repos:app.repos,adapters:{FACEBOOK:activeRegistry.get('FACEBOOK','API') as PlatformAdapter,INSTAGRAM:activeRegistry.get('INSTAGRAM','API') as PlatformAdapter},now:Date.now()});
+  const refreshTokens=async()=>refreshExpiringTokens({repos:app.repos,adapters:{FACEBOOK:activeRegistry.get('FACEBOOK','API') as PlatformAdapter,INSTAGRAM:activeRegistry.get('INSTAGRAM','API') as PlatformAdapter},now:Date.now(),notify});
   const builder = new PublishInputBuilder(app.repos, app.services.media);
   const recovery = new RecoveryService(app.repos);
   const concurrency = Math.max(1, Number(env.WORKER_CONCURRENCY ?? 4));

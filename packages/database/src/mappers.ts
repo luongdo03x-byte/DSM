@@ -11,6 +11,7 @@ export type DomainTable = keyof typeof fields;
 const fields = {
   users: ['id', 'email', 'passwordHash', 'status'],
   workspaces: ['id', 'name'],
+  notificationChannels: ['id', 'workspaceId', 'kind', 'target', 'encryptedSecret', 'enabled'],
   memberships: ['workspaceId', 'userId', 'role'],
   brands: ['id', 'workspaceId', 'name', 'slug', 'language', 'timezone', 'currency', 'status'],
   products: ['id', 'brandId', 'name', 'slug', 'description', 'imageAssetId', 'supplierUrl', 'landingUrl', 'cost', 'sellingPrice', 'currency', 'status'],

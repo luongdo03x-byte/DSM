@@ -2,7 +2,7 @@ import type {
   AuditLog, AuthSession, Brand, BrowserNode, BrowserProfile, BrowserRegistration,
   Campaign, ClickEvent, ContentItem, ContentVariant, EncryptedCredential, JobStatus,
   MediaAsset, ContentMedia, VariantMedia, OAuthPending, PostMetric, Product, PublishAttempt, PublishBatch, PublishedPost,
-  PublishJob, SocialAccount, TrackedLink, User, Workspace, WorkspaceMember,
+  PublishJob, SocialAccount, TrackedLink, User, Workspace, WorkspaceMember, NotificationChannel,
 } from './domain.ts';
 
 export interface Repo<T extends {id: string}> {
@@ -27,6 +27,7 @@ export interface PublishJobRepo extends Repo<PublishJob> {
 export interface Repositories {
   users: Repo<User>;
   workspaces: Repo<Workspace>;
+  notificationChannels: Repo<NotificationChannel>;
   brands: Repo<Brand>;
   memberships: AppendRepo<WorkspaceMember>;
   products: Repo<Product>;

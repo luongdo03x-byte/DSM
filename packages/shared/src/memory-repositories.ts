@@ -91,6 +91,7 @@ export class MemoryRepositories implements Repositories {
   private readonly store: MemoryStore;
   readonly users: Repositories['users'];
   readonly workspaces: Repositories['workspaces'];
+  readonly notificationChannels: Repositories['notificationChannels'];
   readonly brands: Repositories['brands'];
   readonly memberships: Repositories['memberships'];
   readonly products: Repositories['products'];
@@ -120,6 +121,7 @@ export class MemoryRepositories implements Repositories {
     this.store = store;
     this.users = new MapRepo(store.users);
     this.workspaces = new MapRepo(store.workspaces);
+    this.notificationChannels = new MapRepo(store.notificationChannels);
     this.brands = new MapRepo(store.brands);
     this.memberships = new ArrayRepo(store.memberships);
     this.products = new MapRepo(store.products);

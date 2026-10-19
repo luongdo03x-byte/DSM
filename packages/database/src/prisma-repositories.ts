@@ -106,6 +106,7 @@ export class PrismaRepositories implements Repositories {
   private readonly client: PrismaClient;
   readonly users: Repositories['users'];
   readonly workspaces: Repositories['workspaces'];
+  readonly notificationChannels: Repositories['notificationChannels'];
   readonly brands: Repositories['brands'];
   readonly memberships: Repositories['memberships'];
   readonly products: Repositories['products'];
@@ -136,6 +137,7 @@ export class PrismaRepositories implements Repositories {
     const db = client as unknown as Record<string, Delegate>;
     this.users = new TableRepo(db.user!, 'users');
     this.workspaces = new TableRepo(db.workspace!, 'workspaces');
+    this.notificationChannels = new TableRepo(db.notificationChannel!, 'notificationChannels');
     this.brands = new TableRepo(db.brand!, 'brands');
     this.memberships = new TableAppendRepo(db.workspaceMember!, 'memberships');
     this.products = new TableRepo(db.product!, 'products');

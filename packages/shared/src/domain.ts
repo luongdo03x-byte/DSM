@@ -6,6 +6,7 @@ export type ContentFormat='TEXT'|'LINK'|'IMAGE'|'ALBUM'|'VIDEO'|'REEL'|'STORY'|'
 export type JobStatus='QUEUED'|'PROCESSING'|'RETRYING'|'PUBLISHED'|'FAILED'|'CANCELLED';
 export interface User{id:string;email:string;passwordHash:string;status:'ACTIVE'|'DISABLED'}
 export interface Workspace{id:string;name:string}
+export interface NotificationChannel{id:string;workspaceId:string;kind:'TELEGRAM'|'EMAIL';target:string;encryptedSecret?:string;enabled:boolean}
 export interface WorkspaceMember{workspaceId:string;userId:string;role:Role}
 export interface Brand{id:string;workspaceId:string;name:string;slug:string;language:string;timezone:string;currency:string;status:'ACTIVE'|'ARCHIVED'}
 export interface Product{id:string;brandId:string;name:string;slug:string;description?:string;imageAssetId?:string;supplierUrl?:string;landingUrl?:string;cost?:string;sellingPrice?:string;currency:string;status:'DRAFT'|'ACTIVE'|'ARCHIVED'}

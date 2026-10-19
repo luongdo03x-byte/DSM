@@ -75,6 +75,19 @@ model Workspace {
   brands       Brand[]
   browserNodes BrowserNode[]
   auditLogs    AuditLog[]
+  notificationChannels NotificationChannel[]
+}
+
+model NotificationChannel {
+  id              String @id @default(uuid())
+  workspaceId     String
+  kind            String
+  target          String
+  encryptedSecret String?
+  enabled         Boolean @default(true)
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, enabled])
 }
 
 model WorkspaceMember {

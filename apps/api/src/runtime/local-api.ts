@@ -15,6 +15,7 @@ import type {NodeAuthService} from '../modules/browser-nodes/node-auth.service.t
 import type {BrowserNodesService} from '../modules/browser-nodes/browser-nodes.service.ts';
 import type {IntegrationsService} from '../modules/integrations/integrations.service.ts';
 import type {MetaDataDeletionService} from '../modules/integrations/meta-data-deletion.service.ts';
+import {id} from '../../../../packages/shared/src/ids.ts';
 
 export interface LocalRequest {
   method: string;
@@ -140,6 +141,23 @@ export class LocalApiRuntime {
         const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
         if(method==='GET')return{status:200,body:await this.d.accounts.list(brandId)};
         if(method==='POST'){const b=asObject(req.body);return{status:201,body:await this.d.accounts.create(brandId,{platform:b.platform,username:b.username,publishMode:b.publishMode})}}
+      }
+      if((m=route(req.path,/^\/brands\/([^/]+)\/notification-channels$/))){
+        const brandId=decodeURIComponent(m[1]!),access=await this.authorize(userId,brandId);
+        if(method==='GET')return{status:200,body:(await this.d.repos.notificationChannels.findBy({workspaceId:access.workspaceId})).map(({encryptedSecret:_secret,...row})=>row)};
+        if(method==='POST'){
+          if(!['OWNER','ADMIN'].includes(access.role))throw new Error('FORBIDDEN');
+          const b=asObject(req.body),kind=String(b.kind??''),target=String(b.target??'').trim();
+          if(!['TELEGRAM','EMAIL'].includes(kind)||!target||kind==='EMAIL'&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target))throw new Error('INVALID_NOTIFICATION_CHANNEL');
+          const {encryptedSecret:_secret,...row}=await this.d.repos.notificationChannels.insert({id:id('notifier'),workspaceId:access.workspaceId,kind:kind as 'TELEGRAM'|'EMAIL',target,enabled:true});
+          return{status:201,body:row};
+        }
+      }
+      if((m=route(req.path,/^\/brands\/([^/]+)\/notification-channels\/([^/]+)$/))){
+        const brandId=decodeURIComponent(m[1]!),channelId=decodeURIComponent(m[2]!),access=await this.authorize(userId,brandId);
+        const channel=await this.d.repos.notificationChannels.get(channelId);if(!channel||channel.workspaceId!==access.workspaceId)throw new Error('NOTIFICATION_CHANNEL_NOT_FOUND');
+        if(method==='PATCH'){if(!['OWNER','ADMIN'].includes(access.role))throw new Error('FORBIDDEN');const b=asObject(req.body);const {encryptedSecret:_secret,...row}=await this.d.repos.notificationChannels.update(channelId,{enabled:Boolean(b.enabled)});return{status:200,body:row}}
+        if(method==='DELETE'){if(!['OWNER','ADMIN'].includes(access.role))throw new Error('FORBIDDEN');await this.d.repos.notificationChannels.remove(channelId);return{status:204,body:null}}
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/accounts\/([^/]+)\/credentials$/))){
         const brandId=decodeURIComponent(m[1]!),accountId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);const account=await this.d.repos.socialAccounts.get(accountId);if(!account||account.brandId!==brandId)throw new Error('ACCOUNT_NOT_FOUND');if(method==='POST'){const b=asObject(req.body);const updated=await this.d.accounts.saveCredential(accountId,String(b.provider??account.platform.toLowerCase()),String(b.accessToken??''),b.refreshToken!==undefined?String(b.refreshToken):undefined);return{status:200,body:{id:updated.id,status:updated.status}}}
@@ -316,8 +334,9 @@ export class LocalApiRuntime {
     if(this.storeUnavailable(error))return{status:503,body:{error:'STORE_UNAVAILABLE'}};
     const message=error instanceof Error?error.message:'INTERNAL_ERROR';
     if(['UNAUTHORIZED','INVALID_CREDENTIALS','INVALID_REFRESH','NODE_AUTH','INVALID_REGISTRATION','STALE_SIGNATURE','REPLAY','BAD_SIGNATURE'].includes(message))return{status:401,body:{error:message}};
+    if(message==='FORBIDDEN')return{status:403,body:{error:message}};
     if(['OAUTH_PENDING_CONSUMED','OAUTH_STATE_REPLAY'].includes(message))return{status:409,body:{error:message}};
-    if(['BRAND_NOT_FOUND','PRODUCT_NOT_FOUND','CONTENT_NOT_FOUND','ACCOUNT_NOT_FOUND','BATCH_NOT_FOUND','JOB_NOT_FOUND','LINK_NOT_FOUND'].includes(message))return{status:404,body:{error:'NOT_FOUND'}};
+    if(['BRAND_NOT_FOUND','PRODUCT_NOT_FOUND','CONTENT_NOT_FOUND','ACCOUNT_NOT_FOUND','BATCH_NOT_FOUND','JOB_NOT_FOUND','LINK_NOT_FOUND','NOTIFICATION_CHANNEL_NOT_FOUND'].includes(message))return{status:404,body:{error:'NOT_FOUND'}};
     if(['CONFLICT','RETRY_NOT_ALLOWED','IDEMPOTENCY_CONFLICT','JOB_NOT_RESCHEDULABLE'].includes(message))return{status:409,body:{error:message}};
     if(['SCHEDULE_TOO_SOON','SCHEDULE_TOO_FAR'].includes(message))return{status:400,body:{error:message}};
     if(message.startsWith('INVALID_')||message.endsWith('_INVALID')||message.includes('UNSUPPORTED')||message==='TEXT_MEDIA_INVALID')return{status:400,body:{error:message}};
