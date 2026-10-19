@@ -41,11 +41,12 @@ Status: CI — the three required tests below run in every `CI / verify` run; `v
 | Acceptance harness | `tests/acceptance/v1-acceptance-harness.test.ts` | `v1 acceptance harness` |
 | HTTP API smoke | `tests/integration/http-api-smoke.test.ts` | `http api smoke journey` |
 | UI end-to-end | `apps/web/tests/v1-critical-journey.spec.ts` | `v1 critical UI journey` |
+| Composer end-to-end | `apps/web/tests/compose-journey.spec.ts` | `compose journey publishes an ordered album to two accounts` |
 
 Scope limits:
 
 - The harness and the HTTP smoke publish through `FakePublisher` (`apps/worker/src/testing/fake-publisher.ts`); no real platform API is called.
-- The UI E2E covers login, navigation (Tổng quan, Sản phẩm, Nội dung, Lịch đăng, Phân tích), reload with session refresh, and logout on a production build. It does not publish through the UI.
+- The UI E2E covers login, navigation (Tổng quan, Sản phẩm, Nội dung, Lịch đăng, Phân tích), reload with session refresh, and logout on a production build. The composer E2E uses test-only fake publishers to create two album jobs and reschedule another job through the calendar.
 - The Facebook and Instagram adapters, OAuth, token refresh, data deletion, and smoke script are covered with a local Graph stub. Real platform posting still needs the live checks below.
 
 ## CI baseline (SP1)
@@ -96,3 +97,9 @@ Status: BLOCKED_EXTERNAL — requires a Windows runner with GPMLogin installed, 
 ## Docker/Node 24 environment
 
 Status: NOT_VERIFIED — the staging VPS deployment and external object storage backup/restore still require an operational dry run. Local development has Node 24 and Docker available.
+
+## GĐ1 dogfood
+
+Status: NOT_VERIFIED — cần đăng ít nhất 50 bài thật gồm ảnh, album và video trong 28 ngày; tỉ lệ đăng thành công phải đạt ít nhất 98% sau khi loại lỗi người dùng. Chưa có kết quả vận hành thật hoặc bằng chứng kiểm tra cổng này.
+
+Endpoint `/brands/:brandId/analytics/reliability?days=28` tính `published / (published + failedPlatform)` từ dữ liệu job và bài đã xuất bản. Bài còn chờ, lỗi xác thực và lỗi kiểm tra nội dung không nằm trong mẫu số. Giá trị `null` hiển thị là `—` khi chưa có kết quả.

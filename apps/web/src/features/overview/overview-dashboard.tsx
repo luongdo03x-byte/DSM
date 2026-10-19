@@ -13,17 +13,19 @@ import {buildOverviewModel} from './overview-model.ts';
 
 export function OverviewDashboard({brandId}:{brandId:string}){
   const [model,setModel]=useState<ReturnType<typeof buildOverviewModel>|null>(null);
+  const [reliability,setReliability]=useState<{published:number;failedPlatform:number;failedUser:number;successRate:number|null}|null>(null);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState('');
   async function load(){
     setLoading(true);setError('');
     try{
-      const [analytics,accounts,jobs]=await Promise.all([
+      const [analytics,accounts,jobs,rate]=await Promise.all([
         browserApi.request<any>('/brands/'+brandId+'/analytics/overview'),
         browserApi.request<any[]>('/brands/'+brandId+'/accounts'),
-        browserApi.request<any[]>('/brands/'+brandId+'/calendar')
+        browserApi.request<any[]>('/brands/'+brandId+'/calendar'),
+        browserApi.request<{published:number;failedPlatform:number;failedUser:number;successRate:number|null}>('/brands/'+brandId+'/analytics/reliability?days=28')
       ]);
-      setModel(buildOverviewModel({analytics,accounts,jobs}));
+      setModel(buildOverviewModel({analytics,accounts,jobs}));setReliability(rate);
     }catch(e){
       setError(e instanceof Error&&e.message==='UNAUTHORIZED'?'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.':'Không thể tải tổng quan. Vui lòng thử lại.');
     }finally{setLoading(false)}
@@ -41,6 +43,7 @@ export function OverviewDashboard({brandId}:{brandId:string}){
       <StatCard label="Tài khoản hoạt động" value={formatMetric(k.activeAccounts)} detail="Tài khoản có trạng thái kết nối"/>
       <StatCard label="Công việc lỗi" value={formatMetric(k.failedJobs)} detail={k.failedJobs?'Cần kiểm tra và thử lại':'Không có công việc lỗi'}/>
     </div>
+    <Card><div className="panel__header"><h2>Tỉ lệ đăng thành công</h2><Badge tone={reliability?.successRate!==null&&reliability?.successRate!==undefined&&reliability.successRate>=0.98?'success':'neutral'}>{reliability?.successRate===null||reliability===null?'—':(reliability.successRate*100).toFixed(1)+'%'}</Badge></div><p className="muted">28 ngày gần đây · {reliability?.published??0} bài đã đăng · {reliability?.failedPlatform??0} lỗi nền tảng · {reliability?.failedUser??0} lỗi cần người dùng xử lý. Lỗi cần người dùng xử lý không tính vào tỉ lệ.</p></Card>
     <div className="overview-grid">
       <Card>
         <div className="panel__header"><h2>Tình trạng tài khoản</h2><Badge tone={k.activeAccounts?'success':'neutral'}>{k.activeAccounts} đang kết nối</Badge></div>

@@ -16,6 +16,7 @@ import type {BrowserNodesService} from '../modules/browser-nodes/browser-nodes.s
 import type {IntegrationsService} from '../modules/integrations/integrations.service.ts';
 import type {MetaDataDeletionService} from '../modules/integrations/meta-data-deletion.service.ts';
 import {id} from '../../../../packages/shared/src/ids.ts';
+import {ReliabilityService} from '../modules/analytics/reliability.service.ts';
 
 export interface LocalRequest {
   method: string;
@@ -307,6 +308,10 @@ export class LocalApiRuntime {
       if((m=route(req.path,/^\/brands\/([^/]+)\/analytics\/overview$/))){
         const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
         if(method==='GET')return{status:200,body:await this.d.analytics.overview(brandId)};
+      }
+      if((m=route(req.path,/^\/brands\/([^/]+)\/analytics\/reliability$/))){
+        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
+        if(method==='GET'){const days=Number(req.query?.days??28);if(!Number.isInteger(days)||days<1||days>365)throw new Error('INVALID_DATE_RANGE');return{status:200,body:await new ReliabilityService(this.d.repos).summary(brandId,Date.now()-days*86_400_000)}}
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/analytics\/content$/))){const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);if(method==='GET')return{status:200,body:await this.d.analytics.content(brandId)}}
       if((m=route(req.path,/^\/brands\/([^/]+)\/analytics\/platforms$/))){const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);if(method==='GET')return{status:200,body:await this.d.analytics.platforms(brandId)}}
