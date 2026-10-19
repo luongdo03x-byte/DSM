@@ -33,7 +33,8 @@ test('TikTok code exchange sends the stored PKCE verifier and maps one creator a
   assert.equal(body.get('code_verifier'),'private-verifier');
   assert.equal(body.get('code'),'auth-code');
   assert.equal(tokens.expiresAt!>Date.now()+23*60*60_000,true);
-  assert.deepEqual((await connector.listAccounts(tokens)).map(account=>[account.platform,account.platformAccountId,account.username]),[['TIKTOK','open-1','creator']]);
+  assert.deepEqual((await connector.listAccounts(tokens)).map(account=>[account.platform,account.platformAccountId,account.displayName]),[['TIKTOK','open-1','Creator']]);
+  assert.ok(!calls[1]?.url.includes('username'));
 });
 
 test('TikTok confirmation encrypts its refresh token and marks the account connected',async()=>{

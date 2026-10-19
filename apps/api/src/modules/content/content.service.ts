@@ -158,7 +158,7 @@ export class ContentService {
     if (!content || content.brandId !== brandId) throw new Error('VARIANT_NOT_FOUND');
     if (input.status === 'READY' && variant.skippedReason) throw new Error('VARIANT_SKIPPED');
     if(input.tiktokSettings&&variant.platform!=='TIKTOK')throw new Error('INVALID_TIKTOK_SETTINGS');
-    if(input.tiktokSettings){const settings=input.tiktokSettings;if(!settings||typeof settings!=='object'||Array.isArray(settings)||typeof settings.privacyLevel!=='string'||!settings.privacyLevel||['disableComment','disableDuet','disableStitch','brandContentToggle','brandOrganicToggle'].some(key=>typeof settings[key as keyof typeof settings]!=='boolean'))throw new Error('INVALID_TIKTOK_SETTINGS')}
+    if(input.tiktokSettings){const settings=input.tiktokSettings;if(!settings||typeof settings!=='object'||Array.isArray(settings)||(settings.privacyLevel!==undefined&&typeof settings.privacyLevel!=='string')||['disableComment','disableDuet','disableStitch','brandContentToggle','brandOrganicToggle'].some(key=>settings[key as keyof typeof settings]!==undefined&&typeof settings[key as keyof typeof settings]!=='boolean'))throw new Error('INVALID_TIKTOK_SETTINGS')}
     if (input.assetId) {
       const asset = await this.repos.media.get(input.assetId);
       if (!asset || asset.brandId !== brandId) throw new Error('MEDIA_NOT_FOUND');

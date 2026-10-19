@@ -5,6 +5,13 @@ import {TikTokHttpClient} from '../../apps/api/src/integrations/tiktok/tiktok-ht
 import {PublishError,type PublishInput} from '../../packages/platform-contracts/src/index.ts';
 import type {HttpClient,HttpRequest} from '../../packages/shared/src/http.ts';
 import {FetchHttpClient} from '../../packages/shared/src/http.ts';
+
+test('FetchHttpClient accepts empty successful upload response',async()=>{
+  const original=globalThis.fetch;
+  globalThis.fetch=async()=>new Response('',{status:201});
+  try{const result=await new FetchHttpClient().request({url:'https://upload.test/chunk',method:'PUT',body:new Uint8Array([1])});assert.equal(result.status,201);assert.equal(result.data,'')}
+  finally{globalThis.fetch=original}
+});
 import {createServer} from 'node:http';
 import {createDevelopmentRuntime} from '../../apps/api/src/runtime/dev-runtime.ts';
 

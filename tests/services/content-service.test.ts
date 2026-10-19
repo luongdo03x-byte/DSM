@@ -16,3 +16,14 @@ test('copyMasterToAll tạo đúng một biến thể mỗi nền tảng và g�
   assert.deepEqual(second.map(v => v.id), first.map(v => v.id));
   assert.equal((await repos.variants.findBy({contentItemId: 'content-1'})).length, 5);
 });
+
+test('TikTok draft retains interaction choices before privacy is selected',async()=>{
+  const repos=new MemoryRepositories(new MemoryStore());
+  await repos.workspaces.insert({id:'w',name:'Workspace'});
+  await repos.brands.insert({id:'b',workspaceId:'w',name:'Brand',slug:'brand',language:'vi',timezone:'UTC',currency:'VND',status:'ACTIVE'});
+  await repos.contents.insert({id:'c',brandId:'b',type:'TEXT',title:'Draft',status:'DRAFT'});
+  const service=new ContentService(repos);
+  const variant=(await service.copyMasterToAll('b','c')).find(row=>row.platform==='TIKTOK')!;
+  await service.updateVariant('b',variant.id,{tiktokSettings:{disableComment:true}});
+  assert.deepEqual((await service.listVariants('b','c')).find(row=>row.platform==='TIKTOK')?.tiktokSettings,{disableComment:true});
+});

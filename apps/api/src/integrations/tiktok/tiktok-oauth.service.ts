@@ -21,9 +21,9 @@ export class TikTokOAuthConnector implements OAuthConnector{
   }
   async refreshToken(refreshToken:string):Promise<OAuthTokens>{return this.toTokens(await this.http.oauth(new URLSearchParams({client_key:this.config.clientKey,client_secret:this.config.clientSecret,grant_type:'refresh_token',refresh_token:refreshToken})))}
   async listAccounts(tokens:OAuthTokens):Promise<ConnectableAccount[]>{
-    const response=await this.http.api('/v2/user/info/?fields=open_id,display_name,username,avatar_url',tokens.accessToken,'GET');
+    const response=await this.http.api('/v2/user/info/?fields=open_id,display_name,avatar_url',tokens.accessToken,'GET');
     const user=response.data?.user??response.user??{};const openId=String(user.open_id??'');if(!openId)throw new Error('TIKTOK_OPEN_ID_MISSING');
-    return[{platform:'TIKTOK',platformAccountId:openId,providerUserId:openId,displayName:String(user.display_name??user.username??openId),...(user.username?{username:String(user.username)}:{}),tokens}];
+    return[{platform:'TIKTOK',platformAccountId:openId,providerUserId:openId,displayName:String(user.display_name??openId),tokens}];
   }
   private toTokens(raw:any):OAuthTokens{const value=raw.data??raw;return{accessToken:String(value.access_token),...(value.refresh_token?{refreshToken:String(value.refresh_token)}:{}),...(value.expires_in?{expiresAt:Date.now()+Number(value.expires_in)*1000}:{}),scopes:String(value.scope??TIKTOK_SCOPES.join(',')).split(',').map(x=>x.trim()).filter(Boolean)}}
 }

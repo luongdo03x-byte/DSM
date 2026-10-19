@@ -58,7 +58,7 @@ export function ComposePage({brandId,contentId:initialContentId}:{brandId:string
 
   useEffect(()=>{const listener=(event:BeforeUnloadEvent)=>{if(isDirty(stateRef.current)){event.preventDefault();event.returnValue=''}};window.addEventListener('beforeunload',listener);return()=>window.removeEventListener('beforeunload',listener)},[]);
   useEffect(()=>{const account=accounts.find(row=>row.platform==='TIKTOK'&&state.selectedAccountIds.includes(row.id));if(!account){setTiktokCreator(undefined);return}let mounted=true;void browserApi.request<TikTokCreatorInfo&{auditApproved:boolean}>(`/brands/${brandId}/accounts/${account.id}/tiktok/creator-info`).then(info=>{if(mounted)setTiktokCreator(info)}).catch(()=>{if(mounted)setError('Không thể tải cài đặt tài khoản TikTok.')});return()=>{mounted=false}},[accounts,brandId,state.selectedAccountIds]);
-  useEffect(()=>{if(!isDirty(state)||!state.title.trim())return;const timer=setTimeout(()=>{void saveDraft()},800);return()=>clearTimeout(timer)},[state.type,state.title,state.body,state.hook,state.cta,state.mediaAssetIds]);
+  useEffect(()=>{if(!isDirty(state)||!state.title.trim())return;const timer=setTimeout(()=>{void saveDraft()},800);return()=>clearTimeout(timer)},[state.type,state.title,state.body,state.hook,state.cta,state.mediaAssetIds,state.variants.TIKTOK?.tiktokSettings]);
 
   const saveDraft=useCallback(async():Promise<string|undefined>=>{
     let savedId:string|undefined;
@@ -72,6 +72,12 @@ export function ComposePage({brandId,contentId:initialContentId}:{brandId:string
       const id=contentIdRef.current;
       if(id){await browserApi.request(path(brandId,id),{method:'PATCH',...json,body:JSON.stringify(payload)});if(current.type!=='TEXT')await browserApi.request(`${path(brandId,id)}/media`,{method:'PUT',...json,body:JSON.stringify({mediaAssetIds:current.mediaAssetIds})});savedId=id}
       else{const created=await browserApi.request<ContentItem>(`/brands/${brandId}/content`,{method:'POST',...json,body:JSON.stringify(payload)});contentIdRef.current=created.id;savedId=created.id;window.history.replaceState(null,'',`/app/brands/${brandId}/compose/${created.id}`)}
+      const tiktokSettings=current.variants.TIKTOK?.tiktokSettings;
+      if(savedId&&tiktokSettings&&Object.keys(tiktokSettings).length){
+        const rows=await browserApi.request<ContentVariant[]>(`${path(brandId,savedId)}/variants/copy`,{method:'POST'});
+        const tiktok=rows.find(row=>row.platform==='TIKTOK');
+        if(tiktok)await browserApi.request(`${path(brandId,savedId)}/variants/${tiktok.id}`,{method:'PATCH',...json,body:JSON.stringify({tiktokSettings})});
+      }
       dispatch({type:'markSaved',snapshot:current});setSaveLabel('Đã lưu bản nháp');
     });
     try{await saveQueue.current;return savedId??contentIdRef.current}catch{setSaveLabel('Chưa lưu được bản nháp');setError('Không thể lưu bản nháp. Vui lòng thử lại.');return undefined}
