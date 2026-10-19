@@ -5,17 +5,18 @@ import {MEDIA_RULES} from '../../../../../packages/shared/src/media-rules.ts';
 import {isPublicMediaUrl} from '../../../../../packages/shared/src/preflight.ts';
 import {TikTokHttpClient} from './tiktok-http.client.ts';
 import {planChunks} from '../../modules/publishing/platforms/tiktok/tiktok-upload.service.ts';
+import {TikTokStatusService} from '../../modules/publishing/platforms/tiktok/tiktok-status.service.ts';
 
 export interface TikTokPostSettings{privacyLevel:string;disableComment:boolean;disableDuet:boolean;disableStitch:boolean;brandContentToggle:boolean;brandOrganicToggle:boolean}
 export interface TikTokCreatorInfo{privacyLevelOptions:string[];maxVideoPostDurationSec:number;commentDisabled:boolean;duetDisabled:boolean;stitchDisabled:boolean}
-type Deps={http:TikTokHttpClient;tokens:(socialAccountId:string)=>Promise<string>;auditApproved:boolean;publicMediaBaseUrl?:string;loadVideo?:(url:string)=>Promise<Uint8Array>;refresh?:(account:SocialAccount)=>Promise<TokenRefreshResult>};
+type Deps={http:TikTokHttpClient;tokens:(socialAccountId:string)=>Promise<string>;auditApproved:boolean;publicMediaBaseUrl?:string;loadVideo?:(url:string)=>Promise<Uint8Array>;refresh?:(account:SocialAccount)=>Promise<TokenRefreshResult>;username?:(accountId:string)=>Promise<string>};
 const invalid=(code:string,message=code)=>new PublishError({type:'VALIDATION_ERROR',code,message,retryable:false});
 
 export class TikTokAdapter implements PlatformAdapter{
   readonly platform='TIKTOK' as const;
-  private readonly http:TikTokHttpClient;private readonly tokens:Deps['tokens'];private readonly auditApproved:boolean;private readonly loadVideo:NonNullable<Deps['loadVideo']>;private readonly refresh:Deps['refresh'];
+  private readonly http:TikTokHttpClient;private readonly tokens:Deps['tokens'];private readonly auditApproved:boolean;private readonly loadVideo:NonNullable<Deps['loadVideo']>;private readonly refresh:Deps['refresh'];private readonly username:Deps['username'];private readonly status:TikTokStatusService;
   readonly publicMediaBaseUrl:string|undefined;
-  constructor(deps:Deps){this.http=deps.http;this.tokens=deps.tokens;this.auditApproved=deps.auditApproved;this.publicMediaBaseUrl=deps.publicMediaBaseUrl;this.loadVideo=deps.loadVideo??(async url=>new Uint8Array(await(await fetch(url)).arrayBuffer()));this.refresh=deps.refresh}
+  constructor(deps:Deps){this.http=deps.http;this.tokens=deps.tokens;this.auditApproved=deps.auditApproved;this.publicMediaBaseUrl=deps.publicMediaBaseUrl;this.loadVideo=deps.loadVideo??(async url=>{const response=await fetch(url);if(!response.ok)throw new PublishError({type:'NETWORK_ERROR',code:'TT_MEDIA_FETCH_FAILED',message:`Media fetch failed: ${response.status}`,retryable:response.status>=500});return new Uint8Array(await response.arrayBuffer())});this.refresh=deps.refresh;this.username=deps.username;this.status=new TikTokStatusService(deps.http,deps.tokens)}
   capabilities(_account:SocialAccount):AdapterCapabilities{return{platform:this.platform,rule:MEDIA_RULES.TIKTOK}}
   refreshToken(account:SocialAccount):Promise<TokenRefreshResult>{return this.refresh?this.refresh(account):Promise.resolve({refreshed:false})}
   private settings(input:PublishInput):TikTokPostSettings{
@@ -64,7 +65,17 @@ export class TikTokAdapter implements PlatformAdapter{
     for(const chunk of chunks){let failure:unknown;for(let attempt=0;attempt<3;attempt++){try{await this.http.upload(uploadUrl,bytes.slice(chunk.start,chunk.end+1),chunk.start,chunk.end,bytes.byteLength,input.socialAccountId);failure=undefined;break}catch(error){failure=error}}if(failure)throw failure}
     return{processing:true,remoteCorrelationId:publishId};
   }
-  async pollStatus(input:{socialAccountId:string;remoteCorrelationId:string}):Promise<PublishResult>{return{remoteCorrelationId:input.remoteCorrelationId,processing:true}}
-  async fetchPost(postId:string,_context?:{socialAccountId?:string}):Promise<PublishedPostData>{return{externalPostId:postId,exists:false}}
+  async pollStatus(input:{socialAccountId:string;remoteCorrelationId:string}):Promise<PublishResult>{
+    const result=await this.status.fetch(input.socialAccountId,input.remoteCorrelationId);
+    if(result.status!=='PUBLISH_COMPLETE')return{remoteCorrelationId:input.remoteCorrelationId,processing:true};
+    if(!result.postId)return{externalPostId:input.remoteCorrelationId,processing:false,note:'Bài riêng tư'};
+    const username=await this.username?.(input.socialAccountId);
+    return{externalPostId:result.postId,externalUrl:username?`https://www.tiktok.com/@${username}/video/${result.postId}`:undefined,processing:false};
+  }
+  async fetchPost(postId:string,context?:{socialAccountId?:string}):Promise<PublishedPostData>{
+    if(!context?.socialAccountId)throw invalid('TT_ACCOUNT_REQUIRED');
+    const result=await this.pollStatus({socialAccountId:context.socialAccountId,remoteCorrelationId:postId});
+    return{externalPostId:result.externalPostId??postId,externalUrl:result.externalUrl,exists:result.processing===false};
+  }
   async fetchMetrics(_postId:string,_context?:{socialAccountId?:string}):Promise<PostMetricsData>{return{raw:{}}}
 }
