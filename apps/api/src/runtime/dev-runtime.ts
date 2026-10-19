@@ -34,13 +34,9 @@ import {FacebookAdapter} from '../integrations/meta/facebook.adapter.ts';
 import {InstagramAdapter} from '../integrations/meta/instagram.adapter.ts';
 import {ThreadsPublisher} from '../modules/publishing/platforms/threads/threads.publisher.ts';
 import {TikTokHttpClient} from '../integrations/tiktok/tiktok-http.client.ts';
-import {TikTokOAuthConnector} from '../integrations/tiktok/tiktok-oauth.service.ts';
+import {TikTokOAuthConnector,TikTokTokenRefreshService} from '../integrations/tiktok/tiktok-oauth.service.ts';
+import {TikTokAdapter} from '../integrations/tiktok/tiktok.adapter.ts';
 import {tiktokConfig} from '../integrations/tiktok/tiktok.config.ts';
-import {TikTokCreatorInfoService} from '../modules/publishing/platforms/tiktok/tiktok.creator-info.ts';
-import {TikTokValidation} from '../modules/publishing/platforms/tiktok/tiktok.validation.ts';
-import {TikTokStatusService} from '../modules/publishing/platforms/tiktok/tiktok-status.service.ts';
-import {TikTokUploadService} from '../modules/publishing/platforms/tiktok/tiktok-upload.service.ts';
-import {TikTokPublisher} from '../modules/publishing/platforms/tiktok/tiktok.publisher.ts';
 import {BrowserGatewayClient} from '../modules/browser-nodes/browser-gateway.client.ts';
 import {BrowserPublisherProxy} from '../modules/publishing/browser-publisher.proxy.ts';
 import {NodeAuthService} from '../modules/browser-nodes/node-auth.service.ts';
@@ -85,8 +81,8 @@ export async function createDevelopmentRuntime(options:DevelopmentRuntimeOptions
   for(const platform of ['FACEBOOK','INSTAGRAM','THREADS','TIKTOK'] as const){const existing=(await repos.socialAccounts.findBy({brandId,platform}))[0];createdAccounts.set(platform,existing??await accounts.create(brandId,{platform,publishMode:'HYBRID'}))}
   const registry=new PublisherRegistry(),http=new FetchHttpClient(),metaHttp=new MetaHttpClient(http,metaConfig(env)),metaRefresh=metaTokenRefresher(repos,credentialCrypto,env);
   registry.register('FACEBOOK','API',new FacebookAdapter({graph:new MetaGraphClient({baseUrl:metaConfig(env).graphBaseUrl,version:metaConfig(env).graphVersion}),tokens:accountId=>accounts.getAccessToken(accountId),...(metaRefresh?{refresh:account=>metaRefresh.refresh(account)}:{})}));registry.register('INSTAGRAM','API',new InstagramAdapter({graph:new MetaGraphClient({baseUrl:metaConfig(env).graphBaseUrl,version:metaConfig(env).graphVersion}),tokens:accountId=>accounts.getAccessToken(accountId),accountIds:async accountId=>(await repos.socialAccounts.get(accountId))?.platformAccountId??accountId,...(metaRefresh?{refresh:account=>metaRefresh.refresh(account)}:{})}));registry.register('THREADS','API',new ThreadsPublisher(metaHttp,accounts));
-  const tc=tiktokConfig(env),th=new TikTokHttpClient(http,tc),creator=new TikTokCreatorInfoService(th,accounts),status=new TikTokStatusService(th,accounts),upload=new TikTokUploadService(th);
-  registry.register('TIKTOK','API',new TikTokPublisher(th,accounts,new TikTokValidation(creator,tc),status,upload,tc));
+  const tc=tiktokConfig(env),th=new TikTokHttpClient(http,tc),ttRefresh=new TikTokTokenRefreshService(repos,credentialCrypto,new TikTokOAuthConnector({http:th,config:tc}));
+  registry.register('TIKTOK','API',new TikTokAdapter({http:th,tokens:accountId=>accounts.getAccessToken(accountId),auditApproved:tc.directPostApproved,...(env.PUBLIC_MEDIA_BASE_URL?{publicMediaBaseUrl:env.PUBLIC_MEDIA_BASE_URL}:{}),refresh:account=>ttRefresh.refresh(account)}));
 
   const browserNodeKey=env.BROWSER_NODE_KEY,browserHost=env.BROWSER_GATEWAY_HOST,browserPort=Number(env.BROWSER_GATEWAY_PORT??4010);
   if(browserNodeKey&&browserHost){
@@ -142,8 +138,8 @@ export async function createRuntime(options:RuntimeOptions) {
     registry.register('FACEBOOK','API',new FacebookAdapter({graph:new MetaGraphClient({baseUrl:metaConfig(env).graphBaseUrl,version:metaConfig(env).graphVersion}),tokens:accountId=>accounts.getAccessToken(accountId),...(metaRefresh?{refresh:account=>metaRefresh.refresh(account)}:{})}));
     registry.register('INSTAGRAM','API',new InstagramAdapter({graph:new MetaGraphClient({baseUrl:metaConfig(env).graphBaseUrl,version:metaConfig(env).graphVersion}),tokens:accountId=>accounts.getAccessToken(accountId),accountIds:async accountId=>(await repos.socialAccounts.get(accountId))?.platformAccountId??accountId,...(metaRefresh?{refresh:account=>metaRefresh.refresh(account)}:{})}));
     registry.register('THREADS','API',new ThreadsPublisher(metaHttp,accounts));
-    const tc=tiktokConfig(env),th=new TikTokHttpClient(http,tc),creator=new TikTokCreatorInfoService(th,accounts),status=new TikTokStatusService(th,accounts),upload=new TikTokUploadService(th);
-    registry.register('TIKTOK','API',new TikTokPublisher(th,accounts,new TikTokValidation(creator,tc),status,upload,tc));
+    const tc=tiktokConfig(env),th=new TikTokHttpClient(http,tc),ttRefresh=new TikTokTokenRefreshService(repos,credentialCrypto,new TikTokOAuthConnector({http:th,config:tc}));
+    registry.register('TIKTOK','API',new TikTokAdapter({http:th,tokens:accountId=>accounts.getAccessToken(accountId),auditApproved:tc.directPostApproved,...(env.PUBLIC_MEDIA_BASE_URL?{publicMediaBaseUrl:env.PUBLIC_MEDIA_BASE_URL}:{}),refresh:account=>ttRefresh.refresh(account)}));
     const browserClient=new BrowserGatewayClient(registeredNodeKey(repos,credentialCrypto));
     for(const platform of ['FACEBOOK','INSTAGRAM','THREADS','TIKTOK'] as const)registry.register(platform,'BROWSER',new BrowserPublisherProxy(platform,repos,browserClient));
     const storage=env.S3_ENDPOINT&&env.S3_REGION&&env.S3_ACCESS_KEY&&env.S3_SECRET_KEY&&env.S3_BUCKET?new S3CompatibleObjectStorage({endpoint:env.S3_ENDPOINT,region:env.S3_REGION,accessKey:env.S3_ACCESS_KEY,secretKey:env.S3_SECRET_KEY,bucket:env.S3_BUCKET}):new InMemoryObjectStorage();
