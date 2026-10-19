@@ -50,3 +50,18 @@ test('recovery schedules a poll for stale remote processing instead of republish
   assert.equal((await repos.publishJobs.get('job'))?.status,'PROCESSING');
   assert.deepEqual(scheduled,[{jobId:'job',runAt:now}]);
 });
+
+test('overlapping polls do not publish twice or overwrite a completed job',async()=>{
+  const now=1_000_000,{repos,queue,registry,publisher}=setup(now);
+  await repos.publishJobs.insert({...job(now),status:'PROCESSING',remoteCorrelationId:'container',processingStartedAt:now-1});
+  let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve});
+  let calls=0;(publisher as any).pollStatus=async()=>{calls++;if(calls===1){await gate;return{externalPostId:'post-1',remoteCorrelationId:'container'}}throw new Error('container already used')};
+  const runner=new JobRunner(repos,registry,undefined,queue,()=>now);
+  const first=runner.poll('job');
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(await runner.poll('job'),'PROCESSING');
+  release();assert.equal(await first,'PUBLISHED');
+  assert.equal(calls,1);
+  assert.equal((await repos.publishJobs.get('job'))?.status,'PUBLISHED');
+  assert.equal((await repos.publishedPosts.findBy({publishJobId:'job'})).length,1);
+});

@@ -24,11 +24,12 @@ export class FacebookAdapter implements PlatformAdapter {
     const token=await this.tokens(input.socialAccountId),page=String(input.metadata?.pageId??input.socialAccountId);
     const format=String(input.metadata?.format??(input.contentType==='ALBUM'?'ALBUM':input.contentType));
     const message=input.body??input.caption??'';
-    if(input.metadata?.retrySince&&['TEXT','LINK'].includes(format)){
+    if(input.metadata?.retrySince){
       const since=String(input.metadata.retrySince);
       const recent=await this.graph.get<{data?:Array<{id:string;message?:string}>}>(`/${page}/published_posts`,token,{since,fields:'message,id'});
-      const match=recent.data?.find(post=>post.message===message);
+      const match=message?recent.data?.find(post=>post.message===message):undefined;
       if(match)return {externalPostId:match.id,externalUrl:`https://facebook.com/${match.id}`,publishedAt:Date.now()};
+      if(!['TEXT','LINK'].includes(format))throw new PublishError({type:'NETWORK_ERROR',code:'FB_OUTCOME_UNKNOWN',message:'Remote media outcome is unknown; reconcile manually before publishing again',retryable:false});
     }
     const url=input.media?.[0]?.url??input.mediaUrl;
     if(format==='TEXT'||format==='LINK'){
@@ -50,9 +51,11 @@ export class FacebookAdapter implements PlatformAdapter {
       const result=await this.graph.post<{id?:string;video_id?:string}>(`/${page}/videos`,token,{file_url:url,description:message});
       return {remoteCorrelationId:String(result.video_id??result.id),processing:true};
     }
-    const started=await this.graph.post<{video_id:string}>(`/${page}/video_reels`,token,{upload_phase:'start'});
-    await this.graph.post(`/${page}/video_reels`,token,{upload_phase:'transfer',video_id:started.video_id,file_url:url});
-    await this.graph.post(`/${page}/video_reels`,token,{upload_phase:'finish',video_id:started.video_id,description:message});
+    const started=await this.graph.post<{video_id:string;upload_url:string}>(`/${page}/video_reels`,token,{upload_phase:'start'});
+    try{
+      await this.graph.uploadHostedVideo(started.upload_url,token,url!);
+      await this.graph.post(`/${page}/video_reels`,token,{upload_phase:'finish',video_id:started.video_id,video_state:'PUBLISHED',description:message});
+    }catch(error){if(error instanceof PublishError&&error.type==='NETWORK_ERROR')throw new PublishError({type:'NETWORK_ERROR',code:'FB_REEL_OUTCOME_UNKNOWN',message:'Facebook Reel outcome is unknown; reconcile manually before retrying',retryable:false});throw error}
     return {remoteCorrelationId:started.video_id,processing:true};
   }
   private published(id:string):PublishResult{return {externalPostId:String(id),externalUrl:`https://facebook.com/${id}`,publishedAt:Date.now()}}

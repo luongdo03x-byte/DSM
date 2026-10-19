@@ -40,3 +40,18 @@ test('API retry supplies first attempt time for remote duplicate reconciliation'
   assert.equal(await runner.run('job',build),'PUBLISHED');
   assert.equal(seen[1]?.metadata?.retrySince,Math.floor(first.startedAt/1000));
 });
+
+test('Instagram daily quota defers without consuming a publish attempt',async()=>{
+  const repos=new MemoryRepositories(new MemoryStore());
+  await repos.publishJobs.insert({id:'ig-quota',batchId:'batch',brandId:'b',socialAccountId:'ig',contentVariantId:'v',platform:'INSTAGRAM',strategy:'API',scheduledAt:1,status:'QUEUED',attemptCount:3,maxAttempts:4,idempotencyKey:'ig-quota'});
+  const publisher=new FakePublisher();publisher.publish=async()=>{throw new PublishError({type:'RATE_LIMIT',code:'IG_DAILY_LIMIT',message:'Quota full',retryable:true,retryAfterMs:24*60*60_000})};
+  const registry=new PublisherRegistry();registry.register('INSTAGRAM','API',publisher);
+  const runner=new JobRunner(repos,registry);
+  const build=async()=>({brandId:'b',socialAccountId:'ig',contentVariantId:'v',platform:'INSTAGRAM' as const,contentType:'IMAGE' as const,mediaUrl:'https://example.test/image.jpg'});
+  assert.equal(await runner.run('ig-quota',build),'RETRYING');
+  assert.equal((await repos.publishJobs.get('ig-quota'))?.attemptCount,3);
+  assert.equal((await repos.publishAttempts.findBy({publishJobId:'ig-quota'})).length,0);
+  await repos.publishJobs.update('ig-quota',{scheduledAt:1});
+  assert.equal(await runner.run('ig-quota',build),'RETRYING');
+  assert.equal((await repos.publishJobs.get('ig-quota'))?.attemptCount,3);
+});

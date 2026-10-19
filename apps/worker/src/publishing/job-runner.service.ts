@@ -10,6 +10,7 @@ import {IG_CONTAINER_TIMEOUT_MS} from '../../../api/src/integrations/meta/instag
 import {RetryPolicy} from './retry-policy.ts';
 
 export const POLL_INTERVALS_MS=[5_000,10_000,20_000,30_000,60_000] as const;
+export const POLL_LEASE_MS=60_000;
 export type JobRunResult = 'PUBLISHED' | 'PROCESSING' | 'RETRYING' | 'FAILED' | 'SKIPPED';
 
 export class JobRunner {
@@ -37,6 +38,8 @@ export class JobRunner {
     const job=await this.repos.publishJobs.get(jobId);if(!job)throw new Error('JOB_NOT_FOUND');
     if(job.status==='PUBLISHED')return'PUBLISHED';if(job.status!=='PROCESSING'||!job.remoteCorrelationId)return'FAILED';
     const now=this.now();
+    const claimed=await this.repos.publishJobs.claim(jobId,['PROCESSING'],'PROCESSING',{dueAt:now,patch:{scheduledAt:now+POLL_LEASE_MS}});
+    if(!claimed)return(await this.repos.publishJobs.get(jobId))?.status==='PUBLISHED'?'PUBLISHED':'PROCESSING';
     if(now-(job.processingStartedAt??now)>IG_CONTAINER_TIMEOUT_MS){await this.repos.publishJobs.update(jobId,{status:'FAILED',errorCode:'PROCESSING_TIMEOUT',errorMessage:'Platform processing timed out'});return'FAILED'}
     const adapter=this.registry.get(job.platform,job.strategy) as PlatformAdapter;
     if(typeof adapter.pollStatus!=='function'){await this.repos.publishJobs.update(jobId,{status:'FAILED',errorCode:'POLL_UNSUPPORTED'});return'FAILED'}
@@ -129,6 +132,10 @@ export class JobRunner {
       const failure = raw as Error & {code?: string; retryable?: boolean};
       const error = raw instanceof PublishError ? raw : new PublishError({type: 'UNKNOWN', code: failure?.code ?? 'UNKNOWN', message: String(failure?.message ?? raw), retryable: failure?.retryable ?? false});
       if(error.type==='AUTH_ERROR')await this.repos.socialAccounts.update(job.socialAccountId,{status:'EXPIRED'});
+      if(job.platform==='INSTAGRAM'&&error.code==='IG_DAILY_LIMIT'&&error.retryAfterMs){
+        await this.repos.publishJobs.update(jobId,{status:'RETRYING',attemptCount:job.attemptCount,errorCode:error.code,errorMessage:error.message,scheduledAt:Date.now()+error.retryAfterMs});
+        return'RETRYING';
+      }
       const decision = this.retry.decide(error, attemptNumber);
       const status = decision.retry ? 'RETRYING' : 'FAILED';
       await this.repos.publishJobs.update(jobId, {status, errorCode: error.code, errorMessage: error.message, ...(decision.retry ? {scheduledAt: Date.now() + (decision.delayMs ?? 0)} : {})});

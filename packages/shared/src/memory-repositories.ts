@@ -73,8 +73,8 @@ class MemoryPublishJobRepo extends MapRepo<PublishJob> implements PublishJobRepo
     const job = this.jobs.get(id);
     if (!job || !from.includes(job.status) || (options.dueAt !== undefined && job.scheduledAt > options.dueAt)) return false;
     const changed: PublishJob = {...job, ...options.patch, status: to};
-    if (to === 'PROCESSING') changed.processingStartedAt = Date.now();
-    else delete changed.processingStartedAt;
+    if (to === 'PROCESSING' && !from.includes('PROCESSING')) changed.processingStartedAt = Date.now();
+    else if (to !== 'PROCESSING') delete changed.processingStartedAt;
     this.jobs.set(id, changed);
     return true;
   }

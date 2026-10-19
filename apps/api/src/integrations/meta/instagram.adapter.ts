@@ -37,7 +37,7 @@ export class InstagramAdapter implements PlatformAdapter {
       const item=media[0]!;const payload:Record<string,unknown>=format==='REEL'?{media_type:'REELS',video_url:item.url,caption:input.caption??''}:format==='STORY'?{media_type:'STORIES',...(item.kind==='VIDEO'?{video_url:item.url}:{image_url:item.url})}:{image_url:item.url,caption:input.caption??''};
       const created=await this.graph.post<{id:string}>(`/${igId}/media`,token,payload);containerId=created.id;
     }
-    return this.pollStatus({socialAccountId:input.socialAccountId,remoteCorrelationId:containerId});
+    return {remoteCorrelationId:containerId,processing:true};
   }
   async pollStatus(input:{socialAccountId:string;remoteCorrelationId:string}):Promise<PublishResult>{
     const token=await this.tokens(input.socialAccountId),igId=await this.accountIds(input.socialAccountId);
@@ -45,7 +45,9 @@ export class InstagramAdapter implements PlatformAdapter {
     const status=result.status_code??result.status;
     if(status==='ERROR'||status==='EXPIRED')throw new PublishError({type:'VALIDATION_ERROR',code:'IG_CONTAINER_'+status,message:'Instagram container '+status,retryable:false});
     if(status!=='FINISHED')return{remoteCorrelationId:input.remoteCorrelationId,processing:true};
-    const published=await this.graph.post<{id:string}>(`/${igId}/media_publish`,token,{creation_id:input.remoteCorrelationId});
+    let published:{id:string};
+    try{published=await this.graph.post<{id:string}>(`/${igId}/media_publish`,token,{creation_id:input.remoteCorrelationId})}
+    catch(error){if(error instanceof PublishError&&error.type==='NETWORK_ERROR')throw new PublishError({type:'NETWORK_ERROR',code:'IG_PUBLISH_OUTCOME_UNKNOWN',message:'Instagram publication outcome is unknown; reconcile manually before retrying',retryable:false});throw error}
     return{externalPostId:published.id,remoteCorrelationId:input.remoteCorrelationId,publishedAt:Date.now()};
   }
   async fetchPost(postId:string,context?:{socialAccountId?:string}):Promise<PublishedPostData>{

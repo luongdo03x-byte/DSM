@@ -6,6 +6,13 @@ export class MetaGraphClient {
   async get<T>(path:string,token:string,params:Record<string,string>={}):Promise<T>{return this.request<T>('GET',path,token,params)}
   async post<T>(path:string,token:string,body:Record<string,unknown>|FormData):Promise<T>{return this.request<T>('POST',path,token,{},body)}
   async delete<T>(path:string,token:string):Promise<T>{return this.request<T>('DELETE',path,token,{})}
+  async uploadHostedVideo(uploadUrl:string,token:string,fileUrl:string):Promise<void>{
+    const target=new URL(uploadUrl),base=new URL(this.baseUrl);
+    if(target.origin!==base.origin&&!(target.protocol==='https:'&&target.hostname==='rupload.facebook.com'))throw new Error('INVALID_META_UPLOAD_URL');
+    let response:Response;try{response=await this.fetchImpl(target,{method:'POST',headers:{Authorization:`OAuth ${token}`,file_url:fileUrl},signal:AbortSignal.timeout(this.timeoutMs)})}
+    catch{throw new PublishError({type:'NETWORK_ERROR',code:'NETWORK',message:'Meta upload failed',retryable:true})}
+    if(!response.ok){let data:any;try{data=await response.json()}catch{data={}};throw new PublishError({type:response.status>=500?'NETWORK_ERROR':'PLATFORM_ERROR',code:String(data?.error?.code??`HTTP_${response.status}`),message:String(data?.error?.message??'Meta upload failed'),retryable:response.status>=500})}
+  }
   private async request<T>(method:string,path:string,token:string,params:Record<string,string>,body?:Record<string,unknown>|FormData):Promise<T>{
     const url=new URL(`${this.baseUrl}/${this.version}/${path.replace(/^\//,'')}`);
     for(const [key,value] of Object.entries(params))url.searchParams.set(key,value);

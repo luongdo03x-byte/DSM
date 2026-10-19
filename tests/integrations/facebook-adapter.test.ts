@@ -37,12 +37,16 @@ test('Facebook album uploads unpublished photos in media order and attaches them
 test('Facebook video and reel return processing correlation',async()=>{
   const stub=await startMetaGraphStub();try{
     stub.setResponse('/v24.0/page/videos',()=>({status:200,body:{id:'video-1'}}));
-    stub.setResponse('/v24.0/page/video_reels',req=>({status:200,body:req.body&&typeof req.body==='object'&&(req.body as any).upload_phase==='start'?{video_id:'reel-1',upload_url:'https://upload.test/reel'}:{success:true}}));
+    stub.setResponse('/v24.0/page/video_reels',req=>({status:200,body:req.body&&typeof req.body==='object'&&(req.body as any).upload_phase==='start'?{video_id:'reel-1',upload_url:stub.url+'/video-upload/reel-1'}:{success:true}}));
+    stub.setResponse('/video-upload/reel-1',()=>({status:200,body:{success:true}}));
     const adapter=new FacebookAdapter({graph:new MetaGraphClient({baseUrl:stub.url,version:'v24.0'}),tokens:async()=> 'token'});
     const video={url:'https://cdn.test/v.mp4',mimeType:'video/mp4',kind:'VIDEO' as const,width:1080,height:1920,durationMs:30000};
     assert.deepEqual(await adapter.publish({...base,contentType:'VIDEO',media:[video]}),{remoteCorrelationId:'video-1',processing:true});
     assert.deepEqual(await adapter.publish({...base,contentType:'VIDEO',media:[video],metadata:{pageId:'page',format:'REEL'}}),{remoteCorrelationId:'reel-1',processing:true});
-    assert.deepEqual(stub.calls.slice(1).map(x=>(x.body as any).upload_phase),['start','transfer','finish']);
+    assert.deepEqual(stub.calls.slice(1).map(x=>x.path),['/v24.0/page/video_reels','/video-upload/reel-1','/v24.0/page/video_reels']);
+    assert.equal(stub.calls[2]?.headers.file_url,video.url);
+    assert.equal(stub.calls[2]?.headers.authorization,'OAuth token');
+    assert.deepEqual(stub.calls[3]?.body,{upload_phase:'finish',video_id:'reel-1',video_state:'PUBLISHED',description:'Hello'});
   }finally{await stub.close()}
 });
 
@@ -55,6 +59,41 @@ test('Facebook retry reconciles a timed-out feed response before posting again',
     const reconciled=await adapter.publish({...base,metadata:{pageId:'page',retrySince:123456}});
     assert.equal(reconciled.externalPostId,'post-1');assert.equal(created,1);
     assert.equal(stub.calls.at(-1)?.query.since,'123456');
+  }finally{await stub.close()}
+});
+
+test('Facebook image retry reconciles a timed-out response without a second upload',async()=>{
+  const stub=await startMetaGraphStub();try{
+    let created=0;stub.setResponse('/v24.0/page/photos',()=>{created++;return{status:200,body:{id:'photo-1',post_id:'post-1'},delayMs:50}});
+    stub.setResponse('/v24.0/page/published_posts',()=>({status:200,body:{data:created?[{id:'post-1',message:'Hello'}]:[]}}));
+    const adapter=new FacebookAdapter({graph:new MetaGraphClient({baseUrl:stub.url,version:'v24.0',timeoutMs:20}),tokens:async()=> 'token'});
+    const image={...base,contentType:'IMAGE' as const,mediaUrl:'https://cdn.test/a.jpg'};
+    await assert.rejects(adapter.publish(image),{code:'NETWORK'});
+    assert.equal((await adapter.publish({...image,metadata:{pageId:'page',retrySince:123456}})).externalPostId,'post-1');
+    assert.equal(created,1);
+  }finally{await stub.close()}
+});
+
+test('Facebook media retry stops when the remote outcome remains unknown',async()=>{
+  const stub=await startMetaGraphStub();try{
+    let created=0;stub.setResponse('/v24.0/page/photos',()=>{created++;return{status:200,body:{id:'photo-1',post_id:'post-1'},delayMs:50}});
+    stub.setResponse('/v24.0/page/published_posts',()=>({status:200,body:{data:[]}}));
+    const adapter=new FacebookAdapter({graph:new MetaGraphClient({baseUrl:stub.url,version:'v24.0',timeoutMs:20}),tokens:async()=> 'token'});
+    const image={...base,contentType:'IMAGE' as const,mediaUrl:'https://cdn.test/a.jpg'};
+    await assert.rejects(adapter.publish(image),{code:'NETWORK'});
+    await assert.rejects(adapter.publish({...image,metadata:{pageId:'page',retrySince:123456}}),{code:'FB_OUTCOME_UNKNOWN',retryable:false});
+    assert.equal(created,1);
+  }finally{await stub.close()}
+});
+
+test('Facebook Reel finish timeout does not submit a second Reel',async()=>{
+  const stub=await startMetaGraphStub();try{
+    let starts=0;stub.setResponse('/v24.0/page/video_reels',req=>({status:200,body:(req.body as any)?.upload_phase==='start'?{video_id:'reel-'+(++starts),upload_url:stub.url+'/video-upload/reel'}:{success:true},delayMs:(req.body as any)?.upload_phase==='finish'?50:0}));
+    stub.setResponse('/video-upload/reel',()=>({status:200,body:{success:true}}));
+    const adapter=new FacebookAdapter({graph:new MetaGraphClient({baseUrl:stub.url,version:'v24.0',timeoutMs:20}),tokens:async()=> 'token'});
+    const reel={...base,contentType:'VIDEO' as const,mediaUrl:'https://cdn.test/v.mp4',metadata:{pageId:'page',format:'REEL'}};
+    await assert.rejects(adapter.publish(reel),{code:'FB_REEL_OUTCOME_UNKNOWN',retryable:false});
+    assert.equal(starts,1);
   }finally{await stub.close()}
 });
 
