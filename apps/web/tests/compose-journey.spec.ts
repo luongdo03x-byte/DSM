@@ -29,4 +29,27 @@ test('compose journey publishes an ordered album to two accounts',async({page})=
   await expect(page.getByRole('status')).toContainText('Đã đưa 2 bài vào hàng đợi');
   await page.getByRole('navigation').getByRole('link',{name:'Lịch đăng'}).click();
   await expect(page.locator('.job-card')).toHaveCount(2);
+
+  await page.getByRole('navigation').getByRole('link',{name:'Tạo bài'}).click();
+  await page.getByLabel('Tiêu đề').fill('Bài lên lịch thử nghiệm');
+  await page.getByLabel('Nội dung gốc').fill('Nội dung thử kéo lịch');
+  await page.getByRole('checkbox',{name:/Facebook/}).check();
+  await page.getByLabel('Thời điểm đăng').selectOption('at');
+  const future=new Date(Date.now()+2*60*60_000);
+  const target=new Date(Date.UTC(future.getUTCFullYear(),future.getUTCMonth(),future.getUTCDate()+1)).toISOString().slice(0,10);
+  await page.getByLabel('Ngày').fill(future.toISOString().slice(0,10));
+  await page.getByLabel('Giờ').fill(future.toISOString().slice(11,16));
+  await page.getByRole('button',{name:'Lên lịch'}).click();
+  await expect(page.getByRole('status')).toContainText('Đã đưa 1 bài vào hàng đợi');
+  await page.getByRole('navigation').getByRole('link',{name:'Lịch đăng'}).click();
+  const scheduled=page.locator('[draggable="true"]').filter({hasText:'Bài lên lịch thử nghiệm'});
+  await expect(scheduled).toHaveCount(1);
+  await scheduled.scrollIntoViewIfNeeded();
+  const sourceBox=await scheduled.boundingBox(),targetBox=await page.locator(`[data-calendar-date="${target}"]`).boundingBox();
+  if(!sourceBox||!targetBox)throw new Error('calendar drag coordinates unavailable');
+  await page.mouse.move(sourceBox.x+15,sourceBox.y+15);
+  await page.mouse.down();
+  await page.mouse.move(targetBox.x+40,sourceBox.y+15,{steps:15});
+  await page.mouse.up();
+  await expect(page.locator(`[data-calendar-date="${target}"]`)).toContainText('Bài lên lịch thử nghiệm');
 });
