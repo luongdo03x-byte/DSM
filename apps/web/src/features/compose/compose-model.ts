@@ -14,7 +14,7 @@ export type ComposeAction=
   |{type:'editVariant';platform:Platform;patch:Partial<VariantDraft>}
   |{type:'applyPreflight';platform:Platform;issues:PreflightIssue[]}
   |{type:'setSchedule';schedule:ComposeSnapshot['schedule']}
-  |{type:'markSaved'};
+  |{type:'markSaved';snapshot?:ComposeState};
 
 function snapshot(state:ComposeState):ComposeSnapshot{
   const {type,title,body,hook,cta,mediaAssetIds,selectedAccountIds,accountPlatforms,variants,schedule}=state;
@@ -49,7 +49,7 @@ export function composeReducer(state:ComposeState,action:ComposeAction):ComposeS
     case'editVariant':return{...state,variants:{...state.variants,[action.platform]:{...variantFor(state,action.platform),...action.patch,platform:action.platform}}};
     case'applyPreflight':return{...state,variants:{...state.variants,[action.platform]:{...variantFor(state,action.platform),issues:[...action.issues]}}};
     case'setSchedule':return{...state,schedule:action.schedule};
-    case'markSaved':return{...state,saved:snapshot(state)};
+    case'markSaved':return{...state,saved:snapshot(action.snapshot??state)};
   }
 }
 export function isDirty(state:ComposeState):boolean{return JSON.stringify(snapshot(state))!==JSON.stringify(state.saved)}

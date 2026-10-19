@@ -10,6 +10,14 @@ test('có thay đổi chưa lưu sau khi sửa và hết sau khi lưu',()=>{
   assert.equal(isDirty(composeReducer(edited,{type:'markSaved'})),false);
 });
 
+test('lưu bản nháp đang gửi không đánh dấu thay đổi mới là đã lưu',()=>{
+  const first=composeReducer(emptyComposeState(),{type:'setField',field:'title',value:'Tiêu đề đã gửi'});
+  const edited=composeReducer(first,{type:'setField',field:'title',value:'Tiêu đề mới'});
+  const acknowledged=composeReducer(edited,{type:'markSaved',snapshot:first});
+  assert.equal(acknowledged.saved.title,'Tiêu đề đã gửi');
+  assert.equal(isDirty(acknowledged),true);
+});
+
 test('reorderMedia updates an untouched variant but preserves a custom order',()=>{
   let state=emptyComposeState();
   state=composeReducer(state,{type:'setMedia',mediaAssetIds:['a','b','c']});

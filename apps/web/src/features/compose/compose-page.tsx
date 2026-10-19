@@ -67,9 +67,9 @@ export function ComposePage({brandId,contentId:initialContentId}:{brandId:string
       const id=contentIdRef.current;
       if(id){await browserApi.request(path(brandId,id),{method:'PATCH',...json,body:JSON.stringify(payload)});if(current.type!=='TEXT')await browserApi.request(`${path(brandId,id)}/media`,{method:'PUT',...json,body:JSON.stringify({mediaAssetIds:current.mediaAssetIds})});savedId=id}
       else{const created=await browserApi.request<ContentItem>(`/brands/${brandId}/content`,{method:'POST',...json,body:JSON.stringify(payload)});contentIdRef.current=created.id;savedId=created.id;window.history.replaceState(null,'',`/app/brands/${brandId}/compose/${created.id}`)}
-      dispatch({type:'markSaved'});setSaveLabel('Đã lưu bản nháp');
+      dispatch({type:'markSaved',snapshot:current});setSaveLabel('Đã lưu bản nháp');
     });
-    try{await saveQueue.current}catch{setSaveLabel('Chưa lưu được bản nháp');setError('Không thể lưu bản nháp. Vui lòng thử lại.')}return savedId??contentIdRef.current;
+    try{await saveQueue.current;return savedId??contentIdRef.current}catch{setSaveLabel('Chưa lưu được bản nháp');setError('Không thể lưu bản nháp. Vui lòng thử lại.');return undefined}
   },[brandId]);
 
   async function upload(files:FileList|null){if(!files?.length)return;setUploading(true);setError('');try{const ids=await Promise.all([...files].map(file=>uploadMediaAsset(browserApi,brandId,file)));const start=Object.keys(originalOrder.current).length;ids.forEach((id,index)=>{originalOrder.current[id]=start+index+1});dispatch({type:'setMedia',mediaAssetIds:[...stateRef.current.mediaAssetIds,...ids]})}catch{setError('Không thể tải media. Hãy kiểm tra định dạng và thử lại.')}finally{setUploading(false)}}
