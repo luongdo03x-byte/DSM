@@ -100,6 +100,12 @@ export class LocalApiRuntime {
         const destination=`/app/brands/${encodeURIComponent(result.brandId)}/accounts?connect=${encodeURIComponent(result.token)}`;
         return{status:302,body:null,headers:{location:this.d.webAppBaseUrl?new URL(destination,this.d.webAppBaseUrl).toString():destination}};
       }
+      if(method==='GET'&&req.path==='/integrations/tiktok/callback'){
+        if(!this.d.integrations)return{status:501,body:{error:'TIKTOK_NOT_CONFIGURED'}};
+        const result=await this.d.integrations.callback(req.query?.code??'',req.query?.state??'');
+        const destination=`/app/brands/${encodeURIComponent(result.brandId)}/accounts?connect=${encodeURIComponent(result.token)}`;
+        return{status:302,body:null,headers:{location:this.d.webAppBaseUrl?new URL(destination,this.d.webAppBaseUrl).toString():destination}};
+      }
       if(method==='POST'&&req.path==='/integrations/meta/data-deletion'){
         if(!this.d.dataDeletion)return{status:501,body:{error:'META_NOT_CONFIGURED'}};
         const body=asObject(req.body);return{status:200,body:await this.d.dataDeletion.handle(String(body.signed_request??''))};
@@ -116,6 +122,12 @@ export class LocalApiRuntime {
         if(!this.d.integrations)return{status:501,body:{error:'META_NOT_CONFIGURED'}};
         const brandId=method==='GET'?req.query?.brandId??'':String(asObject(req.body).brandId??'');await this.authorize(userId,brandId);
         const result=await this.d.integrations.start('META',brandId,userId);
+        return method==='GET'?{status:302,body:null,headers:{location:result.url}}:{status:200,body:result};
+      }
+      if((method==='GET'||method==='POST')&&req.path==='/integrations/tiktok/start'){
+        if(!this.d.integrations)return{status:501,body:{error:'TIKTOK_NOT_CONFIGURED'}};
+        const brandId=method==='GET'?req.query?.brandId??'':String(asObject(req.body).brandId??'');await this.authorize(userId,brandId);
+        const result=await this.d.integrations.start('TIKTOK',brandId,userId);
         return method==='GET'?{status:302,body:null,headers:{location:result.url}}:{status:200,body:result};
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/integrations\/(pending|confirm)$/))){

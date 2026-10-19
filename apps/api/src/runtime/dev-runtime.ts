@@ -34,6 +34,7 @@ import {FacebookAdapter} from '../integrations/meta/facebook.adapter.ts';
 import {InstagramAdapter} from '../integrations/meta/instagram.adapter.ts';
 import {ThreadsPublisher} from '../modules/publishing/platforms/threads/threads.publisher.ts';
 import {TikTokHttpClient} from '../integrations/tiktok/tiktok-http.client.ts';
+import {TikTokOAuthConnector} from '../integrations/tiktok/tiktok-oauth.service.ts';
 import {tiktokConfig} from '../integrations/tiktok/tiktok.config.ts';
 import {TikTokCreatorInfoService} from '../modules/publishing/platforms/tiktok/tiktok.creator-info.ts';
 import {TikTokValidation} from '../modules/publishing/platforms/tiktok/tiktok.validation.ts';
@@ -49,9 +50,13 @@ import {FakePublisher} from '../../../worker/src/testing/fake-publisher.ts';
 export interface DevelopmentRuntimeOptions{env?:Record<string,string|undefined>;hasher?:PasswordHasher;store?:MemoryStore}
 export interface RuntimeOptions {env:Record<string,string|undefined>;hasher?:PasswordHasher;store?:MemoryStore}
 function credentialKey(env:Record<string,string|undefined>){const raw=env.CREDENTIAL_ENCRYPTION_KEY;if(!raw)throw new Error('CREDENTIAL_ENCRYPTION_KEY_REQUIRED');const bytes=Buffer.from(raw,'base64');if(bytes.byteLength!==32)throw new Error('CREDENTIAL_ENCRYPTION_KEY_MUST_BE_32_BYTES');return new Uint8Array(bytes)}
-function metaIntegrations(repos:Repositories,crypto:CredentialCryptoService,env:Record<string,string|undefined>){
-  const config=metaConfig(env);if(!env.META_APP_ID||!env.META_APP_SECRET||!config.redirectUri||!config.stateSecret)return undefined;
-  return new IntegrationsService({repos,crypto,meta:new MetaOAuthConnector({graph:new MetaGraphClient({baseUrl:config.graphBaseUrl,version:config.graphVersion}),appId:env.META_APP_ID,appSecret:env.META_APP_SECRET,redirectUri:config.redirectUri,...(env.META_AUTH_BASE_URL?{authBaseUrl:env.META_AUTH_BASE_URL}:{})}),stateSecret:config.stateSecret});
+function configuredIntegrations(repos:Repositories,crypto:CredentialCryptoService,env:Record<string,string|undefined>){
+  const config=metaConfig(env),tiktok=tiktokConfig(env),stateSecret=config.stateSecret||env.OAUTH_STATE_SECRET;
+  if(!stateSecret)return undefined;
+  const meta=env.META_APP_ID&&env.META_APP_SECRET&&config.redirectUri?new MetaOAuthConnector({graph:new MetaGraphClient({baseUrl:config.graphBaseUrl,version:config.graphVersion}),appId:env.META_APP_ID,appSecret:env.META_APP_SECRET,redirectUri:config.redirectUri,...(env.META_AUTH_BASE_URL?{authBaseUrl:env.META_AUTH_BASE_URL}:{})}):undefined;
+  const tt=tiktok.clientKey&&tiktok.clientSecret&&tiktok.redirectUri?new TikTokOAuthConnector({http:new TikTokHttpClient(new FetchHttpClient(),tiktok),config:tiktok}):undefined;
+  if(!meta&&!tt)return undefined;
+  return new IntegrationsService({repos,crypto,...(meta?{meta}:{}),...(tt?{tiktok:tt}:{}),stateSecret});
 }
 function metaTokenRefresher(repos:Repositories,crypto:CredentialCryptoService,env:Record<string,string|undefined>){
   const config=metaConfig(env);if(!env.META_APP_ID||!env.META_APP_SECRET||!config.redirectUri)return undefined;
@@ -93,7 +98,7 @@ export async function createDevelopmentRuntime(options:DevelopmentRuntimeOptions
 
   const storage=env.S3_ENDPOINT&&env.S3_REGION&&env.S3_ACCESS_KEY&&env.S3_SECRET_KEY&&env.S3_BUCKET?new S3CompatibleObjectStorage({endpoint:env.S3_ENDPOINT,region:env.S3_REGION,accessKey:env.S3_ACCESS_KEY,secretKey:env.S3_SECRET_KEY,bucket:env.S3_BUCKET}):new InMemoryObjectStorage();
   const analytics=new AnalyticsService(repos),products=new ProductsService(repos),content=new ContentService(repos),batchStatus=new BatchStatusService(repos),tracking=new TrackingService(repos),media=new MediaService(repos,storage),campaigns=new CampaignsService(repos);
-  const integrations=metaIntegrations(repos,credentialCrypto,env);
+  const integrations=configuredIntegrations(repos,credentialCrypto,env);
   const dataDeletion=metaDeletion(repos,env);
   const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver()),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),nodeAuth,browserNodes,webAppBaseUrl:env.WEB_APP_BASE_URL??'http://127.0.0.1:3000',...(integrations?{integrations}:{}),...(dataDeletion?{dataDeletion}:{})});
   return{store,repos,runtime,registry,services:{accounts,products,content,batchStatus,analytics,tracking,media,campaigns,nodeAuth,browserNodes},ids:{ownerId,workspaceId,brandId}};
@@ -143,7 +148,7 @@ export async function createRuntime(options:RuntimeOptions) {
     for(const platform of ['FACEBOOK','INSTAGRAM','THREADS','TIKTOK'] as const)registry.register(platform,'BROWSER',new BrowserPublisherProxy(platform,repos,browserClient));
     const storage=env.S3_ENDPOINT&&env.S3_REGION&&env.S3_ACCESS_KEY&&env.S3_SECRET_KEY&&env.S3_BUCKET?new S3CompatibleObjectStorage({endpoint:env.S3_ENDPOINT,region:env.S3_REGION,accessKey:env.S3_ACCESS_KEY,secretKey:env.S3_SECRET_KEY,bucket:env.S3_BUCKET}):new InMemoryObjectStorage();
     const analytics=new AnalyticsService(repos),products=new ProductsService(repos),content=new ContentService(repos),batchStatus=new BatchStatusService(repos,undefined,queue),tracking=new TrackingService(repos),media=new MediaService(repos,storage),campaigns=new CampaignsService(repos);
-    const integrations=metaIntegrations(repos,credentialCrypto,env);
+    const integrations=configuredIntegrations(repos,credentialCrypto,env);
     const dataDeletion=metaDeletion(repos,env);
     const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver(),queue),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),nodeAuth,browserNodes,webAppBaseUrl:env.WEB_APP_BASE_URL??'http://127.0.0.1:3000',...(integrations?{integrations}:{}),...(dataDeletion?{dataDeletion}:{})});
     return {repos,runtime,registry,queue,services:{accounts,products,content,batchStatus,analytics,tracking,media,campaigns,nodeAuth,browserNodes},ids,close:async()=>{await queue!.close();await client.$disconnect()}};
