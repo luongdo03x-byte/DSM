@@ -1,6 +1,7 @@
 'use client';
 
 import {useEffect,useMemo,useState,type FormEvent} from 'react';
+import Link from 'next/link';
 import {browserApi} from '../../lib/browser-runtime.ts';
 import {uploadMediaAsset} from '../../lib/media-upload.ts';
 import {formatDateTime} from '../../lib/ui/format.ts';
@@ -79,7 +80,7 @@ export function ContentManager({brandId}:{brandId:string}){
     finally{setSaving(false)}
   }
   return <div className="section-stack">
-    <PageHeader title="Nội dung" description="Tạo nội dung gốc, biên tập từng biến thể và kiểm tra trạng thái trước khi xuất bản." actions={<Button onClick={()=>setShowForm(value=>!value)}>{showForm?'Đóng biểu mẫu':'＋ Tạo nội dung'}</Button>}/>
+    <PageHeader title="Nội dung" description="Tạo nội dung gốc, biên tập từng biến thể và kiểm tra trạng thái trước khi xuất bản." actions={<Link className="ui-button ui-button--primary" href={'/app/brands/'+brandId+'/compose'}>Tạo bài</Link>}/>
     {error?<ErrorState message={error}/>:null}{success?<div className="feedback feedback--success" role="status">{success}</div>:null}
     {showForm?<Card className="form-panel"><h2>Tạo nội dung gốc</h2><form onSubmit={event=>void create(event)}>
       <div className="form-grid">
@@ -116,6 +117,7 @@ export function ContentManager({brandId}:{brandId:string}){
               </div>
               <Badge tone={statusTone(selected.status)}>{statusLabel(selected.status)}</Badge>
             </div>
+            <Link className="ui-button ui-button--secondary" href={'/app/brands/'+brandId+'/compose/'+selected.id}>Sửa trong Composer</Link>
             <div className="studio-master">
               <strong>Nội dung gốc</strong>
               <p>{selected.body?.trim()||'Chưa có phần nội dung gốc.'}</p>

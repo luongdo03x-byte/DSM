@@ -1,6 +1,6 @@
 import {createServer} from 'node:http';
 import type {LocalApiRuntime,LocalRequest,LocalResponse} from './runtime/local-api.ts';
-import {createDevelopmentRuntime,createRuntime} from './runtime/dev-runtime.ts';
+import {createRuntime} from './runtime/dev-runtime.ts';
 import {LocalWorkerRuntime,metricsCaptureKey} from '../../worker/src/runtime/local-worker.ts';
 import {JsonStorePersistence} from './runtime/json-store-persistence.ts';
 
@@ -71,7 +71,8 @@ async function boot(){
     if(process.env.APP_ENV==='production')throw new Error('DEV_IN_MEMORY_FORBIDDEN_IN_PRODUCTION');
     const persistence=process.env.DEV_STORE_FILE?new JsonStorePersistence(process.env.DEV_STORE_FILE):undefined;
     const store=persistence?await persistence.load():undefined;
-    const app=await createDevelopmentRuntime({...((store)?{store}: {})});
+    const app=await createRuntime({env:process.env,...(store?{store}:{})});
+    if(!('store' in app))throw new Error('MEMORY_RUNTIME_REQUIRED');
     const server=startApiServer(port,app.runtime),worker=new LocalWorkerRuntime(app.repos,app.registry,app.services.media);
     const timer=setInterval(()=>{void worker.tick().catch(error=>console.error('local worker tick failed',error));void worker.syncMetrics(metricsCaptureKey()).catch(error=>console.error('local metrics sync failed',error))},Number(process.env.LOCAL_WORKER_INTERVAL_MS??1000));
     let saving=false;const persist=async()=>{if(!persistence||saving)return;saving=true;try{await persistence.save(app.store)}catch(error){console.error('local store persistence failed',error)}finally{saving=false}};

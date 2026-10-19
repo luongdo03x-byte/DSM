@@ -14,6 +14,17 @@ export class ContentService {
   private readonly audit: AuditService | undefined;
   constructor(repos: Repositories, audit?: AuditService) {this.repos = repos; this.audit = audit}
 
+  async getDraft(brandId:string,contentId:string):Promise<ContentItem&{mediaAssetIds:string[]}>{
+    const content=await this.contentForBrand(brandId,contentId);
+    const rows=await this.masterMedia(content);
+    return {...content,mediaAssetIds:rows.sort((a,b)=>a.position-b.position).map(row=>row.mediaAssetId)};
+  }
+
+  async update(brandId:string,contentId:string,fields:{title?:string;hook?:string;body?:string;cta?:string}):Promise<ContentItem>{
+    await this.contentForBrand(brandId,contentId);
+    return this.repos.contents.update(contentId,fields);
+  }
+
   async create(brandId: string, input: CreateContent, userId?: string): Promise<ContentItem> {
     const mediaAssetIds = input.mediaAssetIds ?? (input.masterAssetId ? [input.masterAssetId] : []);
     if (input.type === 'TEXT' && mediaAssetIds.length) throw new Error('TEXT_MEDIA_INVALID');

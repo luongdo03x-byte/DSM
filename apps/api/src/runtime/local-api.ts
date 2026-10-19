@@ -236,6 +236,15 @@ export class LocalApiRuntime {
         }
       }
 
+      if((m=route(req.path,/^\/brands\/([^/]+)\/content\/([^/]+)$/))){
+        const brandId=decodeURIComponent(m[1]!),contentId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);
+        if(method==='GET')return{status:200,body:await this.d.content.getDraft(brandId,contentId)};
+        if(method==='PATCH'){
+          const b=asObject(req.body);
+          return{status:200,body:await this.d.content.update(brandId,contentId,{...(b.title!==undefined?{title:String(b.title)}:{}),...(b.hook!==undefined?{hook:String(b.hook)}:{}),...(b.body!==undefined?{body:String(b.body)}:{}),...(b.cta!==undefined?{cta:String(b.cta)}:{})})};
+        }
+      }
+
       if((m=route(req.path,/^\/brands\/([^/]+)\/content\/([^/]+)\/media$/))){
         const brandId=decodeURIComponent(m[1]!),contentId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);
         if(method==='PUT'){const b=asObject(req.body);if(!Array.isArray(b.mediaAssetIds))throw new Error('MEDIA_IDS_REQUIRED');return{status:200,body:await this.d.content.setMedia(brandId,contentId,b.mediaAssetIds.map(String))}}

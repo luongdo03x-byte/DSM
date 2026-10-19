@@ -33,6 +33,7 @@ export default defineConfig({
       env: {
         DEV_IN_MEMORY: '1',
         APP_ENV: 'test',
+        E2E_FAKE_PUBLISHERS: '1',
         API_PORT: '4000',
         DEV_STORE_FILE: '',
         S3_ENDPOINT: '',

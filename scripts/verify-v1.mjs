@@ -5,7 +5,7 @@ import {join} from 'node:path';
 // Số test Node tối thiểu phải pass. Tăng khi thêm test; xóa bớt test thì cổng đỏ.
 const MIN_NODE_TESTS = 137;
 const REQUIRED_NODE_TESTS = ['v1 acceptance harness', 'http api smoke journey'];
-const REQUIRED_E2E_TITLE = 'v1 critical UI journey';
+const REQUIRED_E2E_TITLES = ['v1 critical UI journey', 'compose journey publishes an ordered album to two accounts'];
 const REQUIRED_SECTIONS = ['Automated implementation gate', 'Critical journey', 'CI baseline (SP1)'];
 const NODE_COUNT_KEYS = ['tests', 'pass', 'fail', 'cancelled', 'skipped', 'todo'];
 const NODE_ZERO_KEYS = ['fail', 'cancelled', 'skipped', 'todo'];
@@ -86,26 +86,24 @@ function checkE2eReport() {
   for (const key of E2E_ZERO_KEYS) {
     if (stats[key] !== 0) problems.push(`${E2E_REPORT}: stats.${key} = ${stats[key]} (cần 0)`);
   }
-  const specs = collectSpecs(report.suites, []).filter((spec) => spec.title === REQUIRED_E2E_TITLE);
-  if (specs.length !== 1) {
-    problems.push(`required e2e not executed: "${REQUIRED_E2E_TITLE}" (tìm thấy ${specs.length} spec, cần đúng 1)`);
-    return stats.expected;
+  for (const title of REQUIRED_E2E_TITLES) {
+    const specs = collectSpecs(report.suites, []).filter((spec) => spec.title === title);
+    if (specs.length !== 1) {
+      problems.push(`required e2e not executed: "${title}" (tìm thấy ${specs.length} spec, cần đúng 1)`);
+      continue;
+    }
+    const spec = specs[0];
+    const where = `${E2E_REPORT}: spec "${title}"`;
+    if (spec.ok !== true) problems.push(`${where}: ok = ${spec.ok} (cần true)`);
+    const tests = Array.isArray(spec.tests) ? spec.tests : [];
+    if (tests.length === 0) problems.push(`${where}: tests[] rỗng`);
+    tests.forEach((test, index) => {
+      if (test.expectedStatus !== 'passed') problems.push(`${where}: tests[${index}].expectedStatus = '${test.expectedStatus}' (cần 'passed')`);
+      if (test.status !== 'expected') problems.push(`${where}: tests[${index}].status = '${test.status}' (cần 'expected')`);
+      const last = Array.isArray(test.results) ? test.results.at(-1) : undefined;
+      if (last?.status !== 'passed') problems.push(`${where}: tests[${index}].results[cuối].status = '${last?.status}' (cần 'passed')`);
+    });
   }
-  const spec = specs[0];
-  const where = `${E2E_REPORT}: spec "${REQUIRED_E2E_TITLE}"`;
-  if (spec.ok !== true) problems.push(`${where}: ok = ${spec.ok} (cần true)`);
-  const tests = Array.isArray(spec.tests) ? spec.tests : [];
-  if (tests.length === 0) problems.push(`${where}: tests[] rỗng`);
-  tests.forEach((test, index) => {
-    if (test.expectedStatus !== 'passed') {
-      problems.push(`${where}: tests[${index}].expectedStatus = '${test.expectedStatus}' (cần 'passed')`);
-    }
-    if (test.status !== 'expected') problems.push(`${where}: tests[${index}].status = '${test.status}' (cần 'expected')`);
-    const last = Array.isArray(test.results) ? test.results.at(-1) : undefined;
-    if (last?.status !== 'passed') {
-      problems.push(`${where}: tests[${index}].results[cuối].status = '${last?.status}' (cần 'passed')`);
-    }
-  });
   return stats.expected;
 }
 

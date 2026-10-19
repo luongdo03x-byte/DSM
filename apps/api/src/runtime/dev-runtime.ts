@@ -44,6 +44,7 @@ import {BrowserGatewayClient} from '../modules/browser-nodes/browser-gateway.cli
 import {BrowserPublisherProxy} from '../modules/publishing/browser-publisher.proxy.ts';
 import {NodeAuthService} from '../modules/browser-nodes/node-auth.service.ts';
 import {BrowserNodesService} from '../modules/browser-nodes/browser-nodes.service.ts';
+import {FakePublisher} from '../../../worker/src/testing/fake-publisher.ts';
 
 export interface DevelopmentRuntimeOptions{env?:Record<string,string|undefined>;hasher?:PasswordHasher;store?:MemoryStore}
 export interface RuntimeOptions {env:Record<string,string|undefined>;hasher?:PasswordHasher;store?:MemoryStore}
@@ -100,10 +101,16 @@ export async function createDevelopmentRuntime(options:DevelopmentRuntimeOptions
 
 export async function createRuntime(options:RuntimeOptions) {
   const env=options.env;
+  if(env.E2E_FAKE_PUBLISHERS==='1'&&env.APP_ENV!=='test')throw new Error('E2E_FAKE_PUBLISHERS_REQUIRES_TEST_ENV');
   const mode=env.RUNTIME_STORE??(env.DEV_IN_MEMORY==='1'?'memory':'postgres');
   if(mode==='memory'){
     if(env.APP_ENV==='production')throw new Error('DEV_IN_MEMORY_FORBIDDEN_IN_PRODUCTION');
     const app=await createDevelopmentRuntime(options);
+    if(env.E2E_FAKE_PUBLISHERS==='1')for(const platform of ['FACEBOOK','INSTAGRAM'] as const){
+      const account=(await app.repos.socialAccounts.findBy({brandId:app.ids.brandId,platform}))[0];
+      if(account)await app.repos.socialAccounts.update(account.id,{status:'CONNECTED'});
+      app.registry.register(platform,'API',new FakePublisher());
+    }
     return {...app,close:async()=>{}};
   }
   if(mode!=='postgres')throw new Error('RUNTIME_STORE_INVALID');
