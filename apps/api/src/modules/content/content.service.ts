@@ -7,7 +7,7 @@ import type {AuditService} from '../audit/audit.service.ts';
 
 const platforms: Platform[] = ['FACEBOOK', 'INSTAGRAM', 'THREADS', 'TIKTOK', 'YOUTUBE'];
 type CreateContent = {type: ContentType; title: string; productId?: string; hook?: string; body?: string; cta?: string; masterAssetId?: string; mediaAssetIds?: string[]};
-type UpdateVariant = {caption?: string; body?: string; hashtags?: string[]; cta?: string; assetId?: string; status?: 'DRAFT' | 'READY'};
+type UpdateVariant = {caption?: string; body?: string; hashtags?: string[]; cta?: string; assetId?: string; status?: 'DRAFT' | 'READY';tiktokSettings?:NonNullable<ContentVariant['tiktokSettings']>};
 
 export class ContentService {
   private readonly repos: Repositories;
@@ -157,6 +157,8 @@ export class ContentService {
     const content = await this.repos.contents.get(variant.contentItemId);
     if (!content || content.brandId !== brandId) throw new Error('VARIANT_NOT_FOUND');
     if (input.status === 'READY' && variant.skippedReason) throw new Error('VARIANT_SKIPPED');
+    if(input.tiktokSettings&&variant.platform!=='TIKTOK')throw new Error('INVALID_TIKTOK_SETTINGS');
+    if(input.tiktokSettings){const settings=input.tiktokSettings;if(!settings||typeof settings!=='object'||Array.isArray(settings)||typeof settings.privacyLevel!=='string'||!settings.privacyLevel||['disableComment','disableDuet','disableStitch','brandContentToggle','brandOrganicToggle'].some(key=>typeof settings[key as keyof typeof settings]!=='boolean'))throw new Error('INVALID_TIKTOK_SETTINGS')}
     if (input.assetId) {
       const asset = await this.repos.media.get(input.assetId);
       if (!asset || asset.brandId !== brandId) throw new Error('MEDIA_NOT_FOUND');

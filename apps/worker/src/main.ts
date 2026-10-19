@@ -31,7 +31,7 @@ export async function startWorker(options: WorkerOptions): Promise<{close(): Pro
   const notify=async(event:NotificationEvent)=>{try{const brand=await app.repos.brands.get(event.brandId);if(brand)await dispatcher.dispatch(brand.workspaceId,event)}catch(error){console.error('notification dispatch failed',error)}};
   const runner = new JobRunner(app.repos, options.registry ?? app.registry,undefined,queue,Date.now,dispatcher);
   const activeRegistry=app.registry;
-  const refreshTokens=async()=>refreshExpiringTokens({repos:app.repos,adapters:{FACEBOOK:activeRegistry.get('FACEBOOK','API') as PlatformAdapter,INSTAGRAM:activeRegistry.get('INSTAGRAM','API') as PlatformAdapter},now:Date.now(),notify});
+  const refreshTokens=async()=>refreshExpiringTokens({repos:app.repos,adapters:{FACEBOOK:activeRegistry.get('FACEBOOK','API') as PlatformAdapter,INSTAGRAM:activeRegistry.get('INSTAGRAM','API') as PlatformAdapter,TIKTOK:activeRegistry.get('TIKTOK','API') as PlatformAdapter},now:Date.now(),notify});
   const builder = new PublishInputBuilder(app.repos, app.services.media);
   const recovery = new RecoveryService(app.repos);
   const concurrency = Math.max(1, Number(env.WORKER_CONCURRENCY ?? 4));
@@ -54,8 +54,8 @@ export async function startWorker(options: WorkerOptions): Promise<{close(): Pro
     throw error;
   }
   const timer = setInterval(() => {void recovery.requeueMissing(queue).catch(error => console.error('worker recovery failed', error))}, 60_000);
-  const tokenTimer=setInterval(()=>{void refreshTokens().catch(error=>console.error('Meta token refresh failed',error))},60*60_000);
-  void refreshTokens().catch(error=>console.error('Meta token refresh failed',error));
+  const tokenTimer=setInterval(()=>{void refreshTokens().catch(error=>console.error('Platform token refresh failed',error))},60*60_000);
+  void refreshTokens().catch(error=>console.error('Platform token refresh failed',error));
   let closed = false;
   const close = async () => {
     if (closed) return;

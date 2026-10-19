@@ -18,6 +18,7 @@ export class TikTokAdapter implements PlatformAdapter{
   readonly publicMediaBaseUrl:string|undefined;
   constructor(deps:Deps){this.http=deps.http;this.tokens=deps.tokens;this.auditApproved=deps.auditApproved;this.publicMediaBaseUrl=deps.publicMediaBaseUrl;this.loadVideo=deps.loadVideo??(async url=>{const response=await fetch(url);if(!response.ok)throw new PublishError({type:'NETWORK_ERROR',code:'TT_MEDIA_FETCH_FAILED',message:`Media fetch failed: ${response.status}`,retryable:response.status>=500});return new Uint8Array(await response.arrayBuffer())});this.refresh=deps.refresh;this.username=deps.username;this.status=new TikTokStatusService(deps.http,deps.tokens)}
   capabilities(_account:SocialAccount):AdapterCapabilities{return{platform:this.platform,rule:MEDIA_RULES.TIKTOK}}
+  isAuditApproved():boolean{return this.auditApproved}
   refreshToken(account:SocialAccount):Promise<TokenRefreshResult>{return this.refresh?this.refresh(account):Promise.resolve({refreshed:false})}
   private settings(input:PublishInput):TikTokPostSettings{
     const value=input.metadata?.tiktok as Partial<TikTokPostSettings>|undefined;
@@ -48,7 +49,7 @@ export class TikTokAdapter implements PlatformAdapter{
     if(images.some(item=>!isPublicMediaUrl(item.url,this.publicMediaBaseUrl!)))throw invalid('TT_MEDIA_URL_NOT_PUBLIC','Ảnh phải nằm trên domain media công khai đã xác minh');
     return images;
   }
-  async validate(input:PublishInput):Promise<ValidationResult>{try{if(input.contentType==='IMAGE'||input.contentType==='ALBUM')this.photoMedia(input);await this.checkedSettings(input);if(!MEDIA_RULES.TIKTOK.formats.includes(String(input.metadata?.format??input.contentType) as any))throw invalid('TT_FORMAT_UNSUPPORTED');return{valid:true,errors:[],warnings:[]}}catch(error){if(error instanceof PublishError&&error.type==='VALIDATION_ERROR')return{valid:false,errors:[error.code],warnings:[]};throw error}}
+  async validate(input:PublishInput):Promise<ValidationResult>{try{if(input.contentType==='IMAGE'||input.contentType==='ALBUM'){if(input.media?.length||input.mediaUrl)this.photoMedia(input);else if(!this.publicMediaBaseUrl)throw invalid('TT_MEDIA_DOMAIN_NOT_CONFIGURED')}await this.checkedSettings(input);if(!MEDIA_RULES.TIKTOK.formats.includes(String(input.metadata?.format??input.contentType) as any))throw invalid('TT_FORMAT_UNSUPPORTED');return{valid:true,errors:[],warnings:[]}}catch(error){if(error instanceof PublishError&&error.type==='VALIDATION_ERROR')return{valid:false,errors:[error.code],warnings:[]};throw error}}
   async publish(input:PublishInput):Promise<PublishResult>{
     if(input.contentType==='IMAGE'||input.contentType==='ALBUM'){
       const images=this.photoMedia(input),settings=await this.checkedSettings(input),token=await this.tokens(input.socialAccountId);

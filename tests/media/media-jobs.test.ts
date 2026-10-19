@@ -70,3 +70,13 @@ test('Facebook publish input carries Page ID, format and product link',async()=>
   const input=await new PublishInputBuilder(repos,new MediaService(repos,storage)).build({brandId:'b',socialAccountId:'a',contentVariantId:'v',platform:'FACEBOOK'});
   assert.deepEqual(input.metadata,{pageId:'page-123',format:'LINK',link:'https://shop.test/p'});
 });
+
+test('TikTok composer settings reach worker publish input',async()=>{
+  const repos=new MemoryRepositories(new MemoryStore()),storage=new InMemoryObjectStorage();
+  await repos.workspaces.insert({id:'w',name:'W'});await repos.brands.insert({id:'b',workspaceId:'w',name:'B',slug:'b',language:'vi',timezone:'UTC',currency:'USD',status:'ACTIVE'});
+  await repos.contents.insert({id:'c',brandId:'b',type:'VIDEO',title:'Clip',status:'READY'});
+  const settings={privacyLevel:'SELF_ONLY',disableComment:false,disableDuet:true,disableStitch:true,brandContentToggle:false,brandOrganicToggle:false};
+  await repos.variants.insert({id:'v',contentItemId:'c',platform:'TIKTOK',format:'VIDEO',hashtags:[],status:'READY',tiktokSettings:settings});
+  const input=await new PublishInputBuilder(repos,new MediaService(repos,storage)).build({brandId:'b',socialAccountId:'a',contentVariantId:'v',platform:'TIKTOK'});
+  assert.deepEqual(input.metadata?.tiktok,settings);
+});

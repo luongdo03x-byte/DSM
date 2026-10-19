@@ -159,8 +159,13 @@ export class PublishingService {
   private tryPublisher(platform: Platform, strategy: 'API' | 'BROWSER') {
     try {return this.registry.get(platform, strategy)} catch {return undefined}
   }
+  async tiktokCreatorInfo(accountId:string){
+    const adapter=this.registry.get('TIKTOK','API') as {creatorInfo?:(accountId:string)=>Promise<Record<string,unknown>>;isAuditApproved?:()=>boolean};
+    if(!adapter.creatorInfo)throw new Error('TIKTOK_NOT_CONFIGURED');
+    return{...await adapter.creatorInfo(accountId),auditApproved:adapter.isAuditApproved?.()??false};
+  }
   private toInput(brandId: string, socialAccountId: string, variant: ContentVariant, contentType: ContentType) {
     return {brandId, socialAccountId, contentVariantId: variant.id, platform: variant.platform, contentType,
-      ...(variant.caption ? {caption: variant.caption} : {}), ...(variant.body ? {body: variant.body} : {})};
+      ...(variant.caption ? {caption: variant.caption} : {}), ...(variant.body ? {body: variant.body} : {}),metadata:{...(variant.format?{format:variant.format}:{}),...(variant.tiktokSettings?{tiktok:variant.tiktokSettings}:{})}};
   }
 }

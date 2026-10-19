@@ -155,6 +155,12 @@ export class LocalApiRuntime {
         if(method==='GET')return{status:200,body:await this.d.accounts.list(brandId)};
         if(method==='POST'){const b=asObject(req.body);return{status:201,body:await this.d.accounts.create(brandId,{platform:b.platform,username:b.username,publishMode:b.publishMode})}}
       }
+      if((m=route(req.path,/^\/brands\/([^/]+)\/accounts\/([^/]+)\/tiktok\/creator-info$/))){
+        const brandId=decodeURIComponent(m[1]!),accountId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);
+        const account=await this.d.repos.socialAccounts.get(accountId);
+        if(!account||account.brandId!==brandId||account.platform!=='TIKTOK')throw new Error('ACCOUNT_NOT_FOUND');
+        if(method==='GET')return{status:200,body:await this.d.publishing.tiktokCreatorInfo(accountId)};
+      }
       if((m=route(req.path,/^\/brands\/([^/]+)\/notification-channels$/))){
         const brandId=decodeURIComponent(m[1]!),access=await this.authorize(userId,brandId);
         if(method==='GET')return{status:200,body:(await this.d.repos.notificationChannels.findBy({workspaceId:access.workspaceId})).map(({encryptedSecret:_secret,...row})=>row)};
@@ -292,7 +298,7 @@ export class LocalApiRuntime {
         const brandId=decodeURIComponent(m[1]!),contentId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);if(method==='GET')return{status:200,body:await this.d.content.listVariants(brandId,contentId)};
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/content\/([^/]+)\/variants\/([^/]+)$/))){
-        const brandId=decodeURIComponent(m[1]!),contentId=decodeURIComponent(m[2]!),variantId=decodeURIComponent(m[3]!);await this.authorize(userId,brandId);await this.d.content.listVariants(brandId,contentId);if(method==='PATCH'){const b=asObject(req.body);return{status:200,body:await this.d.content.updateVariant(brandId,variantId,{...(b.caption!==undefined?{caption:String(b.caption)}:{}),...(b.body!==undefined?{body:String(b.body)}:{}),...(Array.isArray(b.hashtags)?{hashtags:b.hashtags.map(String)}:{}),...(b.cta!==undefined?{cta:String(b.cta)}:{}),...(b.assetId!==undefined?{assetId:String(b.assetId)}:{}),...(b.status==='READY'||b.status==='DRAFT'?{status:b.status}:{})})}}
+        const brandId=decodeURIComponent(m[1]!),contentId=decodeURIComponent(m[2]!),variantId=decodeURIComponent(m[3]!);await this.authorize(userId,brandId);await this.d.content.listVariants(brandId,contentId);if(method==='PATCH'){const b=asObject(req.body);return{status:200,body:await this.d.content.updateVariant(brandId,variantId,{...(b.caption!==undefined?{caption:String(b.caption)}:{}),...(b.body!==undefined?{body:String(b.body)}:{}),...(Array.isArray(b.hashtags)?{hashtags:b.hashtags.map(String)}:{}),...(b.cta!==undefined?{cta:String(b.cta)}:{}),...(b.assetId!==undefined?{assetId:String(b.assetId)}:{}),...(b.status==='READY'||b.status==='DRAFT'?{status:b.status}:{}),...(b.tiktokSettings?{tiktokSettings:b.tiktokSettings}:{})})}}
       }
       if((m=route(req.path,/^\/brands\/([^/]+)\/content\/([^/]+)\/variants\/copy$/))){
         const brandId=decodeURIComponent(m[1]!);const contentId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);

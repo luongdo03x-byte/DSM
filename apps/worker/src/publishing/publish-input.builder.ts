@@ -31,6 +31,6 @@ export class PublishInputBuilder {
     return {brandId: job.brandId, socialAccountId: job.socialAccountId, contentVariantId: variant.id, platform: job.platform, contentType: content.type,
       ...(variant.caption ? {caption: variant.caption} : {}), ...(variant.body ? {body: variant.body} : {}),
       ...(mediaUrl ? {mediaUrl} : {}),...(media.length?{media}:{}), ...(job.remoteCorrelationId ? {remoteCorrelationId: job.remoteCorrelationId} : {}),
-      metadata:{...(variant.format?{format:variant.format}:{}),...(account?.platformAccountId&&job.platform==='FACEBOOK'?{pageId:account.platformAccountId}:{}),...(account?.platformAccountId&&job.platform==='INSTAGRAM'?{platformAccountId:account.platformAccountId}:{}),...(product?.landingUrl?{link:product.landingUrl}:{})}};
+      metadata:{...(variant.format?{format:variant.format}:{}),...(variant.tiktokSettings&&job.platform==='TIKTOK'?{tiktok:variant.tiktokSettings}:{}),...(account?.platformAccountId&&job.platform==='FACEBOOK'?{pageId:account.platformAccountId}:{}),...(account?.platformAccountId&&job.platform==='INSTAGRAM'?{platformAccountId:account.platformAccountId}:{}),...(product?.landingUrl?{link:product.landingUrl}:{})}};
   }
 }

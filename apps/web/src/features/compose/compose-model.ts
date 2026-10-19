@@ -1,6 +1,7 @@
 import type {ContentFormat,ContentType,CropBox,Platform} from '../../../../../packages/shared/src/domain.ts';
 import type {PreflightIssue} from '../../../../../packages/shared/src/preflight.ts';
-export interface VariantDraft{variantId?:string;platform:Platform;format?:ContentFormat;caption:string;title?:string;hashtags:string[];mediaOrder:string[];crops:Record<string,CropBox>;coverAssetId?:string;issues:PreflightIssue[];skippedReason?:string}
+import type {TikTokPostSettings} from '../../../../api/src/integrations/tiktok/tiktok.adapter.ts';
+export interface VariantDraft{variantId?:string;platform:Platform;format?:ContentFormat;caption:string;title?:string;hashtags:string[];mediaOrder:string[];crops:Record<string,CropBox>;coverAssetId?:string;issues:PreflightIssue[];skippedReason?:string;tiktokSettings?:Partial<TikTokPostSettings>}
 export interface ComposeSnapshot{type:ContentType;title:string;body:string;hook:string;cta:string;mediaAssetIds:string[];selectedAccountIds:string[];accountPlatforms:Record<string,Platform>;variants:Record<string,VariantDraft>;schedule:{mode:'now'}|{mode:'at';date:string;time:string}}
 export interface ComposeState extends ComposeSnapshot{contentId?:string;saved:ComposeSnapshot}
 export type ComposeAction=

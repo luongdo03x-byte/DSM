@@ -15,7 +15,7 @@ export interface ContentItem{id:string;brandId:string;productId?:string;type:Con
 export interface ContentMedia{id:string;contentItemId:string;mediaAssetId:string;position:number}
 export interface CropBox{x:number;y:number;width:number;height:number}
 export interface VariantMedia{id:string;contentVariantId:string;mediaAssetId:string;position:number;crop?:CropBox;isCover:boolean}
-export interface ContentVariant{id:string;contentItemId:string;socialAccountId?:string;platform:Platform;caption?:string;body?:string;hashtags:string[];cta?:string;assetId?:string;status:'DRAFT'|'READY';format?:ContentFormat;title?:string;skippedReason?:string}
+export interface ContentVariant{id:string;contentItemId:string;socialAccountId?:string;platform:Platform;caption?:string;body?:string;hashtags:string[];cta?:string;assetId?:string;status:'DRAFT'|'READY';format?:ContentFormat;title?:string;skippedReason?:string;tiktokSettings?:{privacyLevel:string;disableComment:boolean;disableDuet:boolean;disableStitch:boolean;brandContentToggle:boolean;brandOrganicToggle:boolean}}
 export interface Campaign{id:string;brandId:string;productId?:string;name:string;description?:string;status:'DRAFT'|'ACTIVE'|'PAUSED'|'COMPLETED';startAt?:string;endAt?:string;contentIds:string[]}
 export interface AuthSession{id:string;userId:string;refreshTokenHash:string;expiresAt:number;revokedAt?:number}
 export interface AuditLog{id:string;workspaceId:string;userId?:string;action:string;entityType:string;entityId?:string;metadata?:Record<string,unknown>;createdAt:number}

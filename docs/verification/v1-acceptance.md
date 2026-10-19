@@ -90,6 +90,8 @@ Status: BLOCKED_EXTERNAL — requires Threads API authorization and a safe test 
 
 Status: BLOCKED_EXTERNAL — requires TikTok Content Posting API credentials, Direct Post audit/approval, creator authorization, and verified media domain where required.
 
+Local adapter and Composer checks run in `pnpm verify`; live video and photo publishing remain blocked until the external items in [TikTok audit runbook](../runbooks/tiktok-audit.md) are complete.
+
 ## GPMLogin browser smoke
 
 Status: BLOCKED_EXTERNAL — requires a Windows runner with GPMLogin installed, authorized test profiles, and browser session access.

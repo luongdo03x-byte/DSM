@@ -306,6 +306,7 @@ model ContentVariant {
   format          ContentFormat?
   title           String?
   skippedReason   String?
+  tiktokSettings  Json?
   content         ContentItem    @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
   socialAccount   SocialAccount? @relation(fields: [socialAccountId], references: [id], onDelete: SetNull)
   publishJobs     PublishJob[]

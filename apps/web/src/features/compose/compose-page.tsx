@@ -14,6 +14,9 @@ import {CropDialog} from './crop-dialog.tsx';
 import {PlatformPreview} from './platform-preview.tsx';
 import {SchedulePicker} from './schedule-picker.tsx';
 import {composeReducer,emptyComposeState,hashtagsFromCaption,isDirty,publishableTargets,type ComposeState} from './compose-model.ts';
+import {TikTokSettings} from './tiktok-settings.tsx';
+import {canSubmit,tiktokSettingsState} from './tiktok-settings-model.ts';
+import type {TikTokCreatorInfo,TikTokPostSettings} from '../../../../api/src/integrations/tiktok/tiktok.adapter.ts';
 
 type Validation={socialAccountId:string;platform:Platform;valid:boolean;errors?:string[];warnings?:string[]};
 type PublishResult={results?:Array<{jobId?:string;socialAccountId:string}>};
@@ -36,6 +39,7 @@ export function ComposePage({brandId,contentId:initialContentId}:{brandId:string
   const [success,setSuccess]=useState('');
   const [saveLabel,setSaveLabel]=useState('');
   const [validation,setValidation]=useState<Validation[]>([]);
+  const [tiktokCreator,setTiktokCreator]=useState<(TikTokCreatorInfo&{auditApproved:boolean})>();
 
   useEffect(()=>{let mounted=true;void Promise.all([
     browserApi.request<SocialAccount[]>(`/brands/${brandId}/accounts`),
@@ -48,11 +52,12 @@ export function ComposePage({brandId,contentId:initialContentId}:{brandId:string
       for(const field of ['type','title','body','hook','cta'] as const)dispatch({type:'setField',field,value:(item[field]??(field==='type'?'TEXT':'')) as never});
       item.mediaAssetIds.forEach((id,index)=>{originalOrder.current[id]=index+1});dispatch({type:'setMedia',mediaAssetIds:item.mediaAssetIds});
       const variants=await browserApi.request<ContentVariant[]>(`${path(brandId,initialContentId)}/variants`);
-      if(mounted){for(const variant of variants)dispatch({type:'editVariant',platform:variant.platform,patch:{variantId:variant.id,caption:variant.caption??'',hashtags:variant.hashtags,...(variant.title?{title:variant.title}:{}),...(variant.format?{format:variant.format}:{}),...(variant.skippedReason?{skippedReason:variant.skippedReason}:{})}});setTimeout(()=>dispatch({type:'markSaved'}),0)}
+      if(mounted){for(const variant of variants)dispatch({type:'editVariant',platform:variant.platform,patch:{variantId:variant.id,caption:variant.caption??'',hashtags:variant.hashtags,...(variant.title?{title:variant.title}:{}),...(variant.format?{format:variant.format}:{}),...(variant.skippedReason?{skippedReason:variant.skippedReason}:{}),...(variant.tiktokSettings?{tiktokSettings:variant.tiktokSettings}:{})}});setTimeout(()=>dispatch({type:'markSaved'}),0)}
     }
   }).catch(()=>{if(mounted)setError('Không thể tải dữ liệu Composer.')});return()=>{mounted=false}},[brandId,initialContentId]);
 
   useEffect(()=>{const listener=(event:BeforeUnloadEvent)=>{if(isDirty(stateRef.current)){event.preventDefault();event.returnValue=''}};window.addEventListener('beforeunload',listener);return()=>window.removeEventListener('beforeunload',listener)},[]);
+  useEffect(()=>{const account=accounts.find(row=>row.platform==='TIKTOK'&&state.selectedAccountIds.includes(row.id));if(!account){setTiktokCreator(undefined);return}let mounted=true;void browserApi.request<TikTokCreatorInfo&{auditApproved:boolean}>(`/brands/${brandId}/accounts/${account.id}/tiktok/creator-info`).then(info=>{if(mounted)setTiktokCreator(info)}).catch(()=>{if(mounted)setError('Không thể tải cài đặt tài khoản TikTok.')});return()=>{mounted=false}},[accounts,brandId,state.selectedAccountIds]);
   useEffect(()=>{if(!isDirty(state)||!state.title.trim())return;const timer=setTimeout(()=>{void saveDraft()},800);return()=>clearTimeout(timer)},[state.type,state.title,state.body,state.hook,state.cta,state.mediaAssetIds]);
 
   const saveDraft=useCallback(async():Promise<string|undefined>=>{
@@ -88,6 +93,7 @@ export function ComposePage({brandId,contentId:initialContentId}:{brandId:string
     try{
       const current=stateRef.current;
       if(!current.selectedAccountIds.length)throw new Error('Hãy chọn ít nhất một tài khoản.');
+      if(current.selectedAccountIds.some(accountId=>current.accountPlatforms[accountId]==='TIKTOK')){const settings=current.variants.TIKTOK?.tiktokSettings;if(!tiktokCreator||!canSubmit(settings??{},tiktokSettingsState(tiktokCreator,tiktokCreator.auditApproved)))throw new Error('Hãy chọn quyền riêng tư và kiểm tra cài đặt TikTok.');}
       if(current.type==='ALBUM'&&current.mediaAssetIds.length<2)throw new Error('Album cần ít nhất 2 ảnh.');
       const id=await saveDraft();if(!id)throw new Error('Hãy nhập tiêu đề và media hợp lệ.');
       const rows=await prepareVariants(id,current);
@@ -96,7 +102,7 @@ export function ComposePage({brandId,contentId:initialContentId}:{brandId:string
         const row=rows.find(value=>value.platform===platform);if(!row)continue;
         const draft=current.variants[platform];
         if(draft?.mediaOrder.length){await browserApi.request(`${path(brandId,id)}/variants/${row.id}/media`,{method:'PUT',...json,body:JSON.stringify({items:draft.mediaOrder.map(assetId=>({mediaAssetId:assetId,isCover:assetId===(draft.coverAssetId??draft.mediaOrder[0]),...(draft.crops[assetId]?{crop:draft.crops[assetId]}:{})}))})})}
-        if(!row.skippedReason)await browserApi.request(`${path(brandId,id)}/variants/${row.id}`,{method:'PATCH',...json,body:JSON.stringify({caption:draft?.caption??current.body,body:current.body,hashtags:draft?.hashtags??hashtagsFromCaption(current.body),cta:current.cta,status:'READY'})});
+        if(!row.skippedReason)await browserApi.request(`${path(brandId,id)}/variants/${row.id}`,{method:'PATCH',...json,body:JSON.stringify({caption:draft?.caption??current.body,body:current.body,hashtags:draft?.hashtags??hashtagsFromCaption(current.body),cta:current.cta,status:'READY',...(platform==='TIKTOK'?{tiktokSettings:{disableComment:tiktokCreator?.commentDisabled??false,disableDuet:tiktokCreator?.duetDisabled??false,disableStitch:tiktokCreator?.stitchDisabled??false,brandContentToggle:false,brandOrganicToggle:false,...draft?.tiktokSettings}}:{})})});
         const response=await browserApi.request<{issues:PreflightIssue[]}>(`${path(brandId,id)}/variants/${row.id}/preflight`);issuesByPlatform.set(platform,response.issues);dispatch({type:'applyPreflight',platform,issues:response.issues});
       }
       const localTargets=publishableTargets({...current,variants:Object.fromEntries(rows.map(row=>[row.platform,{...current.variants[row.platform],platform:row.platform,variantId:row.id,issues:issuesByPlatform.get(row.platform)??[],skippedReason:row.skippedReason}])) as ComposeState['variants']});
@@ -129,7 +135,7 @@ export function ComposePage({brandId,contentId:initialContentId}:{brandId:string
     </div><p className="muted">{saveLabel||'Bản nháp sẽ tự lưu khi bạn rời ô nhập.'}</p>
     {state.type!=='TEXT'?<div className="field"><label htmlFor="compose-media">Tệp ảnh hoặc video</label><input id="compose-media" type="file" multiple={state.type==='ALBUM'} accept={state.type==='VIDEO'?'video/*':'image/*'} onChange={event=>void upload(event.target.files)}/>{uploading?<small>Đang tải tệp...</small>:null}<MediaStrip ids={state.mediaAssetIds} originalOrder={originalOrder.current} onReorder={(from,to)=>dispatch({type:'reorderMedia',from,to})} onRemove={index=>dispatch({type:'setMedia',mediaAssetIds:state.mediaAssetIds.filter((_,i)=>i!==index)})}/></div>:null}</Card>
     <Card><h2>Tài khoản nhận bài</h2><div className="account-choice-list">{accounts.map(account=><label className="account-choice" key={account.id}><input type="checkbox" checked={state.selectedAccountIds.includes(account.id)} onChange={()=>{dispatch({type:'toggleAccount',accountId:account.id,platform:account.platform});setActivePlatform(account.platform)}}/><span><strong>{platformLabel(account.platform)}</strong><br/><small>{account.username??account.id}</small></span></label>)}</div><SchedulePicker schedule={state.schedule} timeZone={timeZone} onChange={schedule=>dispatch({type:'setSchedule',schedule})}/><div className="form-actions"><button className="ui-button ui-button--ghost" type="button" onClick={()=>void saveDraft()}>Lưu bản nháp</button><button className="ui-button ui-button--primary" type="button" disabled={busy||uploading} onClick={()=>void publish()}>{busy?'Đang kiểm tra...':state.schedule.mode==='at'?'Lên lịch':'Đăng ngay'}</button></div></Card></div>
-    {selectedPlatforms.length?<Card><h2>Xem trước theo nền tảng</h2><div className="studio-platform-tabs" role="tablist" aria-label="Xem trước nền tảng">{selectedPlatforms.map(platform=><button key={platform} role="tab" aria-selected={activePlatform===platform} type="button" onClick={()=>setActivePlatform(platform)}>{platformLabel(platform)}</button>)}</div><PlatformPreview platform={activePlatform} variant={state.variants[activePlatform]} body={state.body} onCaption={caption=>dispatch({type:'editVariant',platform:activePlatform,patch:{caption,hashtags:hashtagsFromCaption(caption)}})}/>{state.mediaAssetIds.length?<div className="row-actions">{state.mediaAssetIds.map(id=><span key={id}><button type="button" className="ui-button ui-button--ghost" onClick={()=>dispatch({type:'setCover',platform:activePlatform,mediaAssetId:id})}>Đặt ảnh bìa {id.slice(-6)}</button><button type="button" className="ui-button ui-button--ghost" onClick={()=>setCropTarget(id)}>Cắt ảnh</button></span>)}</div>:null}</Card>:null}
+    {selectedPlatforms.length?<Card><h2>Xem trước theo nền tảng</h2><div className="studio-platform-tabs" role="tablist" aria-label="Xem trước nền tảng">{selectedPlatforms.map(platform=><button key={platform} role="tab" aria-selected={activePlatform===platform} type="button" onClick={()=>setActivePlatform(platform)}>{platformLabel(platform)}</button>)}</div><PlatformPreview platform={activePlatform} variant={state.variants[activePlatform]} body={state.body} onCaption={caption=>dispatch({type:'editVariant',platform:activePlatform,patch:{caption,hashtags:hashtagsFromCaption(caption)}})}/>{activePlatform==='TIKTOK'&&tiktokCreator?<TikTokSettings creatorInfo={tiktokCreator} auditApproved={tiktokCreator.auditApproved} settings={state.variants.TIKTOK?.tiktokSettings??{}} onChange={(tiktokSettings:Partial<TikTokPostSettings>)=>dispatch({type:'editVariant',platform:'TIKTOK',patch:{tiktokSettings}})}/>:null}{state.mediaAssetIds.length?<div className="row-actions">{state.mediaAssetIds.map(id=><span key={id}><button type="button" className="ui-button ui-button--ghost" onClick={()=>dispatch({type:'setCover',platform:activePlatform,mediaAssetId:id})}>Đặt ảnh bìa {id.slice(-6)}</button><button type="button" className="ui-button ui-button--ghost" onClick={()=>setCropTarget(id)}>Cắt ảnh</button></span>)}</div>:null}</Card>:null}
     {validation.length?<Card><h2>Kiểm tra xuất bản</h2>{validation.map(row=><p key={row.socialAccountId}>{platformLabel(row.platform)}: {row.valid?'Sẵn sàng':row.errors?.join(', ')}</p>)}</Card>:null}
     {cropTarget?<CropDialog onClose={()=>setCropTarget(undefined)} onApply={crop=>{dispatch({type:'setCrop',platform:activePlatform,mediaAssetId:cropTarget,crop});setCropTarget(undefined)}}/>:null}
   </div>;
