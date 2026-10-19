@@ -12,7 +12,8 @@ type UpdateVariant = {caption?: string; body?: string; hashtags?: string[]; cta?
 export class ContentService {
   private readonly repos: Repositories;
   private readonly audit: AuditService | undefined;
-  constructor(repos: Repositories, audit?: AuditService) {this.repos = repos; this.audit = audit}
+  private readonly publicMediaBaseUrl:string|undefined;
+  constructor(repos: Repositories, audit?: AuditService, options:{publicMediaBaseUrl?:string}={}) {this.repos = repos; this.audit = audit;this.publicMediaBaseUrl=options.publicMediaBaseUrl??process.env.PUBLIC_MEDIA_BASE_URL}
 
   async getDraft(brandId:string,contentId:string):Promise<ContentItem&{mediaAssetIds:string[]}>{
     const content=await this.contentForBrand(brandId,contentId);
@@ -116,7 +117,8 @@ export class ContentService {
     }
     const format=variant.format??inferred;
     if (typeof format==='object' && 'skipped' in format) return [{code:'VARIANT_SKIPPED',severity:'error',message:format.skipped,field:'media'}];
-    return preflight({platform:variant.platform,format:typeof format==='string'?format:format.format,hashtags:variant.hashtags,media,
+    const mediaUrls=this.publicMediaBaseUrl?await Promise.all(rows.map(async row=>{const asset=await this.repos.media.get(row.mediaAssetId);return asset?`${this.publicMediaBaseUrl!.replace(/\/$/,'')}/${asset.storageKey.split('/').map(encodeURIComponent).join('/')}`:''})):[];
+    return preflight({platform:variant.platform,format:typeof format==='string'?format:format.format,hashtags:variant.hashtags,media,mediaUrls,publicMediaBaseUrl:this.publicMediaBaseUrl??'',
       ...(variant.caption?{caption:variant.caption}:{}),...(variant.title?{title:variant.title}:{})});
   }
 

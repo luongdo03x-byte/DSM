@@ -16,6 +16,8 @@ export class TikTokHttpClient{
     const err:any=(r.data as any)?.error,code=String(err?.code??'');
     if(r.status===401||code==='access_token_invalid'||code==='scope_not_authorized')throw new PublishError({type:'AUTH_ERROR',code:code||'AUTH',message:err?.message??'TikTok authorization failed',retryable:false});
     if(r.status===429||code==='rate_limit_exceeded')throw new PublishError({type:'RATE_LIMIT',code:code||'RATE_LIMIT',message:err?.message??'TikTok rate limited',retryable:true});
+    if(code==='url_ownership_unverified')throw new PublishError({type:'VALIDATION_ERROR',code,message:'Domain media chưa được xác minh với TikTok',retryable:false});
+    if(code==='unaudited_client_can_only_post_to_private_accounts')throw new PublishError({type:'VALIDATION_ERROR',code,message:'App chưa được TikTok duyệt: hãy chọn Chỉ mình tôi',retryable:false});
     if(r.status>=500)throw new PublishError({type:'PLATFORM_ERROR',code:`HTTP_${r.status}`,message:err?.message??'TikTok server error',retryable:true});
     if(r.status>=400||(err&&code&&code!=='ok'))throw new PublishError({type:'PLATFORM_ERROR',code:code||`HTTP_${r.status}`,message:err?.message??'TikTok request failed',retryable:false});
     return r.data as any;

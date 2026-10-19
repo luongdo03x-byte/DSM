@@ -38,6 +38,7 @@ test('derive JPEG theo crop, tái dùng asset và giữ thứ tự publish input
   await repos.socialAccounts.insert({id:'ig',brandId:'b',platform:'INSTAGRAM',platformAccountId:'ig-platform',publishMode:'API',status:'CONNECTED'});
   const input=await builder.build({brandId:'b',socialAccountId:'ig',contentVariantId:variant.id,platform:'INSTAGRAM'});
   assert.deepEqual(input.media?.map(media=>media.url),first.map(asset=>`https://media.example.test/${asset.storageKey}`));
+  assert.deepEqual(input.media?.map(media=>media.isCover),[true,false,false]);
   assert.equal(input.mediaUrl,input.media?.[0]?.url);
   assert.equal(input.metadata?.platformAccountId,'ig-platform');
 });

@@ -15,6 +15,12 @@ export interface PreflightInput {
   title?: string;
   hashtags: string[];
   media: MediaFacts[];
+  mediaUrls?:string[];
+  publicMediaBaseUrl?:string;
+}
+
+export function isPublicMediaUrl(value:string,base:string):boolean{
+  try{const url=new URL(value),prefix=new URL(base);return url.protocol==='https:'&&prefix.protocol==='https:'&&url.origin===prefix.origin&&(url.pathname===prefix.pathname||url.pathname.startsWith(prefix.pathname.replace(/\/$/,'')+'/'))}catch{return false}
 }
 
 const prefix: Record<Platform, string> = {FACEBOOK: 'FB', INSTAGRAM: 'IG', THREADS: 'TH', TIKTOK: 'TT', YOUTUBE: 'YT'};
@@ -27,6 +33,10 @@ export function preflight(input: PreflightInput): PreflightIssue[] {
   if (!rule.formats.includes(input.format)) error('FORMAT_UNSUPPORTED', 'Nền tảng không hỗ trợ định dạng này.', 'media');
   if (rule.albumMax !== undefined && input.format === 'ALBUM' && input.media.length > rule.albumMax)
     error('ALBUM_MAX', `Album vượt quá ${rule.albumMax} ảnh cho phép.`, 'media');
+  if(input.platform==='TIKTOK'&&(input.format==='IMAGE'||input.format==='ALBUM')&&input.publicMediaBaseUrl!==undefined){
+    if(!input.publicMediaBaseUrl)error('MEDIA_DOMAIN_NOT_CONFIGURED','Chưa cấu hình domain media công khai cho TikTok.','media');
+    else if(input.mediaUrls?.some(url=>!isPublicMediaUrl(url,input.publicMediaBaseUrl!)))error('MEDIA_URL_NOT_PUBLIC','Ảnh phải nằm trên domain media công khai đã xác minh với TikTok.','media');
+  }
   if (rule.hashtagMax !== undefined && input.hashtags.length > rule.hashtagMax)
     error('HASHTAG_MAX', `Chỉ được dùng tối đa ${rule.hashtagMax} hashtag.`, 'hashtags');
   if (input.caption && input.caption.length > rule.captionMax)

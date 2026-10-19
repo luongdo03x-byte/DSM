@@ -11,7 +11,7 @@ import {LocalWorkerRuntime} from '../../apps/worker/src/runtime/local-worker.ts'
 import {FakePublisher} from '../../apps/worker/src/testing/fake-publisher.ts';
 
 test('http api album journey',async t=>{
-  const app=await createDevelopmentRuntime({env:{DEV_OWNER_EMAIL:'album@dsm.test',DEV_OWNER_PASSWORD:'album-password',CREDENTIAL_ENCRYPTION_KEY:randomBytes(32).toString('base64'),JWT_ACCESS_SECRET:randomBytes(32).toString('hex')}});
+  const app=await createDevelopmentRuntime({env:{DEV_OWNER_EMAIL:'album@dsm.test',DEV_OWNER_PASSWORD:'album-password',CREDENTIAL_ENCRYPTION_KEY:randomBytes(32).toString('base64'),JWT_ACCESS_SECRET:randomBytes(32).toString('hex'),PUBLIC_MEDIA_BASE_URL:'https://media.test/'}});
   for(const platform of ['FACEBOOK','INSTAGRAM','TIKTOK'] as const)app.registry.register(platform,'API',new FakePublisher());
   const server=startApiServer(0,app.runtime);
   t.after(()=>new Promise<void>((resolve,reject)=>{server.close(error=>error?reject(error):resolve());server.closeAllConnections()}));

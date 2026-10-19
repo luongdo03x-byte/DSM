@@ -2,6 +2,7 @@ import type {PlatformAdapter,AdapterCapabilities,TokenRefreshResult} from '../..
 import {PublishError,type PublishInput,type PublishResult,type PublishedPostData,type PostMetricsData,type ValidationResult} from '../../../../../packages/platform-contracts/src/index.ts';
 import type {SocialAccount} from '../../../../../packages/shared/src/domain.ts';
 import {MEDIA_RULES} from '../../../../../packages/shared/src/media-rules.ts';
+import {isPublicMediaUrl} from '../../../../../packages/shared/src/preflight.ts';
 import {TikTokHttpClient} from './tiktok-http.client.ts';
 import {planChunks} from '../../modules/publishing/platforms/tiktok/tiktok-upload.service.ts';
 
@@ -37,8 +38,23 @@ export class TikTokAdapter implements PlatformAdapter{
     if(info.maxVideoPostDurationSec&&duration>info.maxVideoPostDurationSec)throw invalid('TT_VIDEO_TOO_LONG');
     return settings;
   }
-  async validate(input:PublishInput):Promise<ValidationResult>{try{await this.checkedSettings(input);if(!MEDIA_RULES.TIKTOK.formats.includes(String(input.metadata?.format??input.contentType) as any))throw invalid('TT_FORMAT_UNSUPPORTED');return{valid:true,errors:[],warnings:[]}}catch(error){if(error instanceof PublishError&&error.type==='VALIDATION_ERROR')return{valid:false,errors:[error.code],warnings:[]};throw error}}
+  private photoMedia(input:PublishInput){
+    const images=input.media?.length?input.media:[...(input.mediaUrl?[{url:input.mediaUrl,kind:'IMAGE' as const,isCover:true}]:[])];
+    if(!images.length||images.some(item=>item.kind!=='IMAGE'))throw invalid('TT_PHOTO_REQUIRED');
+    if(images.length>35)throw invalid('TT_ALBUM_MAX');
+    if(input.contentType==='ALBUM'&&images.length<2)throw invalid('TT_ALBUM_MIN');
+    if(!this.publicMediaBaseUrl)throw invalid('TT_MEDIA_DOMAIN_NOT_CONFIGURED','Chưa cấu hình domain media công khai cho TikTok');
+    if(images.some(item=>!isPublicMediaUrl(item.url,this.publicMediaBaseUrl!)))throw invalid('TT_MEDIA_URL_NOT_PUBLIC','Ảnh phải nằm trên domain media công khai đã xác minh');
+    return images;
+  }
+  async validate(input:PublishInput):Promise<ValidationResult>{try{if(input.contentType==='IMAGE'||input.contentType==='ALBUM')this.photoMedia(input);await this.checkedSettings(input);if(!MEDIA_RULES.TIKTOK.formats.includes(String(input.metadata?.format??input.contentType) as any))throw invalid('TT_FORMAT_UNSUPPORTED');return{valid:true,errors:[],warnings:[]}}catch(error){if(error instanceof PublishError&&error.type==='VALIDATION_ERROR')return{valid:false,errors:[error.code],warnings:[]};throw error}}
   async publish(input:PublishInput):Promise<PublishResult>{
+    if(input.contentType==='IMAGE'||input.contentType==='ALBUM'){
+      const images=this.photoMedia(input),settings=await this.checkedSettings(input),token=await this.tokens(input.socialAccountId);
+      const response=await this.http.api('/v2/post/publish/content/init/',token,'POST',{media_type:'PHOTO',post_mode:'DIRECT_POST',post_info:{title:input.caption??'',description:input.body??input.caption??'',privacy_level:settings.privacyLevel,disable_comment:settings.disableComment,brand_content_toggle:settings.brandContentToggle,brand_organic_toggle:settings.brandOrganicToggle},source_info:{source:'PULL_FROM_URL',photo_images:images.map(item=>item.url),photo_cover_index:Math.max(0,images.findIndex(item=>item.isCover))}},input.socialAccountId);
+      const data=response.data??response,publishId=String(data.publish_id??'');if(!publishId)throw new PublishError({type:'PLATFORM_ERROR',code:'TT_INIT_INCOMPLETE',message:'TikTok did not return a publish ID',retryable:false});
+      return{processing:true,remoteCorrelationId:publishId};
+    }
     if(input.contentType!=='VIDEO')throw invalid('TT_FORMAT_UNSUPPORTED');
     const settings=await this.checkedSettings(input),media=input.media?.find(item=>item.kind==='VIDEO')?.url??input.mediaUrl;if(!media)throw invalid('TT_VIDEO_REQUIRED');
     const bytes=await this.loadVideo(media);if(!bytes.byteLength)throw invalid('TT_VIDEO_REQUIRED');

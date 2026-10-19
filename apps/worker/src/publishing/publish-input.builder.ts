@@ -21,10 +21,11 @@ export class PublishInputBuilder {
     const account=await this.repos.socialAccounts.get(job.socialAccountId);
     const product=content.productId?await this.repos.products.get(content.productId):undefined;
     const assets=await prepareVariantMedia(this.repos,this.media.storage,variant.id,MEDIA_RULES[job.platform]);
+    const mediaRows=(await this.repos.variantMedia.findBy({contentVariantId:variant.id})).sort((a,b)=>a.position-b.position);
     const media=[];
-    for(const asset of assets){
+    for(const [index,asset] of assets.entries()){
       const url=this.publicMediaBaseUrl?`${this.publicMediaBaseUrl.replace(/\/$/,'')}/${asset.storageKey.split('/').map(encodeURIComponent).join('/')}`:await this.media.download({workspaceId:brand.workspaceId,brandId:job.brandId},asset.id);
-      media.push({url,mimeType:asset.mimeType,kind:asset.type,width:asset.width??0,height:asset.height??0,...(asset.durationMs!==undefined?{durationMs:asset.durationMs}:{})});
+      media.push({url,mimeType:asset.mimeType,kind:asset.type,width:asset.width??0,height:asset.height??0,isCover:mediaRows[index]?.isCover??index===0,...(asset.durationMs!==undefined?{durationMs:asset.durationMs}:{})});
     }
     const mediaUrl=media[0]?.url;
     return {brandId: job.brandId, socialAccountId: job.socialAccountId, contentVariantId: variant.id, platform: job.platform, contentType: content.type,

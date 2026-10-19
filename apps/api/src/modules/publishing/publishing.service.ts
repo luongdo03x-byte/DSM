@@ -16,8 +16,9 @@ export class PublishingService {
   private readonly registry: PublisherRegistry;
   private readonly resolver: StrategyResolver;
   private readonly queue: JobQueue | undefined;
-  constructor(repos: Repositories, registry: PublisherRegistry, resolver: StrategyResolver, queue?: JobQueue) {
-    this.repos = repos; this.registry = registry; this.resolver = resolver; this.queue = queue;
+  private readonly publicMediaBaseUrl:string|undefined;
+  constructor(repos: Repositories, registry: PublisherRegistry, resolver: StrategyResolver, queue?: JobQueue,options:{publicMediaBaseUrl?:string}={}) {
+    this.repos = repos; this.registry = registry; this.resolver = resolver; this.queue = queue;this.publicMediaBaseUrl=options.publicMediaBaseUrl;
   }
 
   async listCalendar(brandId:string,from:number,to:number):Promise<CalendarEntry[]>{
@@ -64,7 +65,7 @@ export class PublishingService {
         results.push({socialAccountId: accountId, platform: account.platform, valid: false, errors: ['VARIANT_NOT_READY'], warnings: []});
         continue;
       }
-      const preflightIssues = await new ContentService(this.repos).preflightVariant(input.brandId,variant.id);
+      const preflightIssues = await new ContentService(this.repos,undefined,{publicMediaBaseUrl:this.publicMediaBaseUrl??''}).preflightVariant(input.brandId,variant.id);
       const preflightErrors = preflightIssues.filter(issue=>issue.severity==='error').map(issue=>issue.code);
       const preflightWarnings = preflightIssues.filter(issue=>issue.severity==='warning').map(issue=>issue.code);
       const warnings = (extra:string[]=[])=>[...new Set([...preflightWarnings,...extra])];
