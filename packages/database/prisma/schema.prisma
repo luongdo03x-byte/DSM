@@ -119,6 +119,7 @@ model Brand {
   campaigns      Campaign[]
   publishBatches PublishBatch[]
   trackedLinks   TrackedLink[]
+  pillars        ContentPillar[]
 
   @@unique([workspaceId, slug])
   @@index([workspaceId])
@@ -162,6 +163,7 @@ model SocialAccount {
   publishJobs       PublishJob[]
   publishedPosts    PublishedPost[]
   channelSnapshots   ChannelSnapshot[]
+  channelGoal        ChannelGoal?
 
   @@index([brandId, platform])
 }
@@ -274,6 +276,7 @@ model ContentItem {
   id            String            @id @default(uuid())
   brandId       String
   productId     String?
+  pillarId      String?
   type          ContentType
   title         String
   hook          String?
@@ -283,6 +286,7 @@ model ContentItem {
   status        String
   brand         Brand             @relation(fields: [brandId], references: [id], onDelete: Restrict)
   product       Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
+  pillar        ContentPillar?    @relation(fields: [pillarId], references: [id], onDelete: SetNull)
   variants      ContentVariant[]
   media         ContentMedia[]
   campaignLinks CampaignContent[]
@@ -291,6 +295,7 @@ model ContentItem {
 
   @@index([brandId, status])
   @@index([productId])
+  @@index([pillarId])
 }
 
 model ContentVariant {
@@ -485,6 +490,27 @@ model ChannelSnapshot {
 
   @@unique([socialAccountId, day])
   @@index([socialAccountId, day])
+}
+
+model ChannelGoal {
+  id              String        @id
+  socialAccountId String        @unique
+  postsPer28Days  Int
+  followersTarget Int?
+  targetDate      String?
+  account         SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+}
+
+model ContentPillar {
+  id          String        @id
+  brandId     String
+  name        String
+  color       String
+  description String?
+  brand       Brand         @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  contents    ContentItem[]
+
+  @@unique([brandId, name])
 }
 
 model TrackedLink {

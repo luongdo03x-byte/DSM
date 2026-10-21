@@ -16,7 +16,7 @@ const fields = {
   brands: ['id', 'workspaceId', 'name', 'slug', 'language', 'timezone', 'currency', 'status'],
   products: ['id', 'brandId', 'name', 'slug', 'description', 'imageAssetId', 'supplierUrl', 'landingUrl', 'cost', 'sellingPrice', 'currency', 'status'],
   media: ['id', 'brandId', 'workspaceId', 'type', 'storageKey', 'mimeType', 'sizeBytes', 'width', 'height', 'durationMs', 'derivedFromAssetId', 'variantKey', 'exifStripped', 'codec'],
-  contents: ['id', 'brandId', 'productId', 'type', 'title', 'hook', 'body', 'cta', 'masterAssetId', 'status'],
+  contents: ['id', 'brandId', 'productId', 'pillarId', 'type', 'title', 'hook', 'body', 'cta', 'masterAssetId', 'status'],
   contentMedia: ['id', 'contentItemId', 'mediaAssetId', 'position'],
   variantMedia: ['id', 'contentVariantId', 'mediaAssetId', 'position', 'crop', 'isCover'],
   variants: ['id', 'contentItemId', 'socialAccountId', 'platform', 'caption', 'body', 'hashtags', 'cta', 'assetId', 'status', 'format', 'title', 'skippedReason', 'tiktokSettings', 'youtube'],
@@ -35,6 +35,8 @@ const fields = {
   publishedPosts: ['id', 'brandId', 'publishJobId', 'socialAccountId', 'contentVariantId', 'platform', 'platformPostId', 'platformPostUrl', 'publishedAt'],
   postMetrics: ['id', 'publishedPostId', 'capturedAt', 'captureKey', 'views', 'likes', 'comments', 'shares', 'saves', 'clicks', 'rawMetrics'],
   channelSnapshots: ['id','socialAccountId','day','followers','views','reach','engagements','profileViews','watchTimeMinutes','source','capturedAt','raw'],
+  channelGoals: ['id','socialAccountId','postsPer28Days','followersTarget','targetDate'],
+  contentPillars: ['id','brandId','name','color','description'],
   trackedLinks: ['id', 'brandId', 'productId', 'contentItemId', 'publishedPostId', 'code', 'targetUrl', 'utmSource', 'utmMedium', 'utmCampaign', 'utmContent'],
   clickEvents: ['id', 'trackedLinkId', 'timestamp', 'referrer', 'userAgent', 'country', 'deviceType'],
 } as const;
