@@ -161,6 +161,7 @@ model SocialAccount {
   variants          ContentVariant[]
   publishJobs       PublishJob[]
   publishedPosts    PublishedPost[]
+  channelSnapshots   ChannelSnapshot[]
 
   @@index([brandId, platform])
 }
@@ -465,6 +466,25 @@ model PostMetric {
 
   @@unique([publishedPostId, captureKey])
   @@index([publishedPostId, capturedAt])
+}
+
+model ChannelSnapshot {
+  id               String        @id
+  socialAccountId  String
+  day              String
+  followers        BigInt?
+  views            BigInt?
+  reach            BigInt?
+  engagements      BigInt?
+  profileViews     BigInt?
+  watchTimeMinutes BigInt?
+  source           String
+  capturedAt       BigInt
+  raw              Json
+  account          SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([socialAccountId, day])
+  @@index([socialAccountId, day])
 }
 
 model TrackedLink {

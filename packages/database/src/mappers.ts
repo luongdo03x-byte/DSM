@@ -34,11 +34,12 @@ const fields = {
   publishAttempts: ['id', 'publishJobId', 'attemptNumber', 'strategy', 'startedAt', 'finishedAt', 'status', 'errorType', 'errorCode', 'errorMessage', 'metadata'],
   publishedPosts: ['id', 'brandId', 'publishJobId', 'socialAccountId', 'contentVariantId', 'platform', 'platformPostId', 'platformPostUrl', 'publishedAt'],
   postMetrics: ['id', 'publishedPostId', 'capturedAt', 'captureKey', 'views', 'likes', 'comments', 'shares', 'saves', 'clicks', 'rawMetrics'],
+  channelSnapshots: ['id','socialAccountId','day','followers','views','reach','engagements','profileViews','watchTimeMinutes','source','capturedAt','raw'],
   trackedLinks: ['id', 'brandId', 'productId', 'contentItemId', 'publishedPostId', 'code', 'targetUrl', 'utmSource', 'utmMedium', 'utmCampaign', 'utmContent'],
   clickEvents: ['id', 'trackedLinkId', 'timestamp', 'referrer', 'userAgent', 'country', 'deviceType'],
 } as const;
 
-const epochFields = new Set(['expiresAt', 'revokedAt', 'createdAt', 'lastSeenAt', 'scheduledAt', 'publishAt', 'processingStartedAt', 'startedAt', 'finishedAt', 'publishedAt', 'capturedAt', 'timestamp', 'consumedAt', 'sizeBytes', 'views', 'likes', 'comments', 'shares', 'saves', 'clicks']);
+const epochFields = new Set(['expiresAt', 'revokedAt', 'createdAt', 'lastSeenAt', 'scheduledAt', 'publishAt', 'processingStartedAt', 'startedAt', 'finishedAt', 'publishedAt', 'capturedAt', 'timestamp', 'consumedAt', 'sizeBytes', 'views', 'likes', 'comments', 'shares', 'saves', 'clicks','followers','reach','engagements','profileViews','watchTimeMinutes']);
 
 export function toDomain(table: DomainTable, row: RecordValue): RecordValue {
   const result: RecordValue = {};
@@ -46,7 +47,7 @@ export function toDomain(table: DomainTable, row: RecordValue): RecordValue {
     let value = row[key];
     if (table === 'campaigns' && key === 'contentIds') value = row.contents?.map((link: RecordValue) => link.contentItemId) ?? [];
     if (table === 'socialAccounts' && key === 'browserProfileId') value = row.browserProfile?.id;
-    if (value === null || value === undefined) continue;
+    if (value === null || value === undefined) {if(table==='channelSnapshots'&&value===null)result[key]=null;continue}
     if (typeof value === 'bigint') value = Number(value);
     if ((key === 'cost' || key === 'sellingPrice') && typeof value === 'object') value = value.toString();
     if (value instanceof Date) value = value.toISOString();

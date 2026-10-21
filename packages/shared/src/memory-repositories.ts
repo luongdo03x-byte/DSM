@@ -114,6 +114,7 @@ export class MemoryRepositories implements Repositories {
   readonly publishAttempts: Repositories['publishAttempts'];
   readonly publishedPosts: Repositories['publishedPosts'];
   readonly postMetrics: Repositories['postMetrics'];
+  readonly channelSnapshots: Repositories['channelSnapshots'];
   readonly quotaUsage:QuotaUsageRepo;
   readonly trackedLinks: Repositories['trackedLinks'];
   readonly clickEvents: Repositories['clickEvents'];
@@ -145,6 +146,7 @@ export class MemoryRepositories implements Repositories {
     this.publishAttempts = new ArrayRepo(store.publishAttempts);
     this.publishedPosts = new MapRepo(store.publishedPosts);
     this.postMetrics = new ArrayRepo(store.postMetrics);
+    this.channelSnapshots = new MapRepo(store.channelSnapshots);
     this.quotaUsage={get:async id=>store.quotaUsage.get(id),tryConsume:async(row,limit)=>{const current=store.quotaUsage.get(row.id);if((current?.used??0)>=limit)return false;store.quotaUsage.set(row.id,{...row,used:(current?.used??0)+1});return true}};
     this.trackedLinks = new MapRepo(store.trackedLinks);
     this.clickEvents = new ArrayRepo(store.clickEvents);

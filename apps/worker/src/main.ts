@@ -1,4 +1,4 @@
-import {Worker} from 'bullmq';
+import {Queue,Worker} from 'bullmq';
 import IORedis from 'ioredis';
 import type {PublisherRegistry} from '../../api/src/modules/publishing/publisher-registry.ts';
 import {createRuntime} from '../../api/src/runtime/dev-runtime.ts';
@@ -12,6 +12,8 @@ import {NotificationDispatcher} from './notifications/notification-dispatcher.ts
 import {TelegramNotifier} from './notifications/telegram.notifier.ts';
 import {EmailNotifier} from './notifications/email.notifier.ts';
 import type {NotificationEvent} from '../../../packages/shared/src/notifications.ts';
+import type {InsightsSource} from '../../../packages/platform-contracts/src/insights.ts';
+import {runDailySnapshots,scheduleBrandSnapshots,SNAPSHOT_QUEUE} from './analytics/snapshot.job.ts';
 
 export interface WorkerOptions {env: Record<string, string | undefined>; registry?: PublisherRegistry}
 
@@ -31,6 +33,13 @@ export async function startWorker(options: WorkerOptions): Promise<{close(): Pro
   const notify=async(event:NotificationEvent)=>{try{const brand=await app.repos.brands.get(event.brandId);if(brand)await dispatcher.dispatch(brand.workspaceId,event)}catch(error){console.error('notification dispatch failed',error)}};
   const runner = new JobRunner(app.repos, options.registry ?? app.registry,undefined,queue,Date.now,dispatcher);
   const activeRegistry=app.registry;
+  const insightSources:Partial<Record<'FACEBOOK'|'INSTAGRAM'|'TIKTOK'|'YOUTUBE',InsightsSource>>={};
+  for(const platform of ['FACEBOOK','INSTAGRAM','TIKTOK','YOUTUBE'] as const){const adapter=activeRegistry.get(platform,'API');if('fetchAccountDaily' in adapter)insightSources[platform]=adapter as unknown as InsightsSource}
+  const analyticsQueueConnection=new IORedis(env.REDIS_URL,{maxRetriesPerRequest:null});
+  const analyticsWorkerConnection=new IORedis(env.REDIS_URL,{maxRetriesPerRequest:null});
+  const analyticsQueue=new Queue<{brandId:string}>(SNAPSHOT_QUEUE,{connection:analyticsQueueConnection});
+  const analyticsWorker=new Worker<{brandId:string}>(SNAPSHOT_QUEUE,async job=>runDailySnapshots({repos:app.repos,sources:insightSources,now:Date.now(),brandId:String(job.data.brandId)}),{connection:analyticsWorkerConnection,concurrency:1,autorun:false});
+  analyticsWorker.on('error',error=>console.error('analytics snapshot worker failed',error));
   const refreshTokens=async()=>refreshExpiringTokens({repos:app.repos,adapters:{FACEBOOK:activeRegistry.get('FACEBOOK','API') as PlatformAdapter,INSTAGRAM:activeRegistry.get('INSTAGRAM','API') as PlatformAdapter,TIKTOK:activeRegistry.get('TIKTOK','API') as PlatformAdapter,YOUTUBE:activeRegistry.get('YOUTUBE','API') as PlatformAdapter},now:Date.now(),notify});
   const builder = new PublishInputBuilder(app.repos, app.services.media);
   const recovery = new RecoveryService(app.repos);
@@ -46,15 +55,22 @@ export async function startWorker(options: WorkerOptions): Promise<{close(): Pro
   worker.on('error', error => console.error('worker error', error));
   try {
     await recovery.requeueMissing(queue);
+    await scheduleBrandSnapshots(app.repos,analyticsQueue);
     void worker.run().catch(error => console.error('worker run failed', error));
+    void analyticsWorker.run().catch(error=>console.error('analytics worker run failed',error));
   } catch (error) {
     await worker.close();
+    await analyticsWorker.close();
+    await analyticsQueue.close();
+    analyticsQueueConnection.disconnect();
+    analyticsWorkerConnection.disconnect();
     connection.disconnect();
     await app.close();
     throw error;
   }
   const timer = setInterval(() => {void recovery.requeueMissing(queue).catch(error => console.error('worker recovery failed', error))}, 60_000);
   const tokenTimer=setInterval(()=>{void refreshTokens().catch(error=>console.error('Platform token refresh failed',error))},60*60_000);
+  const snapshotTimer=setInterval(()=>{void scheduleBrandSnapshots(app.repos,analyticsQueue).catch(error=>console.error('Analytics scheduler failed',error))},60*60_000);
   void refreshTokens().catch(error=>console.error('Platform token refresh failed',error));
   let closed = false;
   const close = async () => {
@@ -62,8 +78,13 @@ export async function startWorker(options: WorkerOptions): Promise<{close(): Pro
     closed = true;
     clearInterval(timer);
     clearInterval(tokenTimer);
+    clearInterval(snapshotTimer);
     process.off('SIGTERM', onSigterm);
     await worker.close();
+    await analyticsWorker.close();
+    await analyticsQueue.close();
+    analyticsQueueConnection.disconnect();
+    analyticsWorkerConnection.disconnect();
     connection.disconnect();
     await app.close();
   };
