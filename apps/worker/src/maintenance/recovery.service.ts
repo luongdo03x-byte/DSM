@@ -11,7 +11,7 @@ export class RecoveryService {
     let count = 0;
     const recovered = new Set<string>();
     for (const job of await this.repos.publishJobs.findBy({status: 'PROCESSING'})) {
-      if(job.strategy==='API'&&job.remoteCorrelationId){await queue.schedulePoll(job.id,Math.max(now,job.scheduledAt));count++;continue}
+      if(job.strategy==='API'&&job.remoteCorrelationId&&!(job.platform==='YOUTUBE'&&job.remoteCorrelationId.startsWith('resumable:'))){await queue.schedulePoll(job.id,Math.max(now,job.scheduledAt));count++;continue}
       if ((job.processingStartedAt ?? job.scheduledAt) > now - STALE_PROCESSING_MS) continue;
       if (!await this.repos.publishJobs.claim(job.id, ['PROCESSING'], 'RETRYING')) continue;
       await this.repos.publishJobs.update(job.id, {scheduledAt: now});

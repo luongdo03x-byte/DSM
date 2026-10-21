@@ -10,7 +10,7 @@ import {ContentService} from '../content/content.service.ts';
 type ValidationInput = {brandId: string; contentId: string; socialAccountIds: string[]; apiHealth?: Record<string, boolean>; browserHealth?: Record<string, boolean>};
 export const MAX_SCHEDULE_AHEAD_DAYS=75;
 export const YOUTUBE_EARLY_UPLOAD_MS=15*60_000;
-export interface CalendarEntry {jobId:string;contentItemId:string;title:string;platform:Platform;socialAccountId:string;format?:ContentFormat;scheduledAt:number;status:JobStatus;publishedUrl?:string;errorCode?:string;statusLabel?:string}
+export interface CalendarEntry {jobId:string;contentItemId:string;title:string;platform:Platform;socialAccountId:string;format?:ContentFormat;scheduledAt:number;status:JobStatus;publishedUrl?:string;errorCode?:string;statusLabel?:string;warning?:string}
 
 export class PublishingService {
   private readonly repos: Repositories;
@@ -36,7 +36,7 @@ export class PublishingService {
     if(!Number.isFinite(scheduledAt)||scheduledAt<now+5*60_000)throw new Error('SCHEDULE_TOO_SOON');
     if(scheduledAt>now+MAX_SCHEDULE_AHEAD_DAYS*24*60*60_000)throw new Error('SCHEDULE_TOO_FAR');
     if(uploaded){const adapter=this.registry.get('YOUTUBE','API') as {reschedule?:(input:{socialAccountId:string;videoId:string;publishAt:number})=>Promise<void>};if(!adapter.reschedule)throw new Error('JOB_NOT_RESCHEDULABLE');await adapter.reschedule({socialAccountId:job.socialAccountId,videoId:job.remoteCorrelationId!.slice(6),publishAt:scheduledAt});await this.repos.publishJobs.update(jobId,{publishAt:scheduledAt,scheduledAt:scheduledAt+60_000});await this.queue?.schedulePoll(jobId,scheduledAt+60_000)}
-    else{const early=job.platform==='YOUTUBE'&&job.strategy==='API'&&scheduledAt>now+YOUTUBE_EARLY_UPLOAD_MS,runAt=early?now:scheduledAt;if(!await this.repos.publishJobs.claim(jobId,['QUEUED','RETRYING'],'QUEUED',{patch:{scheduledAt:runAt,publishAt:early?scheduledAt:null}}))throw new Error('JOB_NOT_RESCHEDULABLE');await this.queue?.reschedule(jobId,runAt)}
+    else{const variant=job.platform==='YOUTUBE'?await this.repos.variants.get(job.contentVariantId):undefined;const early=job.platform==='YOUTUBE'&&job.strategy==='API'&&variant?.youtube?.privacyStatus==='public'&&scheduledAt>now+YOUTUBE_EARLY_UPLOAD_MS,runAt=early?now:scheduledAt;if(!await this.repos.publishJobs.claim(jobId,['QUEUED','RETRYING'],'QUEUED',{patch:{scheduledAt:runAt,publishAt:early?scheduledAt:null}}))throw new Error('JOB_NOT_RESCHEDULABLE');await this.queue?.reschedule(jobId,runAt)}
     return this.calendarEntry((await this.repos.publishJobs.get(jobId))!);
   }
 
@@ -45,7 +45,8 @@ export class PublishingService {
     const content=batch?await this.repos.contents.get(batch.contentItemId):undefined;
     const variant=await this.repos.variants.get(job.contentVariantId);
     const published=(await this.repos.publishedPosts.findBy({publishJobId:job.id}))[0];
-    return{jobId:job.id,contentItemId:batch?.contentItemId??variant?.contentItemId??'',title:content?.title??'',platform:job.platform,socialAccountId:job.socialAccountId,...(variant?.format?{format:variant.format}:{}),scheduledAt:job.publishAt??job.scheduledAt,status:job.status,...(job.platform==='YOUTUBE'&&job.status==='PROCESSING'&&job.remoteCorrelationId?.startsWith('video:')?{statusLabel:'Đã tải lên, chờ YouTube công bố'}:{}),...(published?.platformPostUrl?{publishedUrl:published.platformPostUrl}:{}),...(job.errorCode?{errorCode:job.errorCode}:{})};
+    const warning=(await this.repos.publishAttempts.findBy({publishJobId:job.id})).map(row=>row.metadata?.note).find(note=>typeof note==='string');
+    return{jobId:job.id,contentItemId:batch?.contentItemId??variant?.contentItemId??'',title:content?.title??'',platform:job.platform,socialAccountId:job.socialAccountId,...(variant?.format?{format:variant.format}:{}),scheduledAt:job.publishAt??job.scheduledAt,status:job.status,...(job.platform==='YOUTUBE'&&job.status==='PROCESSING'&&job.remoteCorrelationId?.startsWith('video:')?{statusLabel:'Đã tải lên, chờ YouTube công bố'}:{}),...(published?.platformPostUrl?{publishedUrl:published.platformPostUrl}:{}),...(job.errorCode?{errorCode:job.errorCode}:{}),...(typeof warning==='string'?{warning}:{})};
   }
 
   async validateTargets(input: ValidationInput) {
@@ -139,7 +140,7 @@ export class PublishingService {
         if (!result.valid || !result.strategy || !result.contentVariantId) {results.push(result); continue}
         const key = await sha256([input.brandId, result.socialAccountId, result.contentVariantId, new Date(scheduledAt).toISOString()].join('|'));
         const existing = existingByAccount.get(result.socialAccountId);
-        const early=result.platform==='YOUTUBE'&&result.strategy==='API'&&scheduledAt>Date.now()+YOUTUBE_EARLY_UPLOAD_MS;
+        const selectedVariant=result.platform==='YOUTUBE'?await repos.variants.get(result.contentVariantId):undefined;const early=result.platform==='YOUTUBE'&&result.strategy==='API'&&selectedVariant?.youtube?.privacyStatus==='public'&&scheduledAt>Date.now()+YOUTUBE_EARLY_UPLOAD_MS;
         const job: PublishJob = existing ?? {id: id('job'), batchId, brandId: input.brandId, socialAccountId: result.socialAccountId,
           contentVariantId: result.contentVariantId, platform: result.platform, strategy: result.strategy, scheduledAt:early?Date.now():scheduledAt,...(early?{publishAt:scheduledAt}:{}),
           status: 'QUEUED', attemptCount: 0, maxAttempts: 4, idempotencyKey: key};

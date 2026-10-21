@@ -43,7 +43,7 @@ export class JobRunner {
 
   async poll(jobId:string):Promise<'PUBLISHED'|'PROCESSING'|'FAILED'>{
     const job=await this.repos.publishJobs.get(jobId);if(!job)throw new Error('JOB_NOT_FOUND');
-    if(job.status==='PUBLISHED')return'PUBLISHED';if(job.status!=='PROCESSING'||!job.remoteCorrelationId)return'FAILED';
+    if(job.status==='PUBLISHED')return'PUBLISHED';if(job.status!=='PROCESSING'||!job.remoteCorrelationId||job.platform==='YOUTUBE'&&job.remoteCorrelationId.startsWith('resumable:'))return'FAILED';
     const now=this.now();
     const claimed=await this.repos.publishJobs.claim(jobId,['PROCESSING'],'PROCESSING',{dueAt:now,patch:{scheduledAt:now+POLL_LEASE_MS}});
     if(!claimed)return(await this.repos.publishJobs.get(jobId))?.status==='PUBLISHED'?'PUBLISHED':'PROCESSING';
@@ -127,13 +127,13 @@ export class JobRunner {
       if (result.remoteCorrelationId) await this.repos.publishJobs.update(jobId, {remoteCorrelationId: result.remoteCorrelationId});
       if (result.externalPostId) {
         await this.persistPost(job, {externalPostId: result.externalPostId, exists: true, ...(result.externalUrl ? {externalUrl: result.externalUrl} : {}), ...(result.publishedAt ? {publishedAt: result.publishedAt} : {})});
-        await this.repos.publishAttempts.append({id: id('attempt'), publishJobId: jobId, attemptNumber, strategy: job.strategy, startedAt, finishedAt: Date.now(), status: 'PUBLISHED'});
+        await this.repos.publishAttempts.append({id: id('attempt'), publishJobId: jobId, attemptNumber, strategy: job.strategy, startedAt, finishedAt: Date.now(), status: 'PUBLISHED',...(result.note?{metadata:{note:result.note}}:{})});
         return 'PUBLISHED';
       }
       if (result.processing && result.remoteCorrelationId) {
         await this.repos.publishJobs.update(jobId, {status: 'PROCESSING'});
         await this.schedulePoll({...job,processingStartedAt:startedAt},this.now());
-        await this.repos.publishAttempts.append({id: id('attempt'), publishJobId: jobId, attemptNumber, strategy: job.strategy, startedAt, finishedAt: this.now(), status: 'PROCESSING'});
+        await this.repos.publishAttempts.append({id: id('attempt'), publishJobId: jobId, attemptNumber, strategy: job.strategy, startedAt, finishedAt: this.now(), status: 'PROCESSING',...(result.note?{metadata:{note:result.note}}:{})});
         return 'PROCESSING';
       }
       throw new PublishError({type: 'PLATFORM_ERROR', code: 'NO_POST_ID', message: 'No post id', retryable: true});

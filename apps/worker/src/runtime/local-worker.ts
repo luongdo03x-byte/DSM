@@ -31,7 +31,7 @@ export class LocalWorkerRuntime {
       if (result !== 'SKIPPED') count++;
     }
     for(const job of await this.repos.publishJobs.findBy({status:'PROCESSING'})){
-      if(job.strategy==='API'&&job.remoteCorrelationId&&job.scheduledAt<=now){await this.runner.poll(job.id);count++}
+      if(job.strategy==='API'&&job.remoteCorrelationId&&!(job.platform==='YOUTUBE'&&job.remoteCorrelationId.startsWith('resumable:'))&&job.scheduledAt<=now){await this.runner.poll(job.id);count++}
     }
     return count;
   }

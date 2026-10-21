@@ -33,3 +33,9 @@ test('reschedule uploaded YouTube video updates status only, then poll waits for
   assert.equal((await f.adapter.pollStatus({socialAccountId:'a',remoteCorrelationId:'video:video-1'})).processing,true);
   f.setPrivacy('public');assert.equal((await f.adapter.pollStatus({socialAccountId:'a',remoteCorrelationId:'video:video-1'})).externalPostId,'video-1');
 });
+
+test('private scheduled target queues at its requested time rather than auto-publishing',async()=>{
+  const f=setup();await f.repos.workspaces.insert({id:'w',name:'Workspace'});await f.repos.brands.insert({id:'b',workspaceId:'w',name:'Brand',slug:'b',language:'vi',timezone:'Asia/Bangkok',currency:'VND',status:'ACTIVE'});
+  await f.repos.contents.insert({id:'c',brandId:'b',type:'VIDEO',title:'Private',status:'READY'});await f.repos.variants.insert({id:'v',contentItemId:'c',platform:'YOUTUBE',format:'VIDEO',caption:'Private',hashtags:[],status:'READY',youtube:{madeForKids:false,privacyStatus:'private'}});await f.repos.socialAccounts.insert({id:'a',brandId:'b',platform:'YOUTUBE',publishMode:'API',status:'CONNECTED'});
+  const result=await f.service.createBatch({brandId:'b',contentId:'c',createdBy:'owner',socialAccountIds:['a'],scheduledAt:Date.now()+60*60_000});const job=await f.repos.publishJobs.get(result.results[0]!.jobId!);assert.equal(job?.scheduledAt,job?.publishAt??job?.scheduledAt);assert.equal(job?.publishAt,undefined);assert.equal(f.scheduled[0]?.at,job?.scheduledAt);
+});

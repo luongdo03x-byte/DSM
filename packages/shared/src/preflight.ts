@@ -46,6 +46,7 @@ export function preflight(input: PreflightInput): PreflightIssue[] {
   if (rule.titleMax !== undefined && input.title && input.title.length > rule.titleMax)
     error('TITLE_MAX', `Tiêu đề vượt quá ${rule.titleMax} ký tự.`, 'title');
   if(input.platform==='YOUTUBE'){
+    if((input.caption?.length??0)>100)error('TITLE_MAX','Tiêu đề YouTube vượt quá 100 ký tự.','title');
     if(/[<>]/.test(input.description??''))error('DESCRIPTION_ANGLE_BRACKETS','Mô tả YouTube không được chứa dấu < hoặc >.','description');
     if((input.description?.length??0)>5000)error('DESCRIPTION_MAX','Mô tả YouTube vượt quá 5000 ký tự.','description');
     if((input.youtube?.tags??[]).join(',').length>500)error('TAGS_TOO_LONG','Tổng độ dài tag YouTube vượt quá 500 ký tự.','hashtags');
