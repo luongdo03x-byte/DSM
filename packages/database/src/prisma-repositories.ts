@@ -89,16 +89,16 @@ class PrismaPublishJobRepo extends TableRepo<PublishJob> implements PublishJobRe
   }
 
   async claim(id: string, from: PublishJob['status'][], to: PublishJob['status'], options: {patch?: Partial<PublishJob>; dueAt?: number} = {}): Promise<boolean> {
-    const result = await this.delegate.updateMany({where: {id, status: {in: from}, ...(options.dueAt !== undefined ? {scheduledAt: {lte: BigInt(options.dueAt)}} : {})}, data: {...(options.patch ?? {}), status: to, ...((to === 'PROCESSING' && from.includes('PROCESSING')) ? {} : {processingStartedAt: to === 'PROCESSING' ? BigInt(Date.now()) : null})}});
+    const result = await this.delegate.updateMany({where: {id, status: {in: from}, ...(options.dueAt !== undefined ? {scheduledAt: {lte: BigInt(options.dueAt)}} : {})}, data: {...toRow('publishJobs',options.patch??{}), status: to, ...((to === 'PROCESSING' && from.includes('PROCESSING')) ? {} : {processingStartedAt: to === 'PROCESSING' ? BigInt(Date.now()) : null})}});
     return result.count === 1;
   }
 
   async findInRange(brandId: string, from: number, to: number): Promise<PublishJob[]> {
     const rows = await this.delegate.findMany({
-      where: {brandId, scheduledAt: {gte: BigInt(from), lte: BigInt(to)}},
-      orderBy: [{scheduledAt: 'asc'}, {id: 'asc'}],
+      where: {brandId, OR:[{publishAt:{gte:BigInt(from),lte:BigInt(to)}},{publishAt:null,scheduledAt:{gte:BigInt(from),lte:BigInt(to)}}]},
+      orderBy: [{publishAt: 'asc'}, {scheduledAt: 'asc'}, {id: 'asc'}],
     });
-    return rows.map(row => toDomain('publishJobs', row) as PublishJob);
+    return rows.map(row => toDomain('publishJobs', row) as PublishJob).sort((a,b)=>(a.publishAt??a.scheduledAt)-(b.publishAt??b.scheduledAt)||a.id.localeCompare(b.id));
   }
 }
 

@@ -11,7 +11,7 @@ export class PublishInputBuilder {
   private readonly publicMediaBaseUrl: string | undefined;
   constructor(repos: Repositories, media: MediaService, options: {publicMediaBaseUrl?:string}={}) {this.repos = repos; this.media = media; this.publicMediaBaseUrl=options.publicMediaBaseUrl??process.env.PUBLIC_MEDIA_BASE_URL}
 
-  async build(job: Pick<PublishJob, 'brandId' | 'socialAccountId' | 'contentVariantId' | 'platform' | 'remoteCorrelationId'>): Promise<PublishInput> {
+  async build(job: Pick<PublishJob, 'brandId' | 'socialAccountId' | 'contentVariantId' | 'platform' | 'remoteCorrelationId' | 'publishAt'>): Promise<PublishInput> {
     const variant = await this.repos.variants.get(job.contentVariantId);
     if (!variant) throw new Error('VARIANT_NOT_FOUND');
     const content = await this.repos.contents.get(variant.contentItemId);
@@ -31,6 +31,6 @@ export class PublishInputBuilder {
     return {brandId: job.brandId, socialAccountId: job.socialAccountId, contentVariantId: variant.id, platform: job.platform, contentType: content.type,
       ...(variant.caption ? {caption: variant.caption} : {}), ...(variant.body ? {body: variant.body} : {}),
       ...(mediaUrl ? {mediaUrl} : {}),...(media.length?{media}:{}), ...(job.remoteCorrelationId ? {remoteCorrelationId: job.remoteCorrelationId} : {}),
-      metadata:{...(variant.format?{format:variant.format}:{}),...(variant.tiktokSettings&&job.platform==='TIKTOK'?{tiktok:variant.tiktokSettings}:{}),...(variant.youtube&&job.platform==='YOUTUBE'?{youtube:variant.youtube}:{}),...(account?.platformAccountId&&job.platform==='FACEBOOK'?{pageId:account.platformAccountId}:{}),...(account?.platformAccountId&&job.platform==='INSTAGRAM'?{platformAccountId:account.platformAccountId}:{}),...(product?.landingUrl?{link:product.landingUrl}:{})}};
+      metadata:{...(variant.format?{format:variant.format}:{}),...(variant.tiktokSettings&&job.platform==='TIKTOK'?{tiktok:variant.tiktokSettings}:{}),...(variant.youtube&&job.platform==='YOUTUBE'?{youtube:variant.youtube}:{}),...(job.publishAt&&job.platform==='YOUTUBE'?{publishAt:job.publishAt}:{}),...(account?.platformAccountId&&job.platform==='FACEBOOK'?{pageId:account.platformAccountId}:{}),...(account?.platformAccountId&&job.platform==='INSTAGRAM'?{platformAccountId:account.platformAccountId}:{}),...(product?.landingUrl?{link:product.landingUrl}:{})}};
   }
 }

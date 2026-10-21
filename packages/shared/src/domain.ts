@@ -29,7 +29,7 @@ export interface BrowserProfile{id:string;brandId:string;browserNodeId:string;pr
 export interface BrowserRegistration{nodeId:string;tokenHash:string;expiresAt:number;consumedAt?:number}
 export type PublishStrategy='API'|'BROWSER';
 export interface PublishBatch{id:string;brandId:string;contentItemId:string;createdBy:string;createdAt:number}
-export interface PublishJob{id:string;batchId:string;brandId:string;socialAccountId:string;contentVariantId:string;platform:Platform;strategy:PublishStrategy;scheduledAt:number;status:JobStatus;attemptCount:number;maxAttempts:number;idempotencyKey:string;processingStartedAt?:number;remoteCorrelationId?:string;errorCode?:string;errorMessage?:string}
+export interface PublishJob{id:string;batchId:string;brandId:string;socialAccountId:string;contentVariantId:string;platform:Platform;strategy:PublishStrategy;scheduledAt:number;publishAt?:number|null;status:JobStatus;attemptCount:number;maxAttempts:number;idempotencyKey:string;processingStartedAt?:number;remoteCorrelationId?:string;errorCode?:string;errorMessage?:string}
 export interface PublishAttempt{id:string;publishJobId:string;attemptNumber:number;strategy:PublishStrategy;startedAt:number;finishedAt?:number;status:string;errorType?:string;errorCode?:string;errorMessage?:string;metadata?:Record<string,unknown>}
 export interface PublishedPost{id:string;brandId:string;publishJobId:string;socialAccountId:string;contentVariantId:string;platform:Platform;platformPostId:string;platformPostUrl?:string;publishedAt:number}
 export interface PostMetric{id:string;publishedPostId:string;capturedAt:number;captureKey:string;views?:number;likes?:number;comments?:number;shares?:number;saves?:number;clicks?:number;rawMetrics?:Record<string,unknown>}

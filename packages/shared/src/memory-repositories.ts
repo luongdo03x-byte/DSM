@@ -81,8 +81,8 @@ class MemoryPublishJobRepo extends MapRepo<PublishJob> implements PublishJobRepo
 
   async findInRange(brandId: string, from: number, to: number): Promise<PublishJob[]> {
     return [...this.jobs.values()]
-      .filter(job => job.brandId === brandId && job.scheduledAt >= from && job.scheduledAt <= to)
-      .sort((a, b) => a.scheduledAt - b.scheduledAt || a.id.localeCompare(b.id))
+      .filter(job => job.brandId === brandId && (job.publishAt??job.scheduledAt) >= from && (job.publishAt??job.scheduledAt) <= to)
+      .sort((a, b) => (a.publishAt??a.scheduledAt) - (b.publishAt??b.scheduledAt) || a.id.localeCompare(b.id))
       .map(job => structuredClone(job));
   }
 }

@@ -9,7 +9,8 @@ import {ContentService} from '../content/content.service.ts';
 
 type ValidationInput = {brandId: string; contentId: string; socialAccountIds: string[]; apiHealth?: Record<string, boolean>; browserHealth?: Record<string, boolean>};
 export const MAX_SCHEDULE_AHEAD_DAYS=75;
-export interface CalendarEntry {jobId:string;contentItemId:string;title:string;platform:Platform;socialAccountId:string;format?:ContentFormat;scheduledAt:number;status:JobStatus;publishedUrl?:string;errorCode?:string}
+export const YOUTUBE_EARLY_UPLOAD_MS=15*60_000;
+export interface CalendarEntry {jobId:string;contentItemId:string;title:string;platform:Platform;socialAccountId:string;format?:ContentFormat;scheduledAt:number;status:JobStatus;publishedUrl?:string;errorCode?:string;statusLabel?:string}
 
 export class PublishingService {
   private readonly repos: Repositories;
@@ -23,18 +24,19 @@ export class PublishingService {
 
   async listCalendar(brandId:string,from:number,to:number):Promise<CalendarEntry[]>{
     if(!Number.isFinite(from)||!Number.isFinite(to)||from>=to)throw new Error('INVALID_CALENDAR_RANGE');
-    const jobs=(await this.repos.publishJobs.findInRange(brandId,from,to)).filter(job=>job.scheduledAt<to);
+    const jobs=(await this.repos.publishJobs.findInRange(brandId,from,to)).filter(job=>(job.publishAt??job.scheduledAt)<to);
     return Promise.all(jobs.map(job=>this.calendarEntry(job)));
   }
 
   async reschedule(brandId:string,jobId:string,scheduledAt:number,now:number):Promise<CalendarEntry>{
     const job=await this.repos.publishJobs.get(jobId);
     if(!job||job.brandId!==brandId)throw new Error('JOB_NOT_FOUND');
-    if(!['QUEUED','RETRYING'].includes(job.status))throw new Error('JOB_NOT_RESCHEDULABLE');
+    const uploaded=job.platform==='YOUTUBE'&&job.status==='PROCESSING'&&job.remoteCorrelationId?.startsWith('video:');
+    if(!uploaded&&!['QUEUED','RETRYING'].includes(job.status))throw new Error('JOB_NOT_RESCHEDULABLE');
     if(!Number.isFinite(scheduledAt)||scheduledAt<now+5*60_000)throw new Error('SCHEDULE_TOO_SOON');
     if(scheduledAt>now+MAX_SCHEDULE_AHEAD_DAYS*24*60*60_000)throw new Error('SCHEDULE_TOO_FAR');
-    if(!await this.repos.publishJobs.claim(jobId,['QUEUED','RETRYING'],'QUEUED',{patch:{scheduledAt}}))throw new Error('JOB_NOT_RESCHEDULABLE');
-    await this.queue?.reschedule(jobId,scheduledAt);
+    if(uploaded){const adapter=this.registry.get('YOUTUBE','API') as {reschedule?:(input:{socialAccountId:string;videoId:string;publishAt:number})=>Promise<void>};if(!adapter.reschedule)throw new Error('JOB_NOT_RESCHEDULABLE');await adapter.reschedule({socialAccountId:job.socialAccountId,videoId:job.remoteCorrelationId!.slice(6),publishAt:scheduledAt});await this.repos.publishJobs.update(jobId,{publishAt:scheduledAt,scheduledAt:scheduledAt+60_000});await this.queue?.schedulePoll(jobId,scheduledAt+60_000)}
+    else{const early=job.platform==='YOUTUBE'&&job.strategy==='API'&&scheduledAt>now+YOUTUBE_EARLY_UPLOAD_MS,runAt=early?now:scheduledAt;if(!await this.repos.publishJobs.claim(jobId,['QUEUED','RETRYING'],'QUEUED',{patch:{scheduledAt:runAt,publishAt:early?scheduledAt:null}}))throw new Error('JOB_NOT_RESCHEDULABLE');await this.queue?.reschedule(jobId,runAt)}
     return this.calendarEntry((await this.repos.publishJobs.get(jobId))!);
   }
 
@@ -43,7 +45,7 @@ export class PublishingService {
     const content=batch?await this.repos.contents.get(batch.contentItemId):undefined;
     const variant=await this.repos.variants.get(job.contentVariantId);
     const published=(await this.repos.publishedPosts.findBy({publishJobId:job.id}))[0];
-    return{jobId:job.id,contentItemId:batch?.contentItemId??variant?.contentItemId??'',title:content?.title??'',platform:job.platform,socialAccountId:job.socialAccountId,...(variant?.format?{format:variant.format}:{}),scheduledAt:job.scheduledAt,status:job.status,...(published?.platformPostUrl?{publishedUrl:published.platformPostUrl}:{}),...(job.errorCode?{errorCode:job.errorCode}:{})};
+    return{jobId:job.id,contentItemId:batch?.contentItemId??variant?.contentItemId??'',title:content?.title??'',platform:job.platform,socialAccountId:job.socialAccountId,...(variant?.format?{format:variant.format}:{}),scheduledAt:job.publishAt??job.scheduledAt,status:job.status,...(job.platform==='YOUTUBE'&&job.status==='PROCESSING'&&job.remoteCorrelationId?.startsWith('video:')?{statusLabel:'Đã tải lên, chờ YouTube công bố'}:{}),...(published?.platformPostUrl?{publishedUrl:published.platformPostUrl}:{}),...(job.errorCode?{errorCode:job.errorCode}:{})};
   }
 
   async validateTargets(input: ValidationInput) {
@@ -137,8 +139,9 @@ export class PublishingService {
         if (!result.valid || !result.strategy || !result.contentVariantId) {results.push(result); continue}
         const key = await sha256([input.brandId, result.socialAccountId, result.contentVariantId, new Date(scheduledAt).toISOString()].join('|'));
         const existing = existingByAccount.get(result.socialAccountId);
+        const early=result.platform==='YOUTUBE'&&result.strategy==='API'&&scheduledAt>Date.now()+YOUTUBE_EARLY_UPLOAD_MS;
         const job: PublishJob = existing ?? {id: id('job'), batchId, brandId: input.brandId, socialAccountId: result.socialAccountId,
-          contentVariantId: result.contentVariantId, platform: result.platform, strategy: result.strategy, scheduledAt,
+          contentVariantId: result.contentVariantId, platform: result.platform, strategy: result.strategy, scheduledAt:early?Date.now():scheduledAt,...(early?{publishAt:scheduledAt}:{}),
           status: 'QUEUED', attemptCount: 0, maxAttempts: 4, idempotencyKey: key};
         if (!existing) await repos.publishJobs.insert(job);
         if (job.status === 'QUEUED' || job.status === 'RETRYING') jobsToSchedule.push(job);
@@ -166,6 +169,6 @@ export class PublishingService {
   }
   private toInput(brandId: string, socialAccountId: string, variant: ContentVariant, contentType: ContentType) {
     return {brandId, socialAccountId, contentVariantId: variant.id, platform: variant.platform, contentType,
-      ...(variant.caption ? {caption: variant.caption} : {}), ...(variant.body ? {body: variant.body} : {}),metadata:{...(variant.format?{format:variant.format}:{}),...(variant.tiktokSettings?{tiktok:variant.tiktokSettings}:{})}};
+      ...(variant.caption ? {caption: variant.caption} : {}), ...(variant.body ? {body: variant.body} : {}),metadata:{...(variant.format?{format:variant.format}:{}),...(variant.tiktokSettings?{tiktok:variant.tiktokSettings}:{}),...(variant.youtube?{youtube:variant.youtube}:{})}};
   }
 }

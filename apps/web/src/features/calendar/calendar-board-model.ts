@@ -2,7 +2,7 @@ import type {CalendarEntry} from '../../../../api/src/modules/publishing/publish
 import type {JobStatus,Platform} from '../../../../../packages/shared/src/domain.ts';
 import {fromUtcMs,toUtcMs} from '../../lib/ui/brand-time.ts';
 
-export function canDrag(entry:CalendarEntry):boolean{return entry.status==='QUEUED'||entry.status==='RETRYING'}
+export function canDrag(entry:CalendarEntry):boolean{return entry.status==='QUEUED'||entry.status==='RETRYING'||(entry.platform==='YOUTUBE'&&entry.status==='PROCESSING'&&entry.statusLabel==='Đã tải lên, chờ YouTube công bố')}
 export function moveToDate(entry:CalendarEntry,targetDate:string,timeZone:string):number{
   if(!canDrag(entry))throw new Error('JOB_NOT_RESCHEDULABLE');
   return toUtcMs(targetDate,fromUtcMs(entry.scheduledAt,timeZone).time,timeZone);

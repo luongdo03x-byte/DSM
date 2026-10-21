@@ -30,7 +30,7 @@ const fields = {
   browserProfiles: ['id', 'brandId', 'browserNodeId', 'socialAccountId', 'provider', 'providerProfileId', 'name', 'status', 'metadata'],
   browserRegistrations: ['id', 'nodeId', 'tokenHash', 'expiresAt', 'consumedAt'],
   publishBatches: ['id', 'brandId', 'contentItemId', 'createdBy', 'createdAt'],
-  publishJobs: ['id', 'batchId', 'brandId', 'socialAccountId', 'contentVariantId', 'platform', 'strategy', 'scheduledAt', 'status', 'attemptCount', 'maxAttempts', 'idempotencyKey', 'processingStartedAt', 'remoteCorrelationId', 'errorCode', 'errorMessage'],
+  publishJobs: ['id', 'batchId', 'brandId', 'socialAccountId', 'contentVariantId', 'platform', 'strategy', 'scheduledAt', 'publishAt', 'status', 'attemptCount', 'maxAttempts', 'idempotencyKey', 'processingStartedAt', 'remoteCorrelationId', 'errorCode', 'errorMessage'],
   publishAttempts: ['id', 'publishJobId', 'attemptNumber', 'strategy', 'startedAt', 'finishedAt', 'status', 'errorType', 'errorCode', 'errorMessage', 'metadata'],
   publishedPosts: ['id', 'brandId', 'publishJobId', 'socialAccountId', 'contentVariantId', 'platform', 'platformPostId', 'platformPostUrl', 'publishedAt'],
   postMetrics: ['id', 'publishedPostId', 'capturedAt', 'captureKey', 'views', 'likes', 'comments', 'shares', 'saves', 'clicks', 'rawMetrics'],
@@ -38,7 +38,7 @@ const fields = {
   clickEvents: ['id', 'trackedLinkId', 'timestamp', 'referrer', 'userAgent', 'country', 'deviceType'],
 } as const;
 
-const epochFields = new Set(['expiresAt', 'revokedAt', 'createdAt', 'lastSeenAt', 'scheduledAt', 'processingStartedAt', 'startedAt', 'finishedAt', 'publishedAt', 'capturedAt', 'timestamp', 'consumedAt', 'sizeBytes', 'views', 'likes', 'comments', 'shares', 'saves', 'clicks']);
+const epochFields = new Set(['expiresAt', 'revokedAt', 'createdAt', 'lastSeenAt', 'scheduledAt', 'publishAt', 'processingStartedAt', 'startedAt', 'finishedAt', 'publishedAt', 'capturedAt', 'timestamp', 'consumedAt', 'sizeBytes', 'views', 'likes', 'comments', 'shares', 'saves', 'clicks']);
 
 export function toDomain(table: DomainTable, row: RecordValue): RecordValue {
   const result: RecordValue = {};

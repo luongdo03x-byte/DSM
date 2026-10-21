@@ -36,7 +36,7 @@ export class JobRunner {
     return startedAt+cumulative+(Math.floor((elapsed-cumulative)/60_000)+1)*60_000;
   }
   private async schedulePoll(job:PublishJob,now:number){
-    const runAt=this.nextPollAt(job.processingStartedAt??now,now);
+    const runAt=job.platform==='YOUTUBE'&&job.publishAt&&job.publishAt>now?job.publishAt+60_000:this.nextPollAt(job.processingStartedAt??now,now);
     await this.repos.publishJobs.update(job.id,{scheduledAt:runAt});
     try{await this.queue?.schedulePoll(job.id,runAt)}catch(error){console.error('poll scheduling failed; recovery will reschedule',error)}
   }
@@ -47,7 +47,7 @@ export class JobRunner {
     const now=this.now();
     const claimed=await this.repos.publishJobs.claim(jobId,['PROCESSING'],'PROCESSING',{dueAt:now,patch:{scheduledAt:now+POLL_LEASE_MS}});
     if(!claimed)return(await this.repos.publishJobs.get(jobId))?.status==='PUBLISHED'?'PUBLISHED':'PROCESSING';
-    if(now-(job.processingStartedAt??now)>IG_CONTAINER_TIMEOUT_MS){await this.repos.publishJobs.update(jobId,{status:'FAILED',errorCode:'PROCESSING_TIMEOUT',errorMessage:'Platform processing timed out'});await this.notifyFailure(job,'PROCESSING_TIMEOUT','Platform processing timed out');return'FAILED'}
+    if(job.platform==='INSTAGRAM'&&now-(job.processingStartedAt??now)>IG_CONTAINER_TIMEOUT_MS){await this.repos.publishJobs.update(jobId,{status:'FAILED',errorCode:'PROCESSING_TIMEOUT',errorMessage:'Platform processing timed out'});await this.notifyFailure(job,'PROCESSING_TIMEOUT','Platform processing timed out');return'FAILED'}
     const adapter=this.registry.get(job.platform,job.strategy) as PlatformAdapter;
     if(typeof adapter.pollStatus!=='function'){await this.repos.publishJobs.update(jobId,{status:'FAILED',errorCode:'POLL_UNSUPPORTED'});await this.notifyFailure(job,'POLL_UNSUPPORTED','Không hỗ trợ kiểm tra trạng thái');return'FAILED'}
     try{

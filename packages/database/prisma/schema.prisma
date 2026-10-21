@@ -392,6 +392,7 @@ model PublishJob {
   platform            Platform
   strategy            String
   scheduledAt         BigInt
+  publishAt           BigInt?
   status              JobStatus
   attemptCount        Int             @default(0)
   maxAttempts         Int             @default(4)
