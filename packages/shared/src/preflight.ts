@@ -1,11 +1,11 @@
-import type {ContentFormat, ContentType, Platform} from './domain.ts';
+import type {ContentFormat, ContentType, Platform,YouTubeVariantSettings} from './domain.ts';
 import {MEDIA_RULES, type MediaFacts} from './media-rules.ts';
 
 export interface PreflightIssue {
   code: string;
   severity: 'error' | 'warning';
   message: string;
-  field?: 'caption' | 'title' | 'hashtags' | 'media';
+  field?: 'caption' | 'title' | 'hashtags' | 'media' | 'description';
 }
 
 export interface PreflightInput {
@@ -13,6 +13,8 @@ export interface PreflightInput {
   format: ContentFormat;
   caption?: string;
   title?: string;
+  description?:string;
+  youtube?:YouTubeVariantSettings;
   hashtags: string[];
   media: MediaFacts[];
   mediaUrls?:string[];
@@ -43,6 +45,12 @@ export function preflight(input: PreflightInput): PreflightIssue[] {
     error('CAPTION_MAX', `Nội dung vượt quá ${rule.captionMax} ký tự.`, 'caption');
   if (rule.titleMax !== undefined && input.title && input.title.length > rule.titleMax)
     error('TITLE_MAX', `Tiêu đề vượt quá ${rule.titleMax} ký tự.`, 'title');
+  if(input.platform==='YOUTUBE'){
+    if(/[<>]/.test(input.description??''))error('DESCRIPTION_ANGLE_BRACKETS','Mô tả YouTube không được chứa dấu < hoặc >.','description');
+    if((input.description?.length??0)>5000)error('DESCRIPTION_MAX','Mô tả YouTube vượt quá 5000 ký tự.','description');
+    if((input.youtube?.tags??[]).join(',').length>500)error('TAGS_TOO_LONG','Tổng độ dài tag YouTube vượt quá 500 ký tự.','hashtags');
+    if(typeof input.youtube?.madeForKids!=='boolean')error('MADE_FOR_KIDS_REQUIRED','Hãy chọn video có dành cho trẻ em hay không.','media');
+  }
   for (const media of input.media) {
     if (media.kind === 'IMAGE' && !rule.supportsImage) error('NO_IMAGE_API', 'Nền tảng không hỗ trợ đăng ảnh.', 'media');
     if (input.platform === 'INSTAGRAM' && media.kind === 'IMAGE' && media.mimeType !== 'image/jpeg')

@@ -19,7 +19,7 @@ const fields = {
   contents: ['id', 'brandId', 'productId', 'type', 'title', 'hook', 'body', 'cta', 'masterAssetId', 'status'],
   contentMedia: ['id', 'contentItemId', 'mediaAssetId', 'position'],
   variantMedia: ['id', 'contentVariantId', 'mediaAssetId', 'position', 'crop', 'isCover'],
-  variants: ['id', 'contentItemId', 'socialAccountId', 'platform', 'caption', 'body', 'hashtags', 'cta', 'assetId', 'status', 'format', 'title', 'skippedReason', 'tiktokSettings'],
+  variants: ['id', 'contentItemId', 'socialAccountId', 'platform', 'caption', 'body', 'hashtags', 'cta', 'assetId', 'status', 'format', 'title', 'skippedReason', 'tiktokSettings', 'youtube'],
   campaigns: ['id', 'brandId', 'productId', 'name', 'description', 'status', 'startAt', 'endAt', 'contentIds'],
   authSessions: ['id', 'userId', 'refreshTokenHash', 'expiresAt', 'revokedAt'],
   audit: ['id', 'workspaceId', 'userId', 'action', 'entityType', 'entityId', 'metadata', 'createdAt'],

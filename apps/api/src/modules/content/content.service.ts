@@ -7,7 +7,7 @@ import type {AuditService} from '../audit/audit.service.ts';
 
 const platforms: Platform[] = ['FACEBOOK', 'INSTAGRAM', 'THREADS', 'TIKTOK', 'YOUTUBE'];
 type CreateContent = {type: ContentType; title: string; productId?: string; hook?: string; body?: string; cta?: string; masterAssetId?: string; mediaAssetIds?: string[]};
-type UpdateVariant = {caption?: string; body?: string; hashtags?: string[]; cta?: string; assetId?: string; status?: 'DRAFT' | 'READY';tiktokSettings?:NonNullable<ContentVariant['tiktokSettings']>};
+type UpdateVariant = {caption?: string; body?: string; hashtags?: string[]; cta?: string; assetId?: string; status?: 'DRAFT' | 'READY';tiktokSettings?:NonNullable<ContentVariant['tiktokSettings']>;youtube?:NonNullable<ContentVariant['youtube']>};
 
 export class ContentService {
   private readonly repos: Repositories;
@@ -119,7 +119,7 @@ export class ContentService {
     if (typeof format==='object' && 'skipped' in format) return [{code:'VARIANT_SKIPPED',severity:'error',message:format.skipped,field:'media'}];
     const mediaUrls=this.publicMediaBaseUrl?await Promise.all(rows.map(async row=>{const asset=await this.repos.media.get(row.mediaAssetId);return asset?`${this.publicMediaBaseUrl!.replace(/\/$/,'')}/${asset.storageKey.split('/').map(encodeURIComponent).join('/')}`:''})):[];
     return preflight({platform:variant.platform,format:typeof format==='string'?format:format.format,hashtags:variant.hashtags,media,mediaUrls,publicMediaBaseUrl:this.publicMediaBaseUrl??'',
-      ...(variant.caption?{caption:variant.caption}:{}),...(variant.title?{title:variant.title}:{})});
+      ...(variant.caption?{caption:variant.caption}:{}),...(variant.title?{title:variant.title}:{}),...(variant.body?{description:variant.body}:{}),...(variant.youtube?{youtube:variant.youtube}:{})});
   }
 
   private async contentForBrand(brandId:string,contentId:string):Promise<ContentItem> {
@@ -158,6 +158,7 @@ export class ContentService {
     if (!content || content.brandId !== brandId) throw new Error('VARIANT_NOT_FOUND');
     if (input.status === 'READY' && variant.skippedReason) throw new Error('VARIANT_SKIPPED');
     if(input.tiktokSettings&&variant.platform!=='TIKTOK')throw new Error('INVALID_TIKTOK_SETTINGS');
+    if(input.youtube&&variant.platform!=='YOUTUBE')throw new Error('INVALID_YOUTUBE_SETTINGS');
     if(input.tiktokSettings){const settings=input.tiktokSettings;if(!settings||typeof settings!=='object'||Array.isArray(settings)||(settings.privacyLevel!==undefined&&typeof settings.privacyLevel!=='string')||['disableComment','disableDuet','disableStitch','brandContentToggle','brandOrganicToggle'].some(key=>settings[key as keyof typeof settings]!==undefined&&typeof settings[key as keyof typeof settings]!=='boolean'))throw new Error('INVALID_TIKTOK_SETTINGS')}
     if (input.assetId) {
       const asset = await this.repos.media.get(input.assetId);
