@@ -3,6 +3,7 @@ import {fileURLToPath} from 'node:url';
 import {E2E_OWNER} from './e2e-owner.ts';
 
 const sample=fileURLToPath(new URL('../../../tests/fixtures/media/sample.png',import.meta.url));
+const video=fileURLToPath(new URL('../../../tests/fixtures/media/vertical-3s.mp4',import.meta.url));
 
 test('compose journey publishes an ordered album to two accounts',async({page})=>{
   await page.route('https://storage.local/put/**',route=>route.fulfill({status:200,body:''}));
@@ -52,4 +53,18 @@ test('compose journey publishes an ordered album to two accounts',async({page})=
   await page.mouse.move(targetBox.x+40,sourceBox.y+15,{steps:15});
   await page.mouse.up();
   await expect(page.locator(`[data-calendar-date="${target}"]`)).toContainText('Bài lên lịch thử nghiệm');
+});
+
+test('compose journey queues one video for four platforms and one album for three',async({page})=>{
+  await page.route('https://storage.local/put/**',route=>route.fulfill({status:200,body:''}));
+  await page.goto('/login');await page.getByLabel('Email').fill(E2E_OWNER.email);await page.getByLabel('Mật khẩu').fill(E2E_OWNER.password);await page.getByRole('button',{name:'Đăng nhập'}).click();await expect(page).toHaveURL(/\/overview$/);
+  await page.getByRole('navigation').getByRole('link',{name:'Tạo bài'}).click();await page.getByLabel('Loại nội dung').selectOption('VIDEO');await page.getByLabel('Tiêu đề').fill('Video bốn nền tảng');await page.getByLabel('Nội dung gốc').fill('Video gốc');await page.getByLabel('Tệp ảnh hoặc video').setInputFiles(video);
+  for(const name of ['Facebook','Instagram','TikTok','YouTube'])await page.getByRole('checkbox',{name:new RegExp(name)}).check();
+  await page.getByRole('tab',{name:'TikTok'}).click();await page.getByLabel('Quyền riêng tư *').selectOption('PUBLIC_TO_EVERYONE');
+  await page.getByRole('tab',{name:'YouTube'}).click();await page.getByLabel('Quyền riêng tư *').selectOption('public');await page.getByLabel('Dành cho trẻ em? *').selectOption('false');
+  await page.getByRole('button',{name:'Đăng ngay'}).click();await expect(page.getByRole('status')).toContainText('Đã đưa 4 bài vào hàng đợi');
+  await page.getByRole('navigation').getByRole('link',{name:'Tạo bài'}).click();await page.getByLabel('Loại nội dung').selectOption('ALBUM');await page.getByLabel('Tiêu đề').fill('Album ba nền tảng');await page.getByLabel('Nội dung gốc').fill('Album gốc');await page.getByLabel('Tệp ảnh hoặc video').setInputFiles([sample,sample,sample]);
+  for(const name of ['Facebook','Instagram','TikTok'])await page.getByRole('checkbox',{name:new RegExp(name)}).check();
+  await page.getByRole('tab',{name:'TikTok'}).click();await page.getByLabel('Quyền riêng tư *').selectOption('PUBLIC_TO_EVERYONE');
+  await page.getByRole('button',{name:'Đăng ngay'}).click();await expect(page.getByRole('status')).toContainText('Đã đưa 3 bài vào hàng đợi');
 });

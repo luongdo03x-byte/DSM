@@ -167,6 +167,8 @@ export class PublishingService {
     if(!adapter.creatorInfo)throw new Error('TIKTOK_NOT_CONFIGURED');
     return{...await adapter.creatorInfo(accountId),auditApproved:adapter.isAuditApproved?.()??false};
   }
+  async youtubePlaylists(accountId:string){const adapter=this.registry.get('YOUTUBE','API') as unknown as {playlists:(id:string)=>Promise<Array<{id:string;title:string}>>};return adapter.playlists(accountId)}
+  async youtubeCategories(regionCode:string,accountId:string){const adapter=this.registry.get('YOUTUBE','API') as unknown as {categories:(region:string,id:string)=>Promise<Array<{id:string;title:string}>>;isAudited:()=>boolean};return{categories:await adapter.categories(regionCode,accountId),audited:adapter.isAudited()}}
   private toInput(brandId: string, socialAccountId: string, variant: ContentVariant, contentType: ContentType) {
     return {brandId, socialAccountId, contentVariantId: variant.id, platform: variant.platform, contentType,
       ...(variant.caption ? {caption: variant.caption} : {}), ...(variant.body ? {body: variant.body} : {}),metadata:{...(variant.format?{format:variant.format}:{}),...(variant.tiktokSettings?{tiktok:variant.tiktokSettings}:{}),...(variant.youtube?{youtube:variant.youtube}:{})}};

@@ -1,0 +1,4 @@
+import type {YouTubeVariantSettings} from '../../../../../packages/shared/src/domain.ts';
+export function youtubeTitleDefault(sourceTitle:string){const title=sourceTitle.slice(0,100);return{title,...(sourceTitle.length>100?{warning:'Tiêu đề YouTube được cắt còn 100 ký tự.'}:{})}}
+export function youtubeSettingsState(audited:boolean){return{privacyOptions:(audited?[{value:'public',label:'Công khai'},{value:'unlisted',label:'Không công khai'},{value:'private',label:'Riêng tư'}]:[{value:'private',label:'Riêng tư'}]) as Array<{value:NonNullable<YouTubeVariantSettings['privacyStatus']>;label:string}>,...(audited?{}:{notice:'Ứng dụng YouTube chưa được kiểm duyệt; video chỉ được đăng ở chế độ riêng tư.'})}}
+export function canSubmitYouTube(settings:YouTubeVariantSettings,state:ReturnType<typeof youtubeSettingsState>){return settings.madeForKids!==undefined&&!!settings.privacyStatus&&state.privacyOptions.some(x=>x.value===settings.privacyStatus)}

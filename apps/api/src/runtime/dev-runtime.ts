@@ -114,10 +114,11 @@ export async function createRuntime(options:RuntimeOptions) {
   if(mode==='memory'){
     if(env.APP_ENV==='production')throw new Error('DEV_IN_MEMORY_FORBIDDEN_IN_PRODUCTION');
     const app=await createDevelopmentRuntime(options);
-    if(env.E2E_FAKE_PUBLISHERS==='1')for(const platform of ['FACEBOOK','INSTAGRAM'] as const){
-      const account=(await app.repos.socialAccounts.findBy({brandId:app.ids.brandId,platform}))[0];
-      if(account)await app.repos.socialAccounts.update(account.id,{status:'CONNECTED'});
-      app.registry.register(platform,'API',new FakePublisher());
+    if(env.E2E_FAKE_PUBLISHERS==='1')for(const platform of ['FACEBOOK','INSTAGRAM','TIKTOK','YOUTUBE'] as const){
+      const account=(await app.repos.socialAccounts.findBy({brandId:app.ids.brandId,platform}))[0]??await app.services.accounts.create(app.ids.brandId,{platform,publishMode:'API'});
+      await app.repos.socialAccounts.update(account.id,{status:'CONNECTED'});
+      const publisher=new FakePublisher();
+      app.registry.register(platform,'API',platform==='TIKTOK'?Object.assign(publisher,{creatorInfo:async()=>({privacyLevelOptions:['PUBLIC_TO_EVERYONE','SELF_ONLY'],commentDisabled:false,duetDisabled:false,stitchDisabled:false}),isAuditApproved:()=>true}):platform==='YOUTUBE'?Object.assign(publisher,{categories:async()=>[{id:'22',title:'People & Blogs'}],playlists:async()=>[],isAudited:()=>true}):publisher);
     }
     return {...app,close:async()=>{}};
   }

@@ -20,6 +20,8 @@ export class PublishInputBuilder {
     if (!brand) throw new Error('BRAND_NOT_FOUND');
     const account=await this.repos.socialAccounts.get(job.socialAccountId);
     const product=content.productId?await this.repos.products.get(content.productId):undefined;
+    const thumbnail=job.platform==='YOUTUBE'&&variant.youtube?.thumbnailAssetId?await this.repos.media.get(variant.youtube.thumbnailAssetId):undefined;
+    if(thumbnail&&(thumbnail.brandId!==job.brandId||thumbnail.type!=='IMAGE'))throw new Error('YT_THUMBNAIL_INVALID');
     const assets=await prepareVariantMedia(this.repos,this.media.storage,variant.id,MEDIA_RULES[job.platform]);
     const mediaRows=(await this.repos.variantMedia.findBy({contentVariantId:variant.id})).sort((a,b)=>a.position-b.position);
     const media=[];
@@ -31,6 +33,6 @@ export class PublishInputBuilder {
     return {brandId: job.brandId, socialAccountId: job.socialAccountId, contentVariantId: variant.id, platform: job.platform, contentType: content.type,
       ...(variant.caption ? {caption: variant.caption} : {}), ...(variant.body ? {body: variant.body} : {}),
       ...(mediaUrl ? {mediaUrl} : {}),...(media.length?{media}:{}), ...(job.remoteCorrelationId ? {remoteCorrelationId: job.remoteCorrelationId} : {}),
-      metadata:{...(variant.format?{format:variant.format}:{}),...(variant.tiktokSettings&&job.platform==='TIKTOK'?{tiktok:variant.tiktokSettings}:{}),...(variant.youtube&&job.platform==='YOUTUBE'?{youtube:variant.youtube}:{}),...(job.publishAt&&job.platform==='YOUTUBE'?{publishAt:job.publishAt}:{}),...(account?.platformAccountId&&job.platform==='FACEBOOK'?{pageId:account.platformAccountId}:{}),...(account?.platformAccountId&&job.platform==='INSTAGRAM'?{platformAccountId:account.platformAccountId}:{}),...(product?.landingUrl?{link:product.landingUrl}:{})}};
+      metadata:{...(variant.format?{format:variant.format}:{}),...(variant.tiktokSettings&&job.platform==='TIKTOK'?{tiktok:variant.tiktokSettings}:{}),...(variant.youtube&&job.platform==='YOUTUBE'?{youtube:variant.youtube}:{}),...(thumbnail?{thumbnailStorageKey:thumbnail.storageKey,thumbnailMimeType:thumbnail.mimeType}:{}),...(job.publishAt&&job.platform==='YOUTUBE'?{publishAt:job.publishAt}:{}),...(account?.platformAccountId&&job.platform==='FACEBOOK'?{pageId:account.platformAccountId}:{}),...(account?.platformAccountId&&job.platform==='INSTAGRAM'?{platformAccountId:account.platformAccountId}:{}),...(product?.landingUrl?{link:product.landingUrl}:{})}};
   }
 }

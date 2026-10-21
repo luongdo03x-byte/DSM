@@ -42,11 +42,12 @@ Status: CI — the three required tests below run in every `CI / verify` run; `v
 | HTTP API smoke | `tests/integration/http-api-smoke.test.ts` | `http api smoke journey` |
 | UI end-to-end | `apps/web/tests/v1-critical-journey.spec.ts` | `v1 critical UI journey` |
 | Composer end-to-end | `apps/web/tests/compose-journey.spec.ts` | `compose journey publishes an ordered album to two accounts` |
+| Cross-platform Composer | `apps/web/tests/compose-journey.spec.ts` | `compose journey queues one video for four platforms and one album for three` |
 
 Scope limits:
 
 - The harness and the HTTP smoke publish through `FakePublisher` (`apps/worker/src/testing/fake-publisher.ts`); no real platform API is called.
-- The UI E2E covers login, navigation (Tổng quan, Sản phẩm, Nội dung, Lịch đăng, Phân tích), reload with session refresh, and logout on a production build. The composer E2E uses test-only fake publishers to create two album jobs and reschedule another job through the calendar.
+- The UI E2E covers login, navigation (Tổng quan, Sản phẩm, Nội dung, Lịch đăng, Phân tích), reload with session refresh, and logout on a production build. The Composer E2E uses test-only fake publishers to queue a video for Facebook, Instagram, TikTok, and YouTube and an album for Facebook, Instagram, and TikTok; it also reschedules a job through the calendar.
 - The Facebook and Instagram adapters, OAuth, token refresh, data deletion, and smoke script are covered with a local Graph stub. Real platform posting still needs the live checks below.
 
 ## CI baseline (SP1)
@@ -91,6 +92,12 @@ Status: BLOCKED_EXTERNAL — requires Threads API authorization and a safe test 
 Status: BLOCKED_EXTERNAL — requires TikTok Content Posting API credentials, Direct Post audit/approval, creator authorization, and verified media domain where required.
 
 Local adapter and Composer checks run in `pnpm verify`; live video and photo publishing remain blocked until the external items in [TikTok audit runbook](../runbooks/tiktok-audit.md) are complete.
+
+## YouTube live publish
+
+Status: BLOCKED_EXTERNAL — chờ Google OAuth verification, YouTube API Services audit, owner approved legal pages, and an authorized test channel. See [YouTube audit runbook](../runbooks/google-oauth-youtube-audit.md).
+
+Local tests cover channel connection, resumable upload, metadata, quota, `publishAt`, playlist, and thumbnail warning. No audit submission or live publish is claimed.
 
 ## GPMLogin browser smoke
 

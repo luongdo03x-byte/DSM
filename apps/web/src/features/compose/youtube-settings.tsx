@@ -1,0 +1,14 @@
+'use client';
+import type {YouTubeVariantSettings} from '../../../../../packages/shared/src/domain.ts';
+import {youtubeSettingsState} from './youtube-settings-model.ts';
+export function YouTubeSettings({audited,settings,categories,playlists,onChange,onThumbnail}:{audited:boolean;settings:YouTubeVariantSettings;categories:Array<{id:string;title:string}>;playlists:Array<{id:string;title:string}>;onChange:(settings:YouTubeVariantSettings)=>void;onThumbnail:(file:File)=>Promise<void>}){
+  const state=youtubeSettingsState(audited),change=(patch:Partial<YouTubeVariantSettings>)=>onChange({...settings,...patch});
+  return <fieldset className="section-stack"><legend>Cài đặt YouTube</legend>{state.notice?<p className="feedback">{state.notice}</p>:null}
+    <div className="field"><label htmlFor="youtube-category">Danh mục</label><select id="youtube-category" value={settings.categoryId??'22'} onChange={event=>change({categoryId:event.target.value})}>{categories.length?categories.map(row=><option key={row.id} value={row.id}>{row.title}</option>):<option value="22">People &amp; Blogs</option>}</select></div>
+    <div className="field"><label htmlFor="youtube-tags">Thẻ, phân cách bằng dấu phẩy</label><input id="youtube-tags" value={(settings.tags??[]).join(', ')} onChange={event=>change({tags:event.target.value.split(',').map(x=>x.trim()).filter(Boolean)})}/></div>
+    <div className="field"><label htmlFor="youtube-privacy">Quyền riêng tư *</label><select id="youtube-privacy" value={settings.privacyStatus??''} required onChange={event=>change({privacyStatus:event.target.value as NonNullable<YouTubeVariantSettings['privacyStatus']>})}><option value="">Chọn quyền riêng tư</option>{state.privacyOptions.map(row=><option key={row.value} value={row.value}>{row.label}</option>)}</select></div>
+    <div className="field"><label htmlFor="youtube-kids">Dành cho trẻ em? *</label><select id="youtube-kids" value={settings.madeForKids===undefined?'':String(settings.madeForKids)} required onChange={event=>change({madeForKids:event.target.value==='true'})}><option value="">Chọn một phương án</option><option value="true">Có</option><option value="false">Không</option></select></div>
+    <div className="field"><label htmlFor="youtube-playlist">Playlist</label><select id="youtube-playlist" value={settings.playlistId??''} onChange={event=>change({playlistId:event.target.value})}><option value="">Không thêm vào playlist</option>{playlists.map(row=><option key={row.id} value={row.id}>{row.title}</option>)}</select></div>
+    <div className="field"><label htmlFor="youtube-thumbnail">Ảnh bìa YouTube</label><input id="youtube-thumbnail" type="file" accept="image/jpeg,image/png" onChange={event=>{const file=event.target.files?.[0];if(file)void onThumbnail(file)}}/>{settings.thumbnailAssetId?<small>Đã chọn ảnh bìa.</small>:null}</div>
+  </fieldset>;
+}
