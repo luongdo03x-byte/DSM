@@ -120,6 +120,7 @@ model Brand {
   publishBatches PublishBatch[]
   trackedLinks   TrackedLink[]
   pillars        ContentPillar[]
+  competitors    Competitor[]
 
   @@unique([workspaceId, slug])
   @@index([workspaceId])
@@ -511,6 +512,32 @@ model ContentPillar {
   contents    ContentItem[]
 
   @@unique([brandId, name])
+}
+
+model Competitor {
+  id        String               @id
+  brandId   String
+  platform  Platform
+  handle    String
+  source    String
+  brand     Brand                @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  snapshots CompetitorSnapshot[]
+
+  @@unique([brandId, platform, handle])
+}
+
+model CompetitorSnapshot {
+  id           String     @id
+  competitorId String
+  day          String
+  followers    BigInt?
+  posts        BigInt?
+  source       String
+  capturedAt   BigInt
+  raw          Json?
+  competitor   Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+
+  @@unique([competitorId, day])
 }
 
 model TrackedLink {

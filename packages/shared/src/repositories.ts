@@ -1,5 +1,5 @@
 import type {
-  AuditLog, AuthSession, Brand, BrowserNode, BrowserProfile, BrowserRegistration, ChannelSnapshot, ChannelGoal, ContentPillar,
+  AuditLog, AuthSession, Brand, BrowserNode, BrowserProfile, BrowserRegistration, ChannelSnapshot, ChannelGoal, ContentPillar, Competitor, CompetitorSnapshot,
   Campaign, ClickEvent, ContentItem, ContentVariant, EncryptedCredential, JobStatus,
   MediaAsset, ContentMedia, VariantMedia, OAuthPending, PostMetric, Product, PublishAttempt, PublishBatch, PublishedPost,
   PublishJob, SocialAccount, TrackedLink, User, Workspace, WorkspaceMember, NotificationChannel, QuotaUsage,
@@ -54,6 +54,8 @@ export interface Repositories {
   channelSnapshots: Repo<ChannelSnapshot>;
   channelGoals: Repo<ChannelGoal>;
   contentPillars: Repo<ContentPillar>;
+  competitors: Repo<Competitor>;
+  competitorSnapshots: Repo<CompetitorSnapshot>;
   quotaUsage: QuotaUsageRepo;
   trackedLinks: Repo<TrackedLink>;
   clickEvents: AppendRepo<ClickEvent>;

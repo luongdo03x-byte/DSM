@@ -132,6 +132,8 @@ export class PrismaRepositories implements Repositories {
   readonly channelSnapshots: Repositories['channelSnapshots'];
   readonly channelGoals: Repositories['channelGoals'];
   readonly contentPillars: Repositories['contentPillars'];
+  readonly competitors: Repositories['competitors'];
+  readonly competitorSnapshots: Repositories['competitorSnapshots'];
   readonly quotaUsage:QuotaUsageRepo;
   readonly trackedLinks: Repositories['trackedLinks'];
   readonly clickEvents: Repositories['clickEvents'];
@@ -167,6 +169,8 @@ export class PrismaRepositories implements Repositories {
     this.channelSnapshots = new TableRepo(db.channelSnapshot!, 'channelSnapshots');
     this.channelGoals = new TableRepo(db.channelGoal!, 'channelGoals');
     this.contentPillars = new TableRepo(db.contentPillar!, 'contentPillars');
+    this.competitors = new TableRepo(db.competitor!, 'competitors');
+    this.competitorSnapshots = new TableRepo(db.competitorSnapshot!, 'competitorSnapshots');
     const quota=(client as any).quotaUsage;
     this.quotaUsage={get:async id=>quota.findUnique({where:{id}}),tryConsume:async(row,limit)=>{await quota.createMany({data:[{...row,used:0}],skipDuplicates:true});const result=await quota.updateMany({where:{id:row.id,used:{lt:limit}},data:{used:{increment:1}}});return result.count===1}};
     this.trackedLinks = new TableRepo(db.trackedLink!, 'trackedLinks');

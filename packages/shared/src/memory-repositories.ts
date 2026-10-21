@@ -117,6 +117,8 @@ export class MemoryRepositories implements Repositories {
   readonly channelSnapshots: Repositories['channelSnapshots'];
   readonly channelGoals: Repositories['channelGoals'];
   readonly contentPillars: Repositories['contentPillars'];
+  readonly competitors: Repositories['competitors'];
+  readonly competitorSnapshots: Repositories['competitorSnapshots'];
   readonly quotaUsage:QuotaUsageRepo;
   readonly trackedLinks: Repositories['trackedLinks'];
   readonly clickEvents: Repositories['clickEvents'];
@@ -151,6 +153,8 @@ export class MemoryRepositories implements Repositories {
     this.channelSnapshots = new MapRepo(store.channelSnapshots);
     this.channelGoals = new MapRepo(store.channelGoals);
     this.contentPillars = new MapRepo(store.contentPillars);
+    this.competitors = new MapRepo(store.competitors);
+    this.competitorSnapshots = new MapRepo(store.competitorSnapshots);
     this.quotaUsage={get:async id=>store.quotaUsage.get(id),tryConsume:async(row,limit)=>{const current=store.quotaUsage.get(row.id);if((current?.used??0)>=limit)return false;store.quotaUsage.set(row.id,{...row,used:(current?.used??0)+1});return true}};
     this.trackedLinks = new MapRepo(store.trackedLinks);
     this.clickEvents = new ArrayRepo(store.clickEvents);
