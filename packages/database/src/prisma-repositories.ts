@@ -1,5 +1,5 @@
 import type {PublishJob} from '../../shared/src/domain.ts';
-import type {AppendRepo, PublishJobRepo, Repo, Repositories} from '../../shared/src/repositories.ts';
+import type {AppendRepo, PublishJobRepo, Repo, Repositories,QuotaUsageRepo} from '../../shared/src/repositories.ts';
 import type {PrismaClient} from './client.ts';
 import {toCreateRow, toDomain, toRow, toWhere, type DomainTable} from './mappers.ts';
 
@@ -129,6 +129,7 @@ export class PrismaRepositories implements Repositories {
   readonly publishAttempts: Repositories['publishAttempts'];
   readonly publishedPosts: Repositories['publishedPosts'];
   readonly postMetrics: Repositories['postMetrics'];
+  readonly quotaUsage:QuotaUsageRepo;
   readonly trackedLinks: Repositories['trackedLinks'];
   readonly clickEvents: Repositories['clickEvents'];
 
@@ -160,6 +161,8 @@ export class PrismaRepositories implements Repositories {
     this.publishAttempts = new TableAppendRepo(db.publishAttempt!, 'publishAttempts');
     this.publishedPosts = new TableRepo(db.publishedPost!, 'publishedPosts');
     this.postMetrics = new TableAppendRepo(db.postMetric!, 'postMetrics');
+    const quota=(client as any).quotaUsage;
+    this.quotaUsage={get:async id=>quota.findUnique({where:{id}}),tryConsume:async(row,limit)=>{await quota.createMany({data:[{...row,used:0}],skipDuplicates:true});const result=await quota.updateMany({where:{id:row.id,used:{lt:limit}},data:{used:{increment:1}}});return result.count===1}};
     this.trackedLinks = new TableRepo(db.trackedLink!, 'trackedLinks');
     this.clickEvents = new TableAppendRepo(db.clickEvent!, 'clickEvents');
   }

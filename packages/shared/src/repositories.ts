@@ -2,7 +2,7 @@ import type {
   AuditLog, AuthSession, Brand, BrowserNode, BrowserProfile, BrowserRegistration,
   Campaign, ClickEvent, ContentItem, ContentVariant, EncryptedCredential, JobStatus,
   MediaAsset, ContentMedia, VariantMedia, OAuthPending, PostMetric, Product, PublishAttempt, PublishBatch, PublishedPost,
-  PublishJob, SocialAccount, TrackedLink, User, Workspace, WorkspaceMember, NotificationChannel,
+  PublishJob, SocialAccount, TrackedLink, User, Workspace, WorkspaceMember, NotificationChannel, QuotaUsage,
 } from './domain.ts';
 
 export interface Repo<T extends {id: string}> {
@@ -23,6 +23,7 @@ export interface PublishJobRepo extends Repo<PublishJob> {
   claim(id: string, from: JobStatus[], to: JobStatus, options?: {patch?: Partial<PublishJob>; dueAt?: number}): Promise<boolean>;
   findInRange(brandId: string, from: number, to: number): Promise<PublishJob[]>;
 }
+export interface QuotaUsageRepo {get(id:string):Promise<QuotaUsage|undefined>;tryConsume(row:Omit<QuotaUsage,'used'>,limit:number):Promise<boolean>}
 
 export interface Repositories {
   users: Repo<User>;
@@ -50,6 +51,7 @@ export interface Repositories {
   publishAttempts: AppendRepo<PublishAttempt>;
   publishedPosts: Repo<PublishedPost>;
   postMetrics: AppendRepo<PostMetric>;
+  quotaUsage: QuotaUsageRepo;
   trackedLinks: Repo<TrackedLink>;
   clickEvents: AppendRepo<ClickEvent>;
   transaction<R>(fn: (tx: Repositories) => Promise<R>): Promise<R>;

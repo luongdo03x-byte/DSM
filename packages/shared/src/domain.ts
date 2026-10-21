@@ -11,6 +11,7 @@ export interface WorkspaceMember{workspaceId:string;userId:string;role:Role}
 export interface Brand{id:string;workspaceId:string;name:string;slug:string;language:string;timezone:string;currency:string;status:'ACTIVE'|'ARCHIVED'}
 export interface Product{id:string;brandId:string;name:string;slug:string;description?:string;imageAssetId?:string;supplierUrl?:string;landingUrl?:string;cost?:string;sellingPrice?:string;currency:string;status:'DRAFT'|'ACTIVE'|'ARCHIVED'}
 export interface MediaAsset{id:string;brandId:string;workspaceId:string;type:'VIDEO'|'IMAGE';storageKey:string;mimeType:string;sizeBytes?:number;width?:number;height?:number;durationMs?:number;derivedFromAssetId?:string;variantKey?:string;exifStripped?:boolean;codec?:string}
+export interface QuotaUsage{id:string;provider:'YOUTUBE'|'INSTAGRAM';scope:string;day:string;used:number}
 export interface ContentItem{id:string;brandId:string;productId?:string;type:ContentType;title:string;hook?:string;body?:string;cta?:string;masterAssetId?:string;status:'DRAFT'|'READY'|'ARCHIVED'}
 export interface ContentMedia{id:string;contentItemId:string;mediaAssetId:string;position:number}
 export interface CropBox{x:number;y:number;width:number;height:number}

@@ -5,9 +5,10 @@ import type {SocialAccount} from '../../../../../packages/shared/src/domain.ts';
 import {MEDIA_RULES} from '../../../../../packages/shared/src/media-rules.ts';
 import type {HttpClient} from '../../../../../packages/shared/src/http.ts';
 import type {ObjectStorage} from '../../modules/media/media.service.ts';
+import type {QuotaManager} from '../../../../../packages/shared/src/quota.ts';
 import {queryProgress,sendChunks,startResumable,type ResumableSession} from './resumable-upload.ts';
 
-type Deps={baseUrl:string;http:HttpClient;tokens:(id:string)=>Promise<string>;storage:ObjectStorage;audited:boolean;refresh?:(account:SocialAccount)=>Promise<TokenRefreshResult>};
+type Deps={baseUrl:string;http:HttpClient;tokens:(id:string)=>Promise<string>;storage:ObjectStorage;audited:boolean;quota?:QuotaManager;dailyUploadLimit?:number;refresh?:(account:SocialAccount)=>Promise<TokenRefreshResult>};
 type Settings={categoryId?:string;tags?:string[];privacyStatus?:'public'|'unlisted'|'private';playlistId?:string;madeForKids?:boolean};
 export class YouTubeAdapter implements PlatformAdapter{
   readonly platform='YOUTUBE' as const;
@@ -23,7 +24,7 @@ export class YouTubeAdapter implements PlatformAdapter{
     const metadata={snippet:{title:input.caption??'',description:input.body??'',tags:settings.tags??[],categoryId:settings.categoryId??'22'},status:{privacyStatus,selfDeclaredMadeForKids:settings.madeForKids}};
     let session:ResumableSession;
     if(input.remoteCorrelationId?.startsWith('resumable:'))session=await queryProgress({uploadUrl:input.remoteCorrelationId.slice(10),totalBytes:media.sizeBytes!,confirmedBytes:0},token,this.deps.http);
-    else{session=await startResumable({baseUrl:this.deps.baseUrl,token,metadata,totalBytes:media.sizeBytes!,mimeType:media.mimeType,http:this.deps.http});await input.persistCorrelation?.(`resumable:${session.uploadUrl}`)}
+    else{if(this.deps.quota){const allowed=await this.deps.quota.tryConsume('YOUTUBE',input.brandId,this.deps.dailyUploadLimit??100);if(!allowed.ok)throw new PublishError({type:'RATE_LIMIT',code:'YT_DAILY_UPLOAD_LIMIT',message:'Hết hạn mức tải video YouTube hôm nay',retryable:true,retryAfterMs:Math.max(0,allowed.retryAt-Date.now())})}session=await startResumable({baseUrl:this.deps.baseUrl,token,metadata,totalBytes:media.sizeBytes!,mimeType:media.mimeType,http:this.deps.http});await input.persistCorrelation?.(`resumable:${session.uploadUrl}`)}
     const read=async(start:number,end:number)=>this.deps.storage.getObjectRange?this.deps.storage.getObjectRange(media.storageKey!,start,end):(await this.deps.storage.getObject(media.storageKey!)).subarray(start,end+1);
     const result=session.videoId?{videoId:session.videoId}:await sendChunks(session,read,{chunkBytes:8*1024*1024,token,http:this.deps.http});
     if('session' in result)throw new PublishError({type:'NETWORK_ERROR',code:'YT_UPLOAD_INTERRUPTED',message:'YouTube upload interrupted; resume saved session',retryable:true});

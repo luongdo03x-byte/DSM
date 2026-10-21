@@ -141,7 +141,7 @@ export class JobRunner {
       const failure = raw as Error & {code?: string; retryable?: boolean};
       const error = raw instanceof PublishError ? raw : new PublishError({type: 'UNKNOWN', code: failure?.code ?? 'UNKNOWN', message: String(failure?.message ?? raw), retryable: failure?.retryable ?? false});
       if(error.type==='AUTH_ERROR')await this.repos.socialAccounts.update(job.socialAccountId,{status:'EXPIRED'});
-      if(job.platform==='INSTAGRAM'&&error.code==='IG_DAILY_LIMIT'&&error.retryAfterMs){
+      if(((job.platform==='INSTAGRAM'&&error.code==='IG_DAILY_LIMIT')||(job.platform==='YOUTUBE'&&error.code==='YT_DAILY_UPLOAD_LIMIT'))&&error.retryAfterMs!==undefined){
         await this.repos.publishJobs.update(jobId,{status:'RETRYING',attemptCount:job.attemptCount,errorCode:error.code,errorMessage:error.message,scheduledAt:Date.now()+error.retryAfterMs});
         return'RETRYING';
       }

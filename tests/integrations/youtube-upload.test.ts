@@ -4,6 +4,9 @@ import {startResumable,sendChunks,queryProgress} from '../../apps/api/src/integr
 import {YouTubeAdapter} from '../../apps/api/src/integrations/google/youtube.adapter.ts';
 import {InMemoryObjectStorage} from '../../apps/api/src/modules/media/media.service.ts';
 import type {HttpClient,HttpRequest,HttpResponse} from '../../packages/shared/src/http.ts';
+import {QuotaManager} from '../../packages/shared/src/quota.ts';
+import {MemoryRepositories} from '../../packages/shared/src/memory-repositories.ts';
+import {MemoryStore} from '../../packages/shared/src/store.ts';
 
 function uploadFixture(){
   const calls:HttpRequest[]=[];let uploaded=-1,initCount=0,drop=false;
@@ -55,4 +58,13 @@ test('completed session query returns video id without another upload',async()=>
   const result=await queryProgress({uploadUrl:'https://upload.test/done',totalBytes:3,confirmedBytes:0},'token',http);
   assert.equal(result.videoId,'already-uploaded');assert.equal(result.confirmedBytes,3);
   assert.equal(requests.length,1);
+});
+
+test('second project upload is deferred before opening a resumable session',async()=>{
+  const f=uploadFixture(),storage=new InMemoryObjectStorage(),quota=new QuotaManager(new MemoryRepositories(new MemoryStore()));await storage.putObject('video',Buffer.from([1,2,3]),'video/mp4');
+  const adapter=new YouTubeAdapter({baseUrl:'https://youtube.test',http:f.http,tokens:async()=> 'token',storage,audited:false,quota,dailyUploadLimit:1});
+  const first={...input(3),metadata:{format:'SHORT',youtube:{...settings,playlistId:undefined}}};
+  await adapter.publish(first);
+  await assert.rejects(()=>adapter.publish(first),(error:any)=>error.code==='YT_DAILY_UPLOAD_LIMIT'&&error.type==='RATE_LIMIT');
+  assert.equal(f.initCount(),1);
 });

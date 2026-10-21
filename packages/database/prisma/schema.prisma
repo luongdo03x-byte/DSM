@@ -526,3 +526,13 @@ model AuditLog {
 
   @@index([workspaceId, createdAt])
 }
+
+model QuotaUsage {
+  id       String @id
+  provider String
+  scope    String
+  day      String
+  used     Int    @default(0)
+
+  @@unique([provider, scope, day])
+}

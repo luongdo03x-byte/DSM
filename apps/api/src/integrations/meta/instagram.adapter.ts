@@ -4,13 +4,14 @@ import type {PublishInput,PublishResult,PublishedPostData,PostMetricsData,Valida
 import type {SocialAccount} from '../../../../../packages/shared/src/domain.ts';
 import {MEDIA_RULES} from '../../../../../packages/shared/src/media-rules.ts';
 import {MetaGraphClient} from './meta-http.client.ts';
+import type {QuotaManager} from '../../../../../packages/shared/src/quota.ts';
 
 export const IG_CONTAINER_TIMEOUT_MS=10*60_000;
-type Deps={graph:MetaGraphClient;tokens:(socialAccountId:string)=>Promise<string>;accountIds:(socialAccountId:string)=>Promise<string>;refresh?:(account:SocialAccount)=>Promise<TokenRefreshResult>};
+type Deps={graph:MetaGraphClient;tokens:(socialAccountId:string)=>Promise<string>;accountIds:(socialAccountId:string)=>Promise<string>;quota?:QuotaManager;refresh?:(account:SocialAccount)=>Promise<TokenRefreshResult>};
 export class InstagramAdapter implements PlatformAdapter {
   readonly platform='INSTAGRAM' as const;
-  private readonly graph:MetaGraphClient;private readonly tokens:Deps['tokens'];private readonly accountIds:Deps['accountIds'];private readonly refresh:Deps['refresh'];
-  constructor(deps:Deps){this.graph=deps.graph;this.tokens=deps.tokens;this.accountIds=deps.accountIds;this.refresh=deps.refresh}
+  private readonly graph:MetaGraphClient;private readonly tokens:Deps['tokens'];private readonly accountIds:Deps['accountIds'];private readonly refresh:Deps['refresh'];private readonly quota:Deps['quota'];
+  constructor(deps:Deps){this.graph=deps.graph;this.tokens=deps.tokens;this.accountIds=deps.accountIds;this.refresh=deps.refresh;this.quota=deps.quota}
   capabilities(_account:SocialAccount):AdapterCapabilities{return{platform:this.platform,rule:MEDIA_RULES.INSTAGRAM,dailyPublishLimit:100}}
   async refreshToken(account:SocialAccount):Promise<TokenRefreshResult>{return this.refresh?this.refresh(account):{refreshed:false}}
   async validate(input:PublishInput):Promise<ValidationResult>{
@@ -26,6 +27,7 @@ export class InstagramAdapter implements PlatformAdapter {
     const limit=await this.graph.get<{data?:Array<{quota_usage?:number;config?:{quota_total?:number}}>}>(`/${igId}/content_publishing_limit`,token);
     const usage=limit.data?.[0]?.quota_usage??0,total=limit.data?.[0]?.config?.quota_total??100;
     if(usage>=total)throw new PublishError({type:'RATE_LIMIT',code:'IG_DAILY_LIMIT',message:'Instagram daily publishing limit reached',retryable:true,retryAfterMs:24*60*60_000});
+    if(this.quota){const consumed=await this.quota.tryConsume('INSTAGRAM',input.socialAccountId,total);if(!consumed.ok)throw new PublishError({type:'RATE_LIMIT',code:'IG_DAILY_LIMIT',message:'Instagram local publishing limit reached',retryable:true,retryAfterMs:Math.max(0,consumed.retryAt-Date.now())})}
     const format=String(input.metadata?.format??(input.contentType==='ALBUM'?'ALBUM':input.contentType==='VIDEO'?'REEL':'IMAGE'));
     const media=input.media??(input.mediaUrl?[{url:input.mediaUrl,kind:input.contentType==='VIDEO'?'VIDEO':'IMAGE'}]:[]);
     let containerId:string;

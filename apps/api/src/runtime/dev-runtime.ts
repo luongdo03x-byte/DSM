@@ -45,6 +45,7 @@ import {BrowserPublisherProxy} from '../modules/publishing/browser-publisher.pro
 import {NodeAuthService} from '../modules/browser-nodes/node-auth.service.ts';
 import {BrowserNodesService} from '../modules/browser-nodes/browser-nodes.service.ts';
 import {FakePublisher} from '../../../worker/src/testing/fake-publisher.ts';
+import {QuotaManager} from '../../../../packages/shared/src/quota.ts';
 
 export interface DevelopmentRuntimeOptions{env?:Record<string,string|undefined>;hasher?:PasswordHasher;store?:MemoryStore}
 export interface RuntimeOptions {env:Record<string,string|undefined>;hasher?:PasswordHasher;store?:MemoryStore}
@@ -84,8 +85,8 @@ export async function createDevelopmentRuntime(options:DevelopmentRuntimeOptions
   const credentialCrypto=new CredentialCryptoService(credentialKey(env)),accounts=new AccountsService(repos,credentialCrypto),nodeAuth=new NodeAuthService(repos,credentialCrypto),browserNodes=new BrowserNodesService(repos);
   const createdAccounts=new Map<string,Awaited<ReturnType<AccountsService['create']>>>();
   for(const platform of ['FACEBOOK','INSTAGRAM','THREADS','TIKTOK'] as const){const existing=(await repos.socialAccounts.findBy({brandId,platform}))[0];createdAccounts.set(platform,existing??await accounts.create(brandId,{platform,publishMode:'HYBRID'}))}
-  const registry=new PublisherRegistry(),http=new FetchHttpClient(),metaHttp=new MetaHttpClient(http,metaConfig(env)),metaRefresh=metaTokenRefresher(repos,credentialCrypto,env);
-  registry.register('FACEBOOK','API',new FacebookAdapter({graph:new MetaGraphClient({baseUrl:metaConfig(env).graphBaseUrl,version:metaConfig(env).graphVersion}),tokens:accountId=>accounts.getAccessToken(accountId),...(metaRefresh?{refresh:account=>metaRefresh.refresh(account)}:{})}));registry.register('INSTAGRAM','API',new InstagramAdapter({graph:new MetaGraphClient({baseUrl:metaConfig(env).graphBaseUrl,version:metaConfig(env).graphVersion}),tokens:accountId=>accounts.getAccessToken(accountId),accountIds:async accountId=>(await repos.socialAccounts.get(accountId))?.platformAccountId??accountId,...(metaRefresh?{refresh:account=>metaRefresh.refresh(account)}:{})}));registry.register('THREADS','API',new ThreadsPublisher(metaHttp,accounts));
+  const registry=new PublisherRegistry(),http=new FetchHttpClient(),metaHttp=new MetaHttpClient(http,metaConfig(env)),metaRefresh=metaTokenRefresher(repos,credentialCrypto,env),quota=new QuotaManager(repos);
+  registry.register('FACEBOOK','API',new FacebookAdapter({graph:new MetaGraphClient({baseUrl:metaConfig(env).graphBaseUrl,version:metaConfig(env).graphVersion}),tokens:accountId=>accounts.getAccessToken(accountId),...(metaRefresh?{refresh:account=>metaRefresh.refresh(account)}:{})}));registry.register('INSTAGRAM','API',new InstagramAdapter({graph:new MetaGraphClient({baseUrl:metaConfig(env).graphBaseUrl,version:metaConfig(env).graphVersion}),tokens:accountId=>accounts.getAccessToken(accountId),accountIds:async accountId=>(await repos.socialAccounts.get(accountId))?.platformAccountId??accountId,quota,...(metaRefresh?{refresh:account=>metaRefresh.refresh(account)}:{})}));registry.register('THREADS','API',new ThreadsPublisher(metaHttp,accounts));
   const tc=tiktokConfig(env),th=new TikTokHttpClient(http,tc),ttRefresh=new TikTokTokenRefreshService(repos,credentialCrypto,new TikTokOAuthConnector({http:th,config:tc}));
   registry.register('TIKTOK','API',new TikTokAdapter({http:th,tokens:accountId=>accounts.getAccessToken(accountId),username:async accountId=>(await repos.socialAccounts.get(accountId))?.username??'',auditApproved:tc.directPostApproved,...(env.PUBLIC_MEDIA_BASE_URL?{publicMediaBaseUrl:env.PUBLIC_MEDIA_BASE_URL}:{}),refresh:account=>ttRefresh.refresh(account)}));
 
@@ -98,7 +99,7 @@ export async function createDevelopmentRuntime(options:DevelopmentRuntimeOptions
   }
 
   const storage=env.S3_ENDPOINT&&env.S3_REGION&&env.S3_ACCESS_KEY&&env.S3_SECRET_KEY&&env.S3_BUCKET?new S3CompatibleObjectStorage({endpoint:env.S3_ENDPOINT,region:env.S3_REGION,accessKey:env.S3_ACCESS_KEY,secretKey:env.S3_SECRET_KEY,bucket:env.S3_BUCKET}):new InMemoryObjectStorage();
-  const googleRefresh=googleTokenRefresher(repos,credentialCrypto,env);registry.register('YOUTUBE','API',new YouTubeAdapter({baseUrl:googleConfig(env).youtubeBaseUrl,http,tokens:accountId=>accounts.getAccessToken(accountId),storage,audited:googleConfig(env).audited,...(googleRefresh?{refresh:account=>googleRefresh.refresh(account)}:{})}));
+  const googleRefresh=googleTokenRefresher(repos,credentialCrypto,env);registry.register('YOUTUBE','API',new YouTubeAdapter({baseUrl:googleConfig(env).youtubeBaseUrl,http,tokens:accountId=>accounts.getAccessToken(accountId),storage,audited:googleConfig(env).audited,quota,dailyUploadLimit:Number(env.YOUTUBE_DAILY_UPLOAD_LIMIT??100),...(googleRefresh?{refresh:account=>googleRefresh.refresh(account)}:{})}));
   const analytics=new AnalyticsService(repos),products=new ProductsService(repos),content=new ContentService(repos,undefined,{publicMediaBaseUrl:env.PUBLIC_MEDIA_BASE_URL??''}),batchStatus=new BatchStatusService(repos),tracking=new TrackingService(repos),media=new MediaService(repos,storage),campaigns=new CampaignsService(repos);
   const integrations=configuredIntegrations(repos,credentialCrypto,env);
   const dataDeletion=metaDeletion(repos,env);
@@ -140,16 +141,16 @@ export async function createRuntime(options:RuntimeOptions) {
     }
     const credentialCrypto=new CredentialCryptoService(credentialKey(env));
     const accounts=new AccountsService(repos,credentialCrypto),nodeAuth=new NodeAuthService(repos,credentialCrypto),browserNodes=new BrowserNodesService(repos);
-    const registry=new PublisherRegistry(),http=new FetchHttpClient(),metaHttp=new MetaHttpClient(http,metaConfig(env)),metaRefresh=metaTokenRefresher(repos,credentialCrypto,env);
+    const registry=new PublisherRegistry(),http=new FetchHttpClient(),metaHttp=new MetaHttpClient(http,metaConfig(env)),metaRefresh=metaTokenRefresher(repos,credentialCrypto,env),quota=new QuotaManager(repos);
     registry.register('FACEBOOK','API',new FacebookAdapter({graph:new MetaGraphClient({baseUrl:metaConfig(env).graphBaseUrl,version:metaConfig(env).graphVersion}),tokens:accountId=>accounts.getAccessToken(accountId),...(metaRefresh?{refresh:account=>metaRefresh.refresh(account)}:{})}));
-    registry.register('INSTAGRAM','API',new InstagramAdapter({graph:new MetaGraphClient({baseUrl:metaConfig(env).graphBaseUrl,version:metaConfig(env).graphVersion}),tokens:accountId=>accounts.getAccessToken(accountId),accountIds:async accountId=>(await repos.socialAccounts.get(accountId))?.platformAccountId??accountId,...(metaRefresh?{refresh:account=>metaRefresh.refresh(account)}:{})}));
+    registry.register('INSTAGRAM','API',new InstagramAdapter({graph:new MetaGraphClient({baseUrl:metaConfig(env).graphBaseUrl,version:metaConfig(env).graphVersion}),tokens:accountId=>accounts.getAccessToken(accountId),accountIds:async accountId=>(await repos.socialAccounts.get(accountId))?.platformAccountId??accountId,quota,...(metaRefresh?{refresh:account=>metaRefresh.refresh(account)}:{})}));
     registry.register('THREADS','API',new ThreadsPublisher(metaHttp,accounts));
     const tc=tiktokConfig(env),th=new TikTokHttpClient(http,tc),ttRefresh=new TikTokTokenRefreshService(repos,credentialCrypto,new TikTokOAuthConnector({http:th,config:tc}));
     registry.register('TIKTOK','API',new TikTokAdapter({http:th,tokens:accountId=>accounts.getAccessToken(accountId),username:async accountId=>(await repos.socialAccounts.get(accountId))?.username??'',auditApproved:tc.directPostApproved,...(env.PUBLIC_MEDIA_BASE_URL?{publicMediaBaseUrl:env.PUBLIC_MEDIA_BASE_URL}:{}),refresh:account=>ttRefresh.refresh(account)}));
     const browserClient=new BrowserGatewayClient(registeredNodeKey(repos,credentialCrypto));
     for(const platform of ['FACEBOOK','INSTAGRAM','THREADS','TIKTOK'] as const)registry.register(platform,'BROWSER',new BrowserPublisherProxy(platform,repos,browserClient));
     const storage=env.S3_ENDPOINT&&env.S3_REGION&&env.S3_ACCESS_KEY&&env.S3_SECRET_KEY&&env.S3_BUCKET?new S3CompatibleObjectStorage({endpoint:env.S3_ENDPOINT,region:env.S3_REGION,accessKey:env.S3_ACCESS_KEY,secretKey:env.S3_SECRET_KEY,bucket:env.S3_BUCKET}):new InMemoryObjectStorage();
-    const googleRefresh=googleTokenRefresher(repos,credentialCrypto,env);registry.register('YOUTUBE','API',new YouTubeAdapter({baseUrl:googleConfig(env).youtubeBaseUrl,http,tokens:accountId=>accounts.getAccessToken(accountId),storage,audited:googleConfig(env).audited,...(googleRefresh?{refresh:account=>googleRefresh.refresh(account)}:{})}));
+    const googleRefresh=googleTokenRefresher(repos,credentialCrypto,env);registry.register('YOUTUBE','API',new YouTubeAdapter({baseUrl:googleConfig(env).youtubeBaseUrl,http,tokens:accountId=>accounts.getAccessToken(accountId),storage,audited:googleConfig(env).audited,quota,dailyUploadLimit:Number(env.YOUTUBE_DAILY_UPLOAD_LIMIT??100),...(googleRefresh?{refresh:account=>googleRefresh.refresh(account)}:{})}));
     const analytics=new AnalyticsService(repos),products=new ProductsService(repos),content=new ContentService(repos,undefined,{publicMediaBaseUrl:env.PUBLIC_MEDIA_BASE_URL??''}),batchStatus=new BatchStatusService(repos,undefined,queue),tracking=new TrackingService(repos),media=new MediaService(repos,storage),campaigns=new CampaignsService(repos);
     const integrations=configuredIntegrations(repos,credentialCrypto,env);
     const dataDeletion=metaDeletion(repos,env);
