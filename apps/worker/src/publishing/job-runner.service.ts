@@ -117,6 +117,7 @@ export class JobRunner {
         await this.repos.publishJobs.update(jobId, {remoteCorrelationId: correlationId});
       }
       const input=await buildInput(job.strategy === 'BROWSER' ? {...job, remoteCorrelationId: correlationId!} : job);
+      if(job.platform==='YOUTUBE'&&job.strategy==='API')input.persistCorrelation=async value=>{await this.repos.publishJobs.update(jobId,{remoteCorrelationId:value})};
       if(job.strategy==='API'&&job.attemptCount>0){
         const prior=await this.repos.publishAttempts.findBy({publishJobId:jobId});
         const first=Math.min(...prior.map(attempt=>attempt.startedAt));

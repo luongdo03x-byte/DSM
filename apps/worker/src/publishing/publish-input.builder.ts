@@ -25,12 +25,12 @@ export class PublishInputBuilder {
     const media=[];
     for(const [index,asset] of assets.entries()){
       const url=this.publicMediaBaseUrl?`${this.publicMediaBaseUrl.replace(/\/$/,'')}/${asset.storageKey.split('/').map(encodeURIComponent).join('/')}`:await this.media.download({workspaceId:brand.workspaceId,brandId:job.brandId},asset.id);
-      media.push({url,mimeType:asset.mimeType,kind:asset.type,width:asset.width??0,height:asset.height??0,isCover:mediaRows[index]?.isCover??index===0,...(asset.durationMs!==undefined?{durationMs:asset.durationMs}:{})});
+      media.push({url,mimeType:asset.mimeType,kind:asset.type,width:asset.width??0,height:asset.height??0,isCover:mediaRows[index]?.isCover??index===0,storageKey:asset.storageKey,...(asset.sizeBytes!==undefined?{sizeBytes:asset.sizeBytes}:{}),...(asset.durationMs!==undefined?{durationMs:asset.durationMs}:{})});
     }
     const mediaUrl=media[0]?.url;
     return {brandId: job.brandId, socialAccountId: job.socialAccountId, contentVariantId: variant.id, platform: job.platform, contentType: content.type,
       ...(variant.caption ? {caption: variant.caption} : {}), ...(variant.body ? {body: variant.body} : {}),
       ...(mediaUrl ? {mediaUrl} : {}),...(media.length?{media}:{}), ...(job.remoteCorrelationId ? {remoteCorrelationId: job.remoteCorrelationId} : {}),
-      metadata:{...(variant.format?{format:variant.format}:{}),...(variant.tiktokSettings&&job.platform==='TIKTOK'?{tiktok:variant.tiktokSettings}:{}),...(account?.platformAccountId&&job.platform==='FACEBOOK'?{pageId:account.platformAccountId}:{}),...(account?.platformAccountId&&job.platform==='INSTAGRAM'?{platformAccountId:account.platformAccountId}:{}),...(product?.landingUrl?{link:product.landingUrl}:{})}};
+      metadata:{...(variant.format?{format:variant.format}:{}),...(variant.tiktokSettings&&job.platform==='TIKTOK'?{tiktok:variant.tiktokSettings}:{}),...(variant.youtube&&job.platform==='YOUTUBE'?{youtube:variant.youtube}:{}),...(account?.platformAccountId&&job.platform==='FACEBOOK'?{pageId:account.platformAccountId}:{}),...(account?.platformAccountId&&job.platform==='INSTAGRAM'?{platformAccountId:account.platformAccountId}:{}),...(product?.landingUrl?{link:product.landingUrl}:{})}};
   }
 }

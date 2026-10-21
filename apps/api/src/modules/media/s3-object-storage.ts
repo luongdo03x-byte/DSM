@@ -18,6 +18,7 @@ export class S3CompatibleObjectStorage implements ObjectStorage{
   async getSignedUrl(key:string,ttl:number){return this.presign('GET',key,ttl)}
   async putObject(key:string,bytes:Buffer,mime:string){const response=await fetch(await this.putSignedUrl(key,mime,900),{method:'PUT',headers:{'content-type':mime},body:new Uint8Array(bytes)});if(!response.ok)throw new Error(`STORAGE_PUT_FAILED:${response.status}`)}
   async getObject(key:string){const response=await fetch(await this.getSignedUrl(key,900));if(!response.ok)throw new Error(`STORAGE_GET_FAILED:${response.status}`);return Buffer.from(await response.arrayBuffer())}
+  async getObjectRange(key:string,start:number,end:number){const response=await fetch(await this.getSignedUrl(key,900),{headers:{range:`bytes=${start}-${end}`}});if(response.status!==206)throw new Error(`STORAGE_RANGE_FAILED:${response.status}`);return Buffer.from(await response.arrayBuffer())}
   private presign(method:'PUT'|'GET',key:string,ttl:number){
     if(ttl<1||ttl>900)throw new Error('INVALID_TTL');
     if(!key||key.startsWith('/')||key.includes('..')||key.includes('\\'))throw new Error('INVALID_STORAGE_KEY');

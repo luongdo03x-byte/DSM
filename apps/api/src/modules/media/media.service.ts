@@ -6,6 +6,7 @@ export interface ObjectStorage {
   getSignedUrl(key: string, ttl: number): Promise<string>;
   putObject(key: string, bytes: Buffer, mime: string): Promise<void>;
   getObject(key: string): Promise<Buffer>;
+  getObjectRange?(key:string,start:number,end:number):Promise<Buffer>;
 }
 export class InMemoryObjectStorage implements ObjectStorage {
   private readonly objects=new Map<string,Buffer>();
@@ -13,6 +14,7 @@ export class InMemoryObjectStorage implements ObjectStorage {
   async getSignedUrl(key: string, ttl: number) {return `https://storage.local/get/${encodeURIComponent(key)}?ttl=${ttl}`}
   async putObject(key:string,bytes:Buffer,_mime:string){this.objects.set(key,Buffer.from(bytes))}
   async getObject(key:string){const bytes=this.objects.get(key);if(!bytes)throw new Error('OBJECT_NOT_FOUND');return Buffer.from(bytes)}
+  async getObjectRange(key:string,start:number,end:number){const bytes=this.objects.get(key);if(!bytes)throw new Error('OBJECT_NOT_FOUND');return Buffer.from(bytes.subarray(start,end+1))}
 }
 
 export class MediaService {

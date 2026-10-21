@@ -38,7 +38,8 @@ import {TikTokOAuthConnector,TikTokTokenRefreshService} from '../integrations/ti
 import {TikTokAdapter} from '../integrations/tiktok/tiktok.adapter.ts';
 import {tiktokConfig} from '../integrations/tiktok/tiktok.config.ts';
 import {googleConfig} from '../integrations/google/google.config.ts';
-import {GoogleOAuthConnector} from '../integrations/google/google-oauth.connector.ts';
+import {GoogleOAuthConnector,GoogleTokenRefreshService} from '../integrations/google/google-oauth.connector.ts';
+import {YouTubeAdapter} from '../integrations/google/youtube.adapter.ts';
 import {BrowserGatewayClient} from '../modules/browser-nodes/browser-gateway.client.ts';
 import {BrowserPublisherProxy} from '../modules/publishing/browser-publisher.proxy.ts';
 import {NodeAuthService} from '../modules/browser-nodes/node-auth.service.ts';
@@ -62,6 +63,7 @@ function metaTokenRefresher(repos:Repositories,crypto:CredentialCryptoService,en
   const connector=new MetaOAuthConnector({graph:new MetaGraphClient({baseUrl:config.graphBaseUrl,version:config.graphVersion}),appId:env.META_APP_ID,appSecret:env.META_APP_SECRET,redirectUri:config.redirectUri});
   return new MetaTokenRefreshService(repos,crypto,connector);
 }
+function googleTokenRefresher(repos:Repositories,crypto:CredentialCryptoService,env:Record<string,string|undefined>){const config=googleConfig(env);if(!config.clientId||!config.clientSecret||!config.redirectUri)return undefined;return new GoogleTokenRefreshService(repos,crypto,new GoogleOAuthConnector({http:new FetchHttpClient(),config}))}
 function metaDeletion(repos:Repositories,env:Record<string,string|undefined>){return env.META_APP_SECRET?new MetaDataDeletionService({repos,appSecret:env.META_APP_SECRET,statusBaseUrl:(env.WEB_APP_BASE_URL??'http://127.0.0.1:3000')+'/data-deletion'}):undefined}
 export function registeredNodeKey(repos:Repositories, crypto:CredentialCryptoService) {return async (nodeId:string)=>{
   const node=await repos.browserNodes.get(nodeId);
@@ -96,6 +98,7 @@ export async function createDevelopmentRuntime(options:DevelopmentRuntimeOptions
   }
 
   const storage=env.S3_ENDPOINT&&env.S3_REGION&&env.S3_ACCESS_KEY&&env.S3_SECRET_KEY&&env.S3_BUCKET?new S3CompatibleObjectStorage({endpoint:env.S3_ENDPOINT,region:env.S3_REGION,accessKey:env.S3_ACCESS_KEY,secretKey:env.S3_SECRET_KEY,bucket:env.S3_BUCKET}):new InMemoryObjectStorage();
+  const googleRefresh=googleTokenRefresher(repos,credentialCrypto,env);registry.register('YOUTUBE','API',new YouTubeAdapter({baseUrl:googleConfig(env).youtubeBaseUrl,http,tokens:accountId=>accounts.getAccessToken(accountId),storage,audited:googleConfig(env).audited,...(googleRefresh?{refresh:account=>googleRefresh.refresh(account)}:{})}));
   const analytics=new AnalyticsService(repos),products=new ProductsService(repos),content=new ContentService(repos,undefined,{publicMediaBaseUrl:env.PUBLIC_MEDIA_BASE_URL??''}),batchStatus=new BatchStatusService(repos),tracking=new TrackingService(repos),media=new MediaService(repos,storage),campaigns=new CampaignsService(repos);
   const integrations=configuredIntegrations(repos,credentialCrypto,env);
   const dataDeletion=metaDeletion(repos,env);
@@ -146,6 +149,7 @@ export async function createRuntime(options:RuntimeOptions) {
     const browserClient=new BrowserGatewayClient(registeredNodeKey(repos,credentialCrypto));
     for(const platform of ['FACEBOOK','INSTAGRAM','THREADS','TIKTOK'] as const)registry.register(platform,'BROWSER',new BrowserPublisherProxy(platform,repos,browserClient));
     const storage=env.S3_ENDPOINT&&env.S3_REGION&&env.S3_ACCESS_KEY&&env.S3_SECRET_KEY&&env.S3_BUCKET?new S3CompatibleObjectStorage({endpoint:env.S3_ENDPOINT,region:env.S3_REGION,accessKey:env.S3_ACCESS_KEY,secretKey:env.S3_SECRET_KEY,bucket:env.S3_BUCKET}):new InMemoryObjectStorage();
+    const googleRefresh=googleTokenRefresher(repos,credentialCrypto,env);registry.register('YOUTUBE','API',new YouTubeAdapter({baseUrl:googleConfig(env).youtubeBaseUrl,http,tokens:accountId=>accounts.getAccessToken(accountId),storage,audited:googleConfig(env).audited,...(googleRefresh?{refresh:account=>googleRefresh.refresh(account)}:{})}));
     const analytics=new AnalyticsService(repos),products=new ProductsService(repos),content=new ContentService(repos,undefined,{publicMediaBaseUrl:env.PUBLIC_MEDIA_BASE_URL??''}),batchStatus=new BatchStatusService(repos,undefined,queue),tracking=new TrackingService(repos),media=new MediaService(repos,storage),campaigns=new CampaignsService(repos);
     const integrations=configuredIntegrations(repos,credentialCrypto,env);
     const dataDeletion=metaDeletion(repos,env);
