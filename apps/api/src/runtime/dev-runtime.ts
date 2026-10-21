@@ -37,6 +37,8 @@ import {TikTokHttpClient} from '../integrations/tiktok/tiktok-http.client.ts';
 import {TikTokOAuthConnector,TikTokTokenRefreshService} from '../integrations/tiktok/tiktok-oauth.service.ts';
 import {TikTokAdapter} from '../integrations/tiktok/tiktok.adapter.ts';
 import {tiktokConfig} from '../integrations/tiktok/tiktok.config.ts';
+import {googleConfig} from '../integrations/google/google.config.ts';
+import {GoogleOAuthConnector} from '../integrations/google/google-oauth.connector.ts';
 import {BrowserGatewayClient} from '../modules/browser-nodes/browser-gateway.client.ts';
 import {BrowserPublisherProxy} from '../modules/publishing/browser-publisher.proxy.ts';
 import {NodeAuthService} from '../modules/browser-nodes/node-auth.service.ts';
@@ -47,12 +49,13 @@ export interface DevelopmentRuntimeOptions{env?:Record<string,string|undefined>;
 export interface RuntimeOptions {env:Record<string,string|undefined>;hasher?:PasswordHasher;store?:MemoryStore}
 function credentialKey(env:Record<string,string|undefined>){const raw=env.CREDENTIAL_ENCRYPTION_KEY;if(!raw)throw new Error('CREDENTIAL_ENCRYPTION_KEY_REQUIRED');const bytes=Buffer.from(raw,'base64');if(bytes.byteLength!==32)throw new Error('CREDENTIAL_ENCRYPTION_KEY_MUST_BE_32_BYTES');return new Uint8Array(bytes)}
 function configuredIntegrations(repos:Repositories,crypto:CredentialCryptoService,env:Record<string,string|undefined>){
-  const config=metaConfig(env),tiktok=tiktokConfig(env),stateSecret=config.stateSecret||env.OAUTH_STATE_SECRET;
+  const config=metaConfig(env),tiktok=tiktokConfig(env),google=googleConfig(env),stateSecret=config.stateSecret||env.OAUTH_STATE_SECRET;
   if(!stateSecret)return undefined;
   const meta=env.META_APP_ID&&env.META_APP_SECRET&&config.redirectUri?new MetaOAuthConnector({graph:new MetaGraphClient({baseUrl:config.graphBaseUrl,version:config.graphVersion}),appId:env.META_APP_ID,appSecret:env.META_APP_SECRET,redirectUri:config.redirectUri,...(env.META_AUTH_BASE_URL?{authBaseUrl:env.META_AUTH_BASE_URL}:{})}):undefined;
   const tt=tiktok.clientKey&&tiktok.clientSecret&&tiktok.redirectUri?new TikTokOAuthConnector({http:new TikTokHttpClient(new FetchHttpClient(),tiktok),config:tiktok}):undefined;
-  if(!meta&&!tt)return undefined;
-  return new IntegrationsService({repos,crypto,...(meta?{meta}:{}),...(tt?{tiktok:tt}:{}),stateSecret});
+  const gg=google.clientId&&google.clientSecret&&google.redirectUri?new GoogleOAuthConnector({http:new FetchHttpClient(),config:google}):undefined;
+  if(!meta&&!tt&&!gg)return undefined;
+  return new IntegrationsService({repos,crypto,...(meta?{meta}:{}),...(tt?{tiktok:tt}:{}),...(gg?{google:gg}:{}),stateSecret});
 }
 function metaTokenRefresher(repos:Repositories,crypto:CredentialCryptoService,env:Record<string,string|undefined>){
   const config=metaConfig(env);if(!env.META_APP_ID||!env.META_APP_SECRET||!config.redirectUri)return undefined;

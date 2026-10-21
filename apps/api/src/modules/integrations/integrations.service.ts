@@ -6,30 +6,31 @@ import {id} from '../../../../../packages/shared/src/ids.ts';
 import {CredentialCryptoService} from '../accounts/credential-crypto.service.ts';
 import {MetaOAuthConnector} from '../../integrations/meta/meta-oauth.service.ts';
 import {TikTokOAuthConnector} from '../../integrations/tiktok/tiktok-oauth.service.ts';
+import {GoogleOAuthConnector} from '../../integrations/google/google-oauth.connector.ts';
 import {signState,verifyState} from './oauth-state.ts';
 
 const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
 export class IntegrationsService {
-  private readonly repos:Repositories;private readonly crypto:CredentialCryptoService;private readonly meta:MetaOAuthConnector|undefined;private readonly tiktok:TikTokOAuthConnector|undefined;private readonly stateSecret:string;
-  constructor(deps:{repos:Repositories;crypto:CredentialCryptoService;meta?:MetaOAuthConnector;tiktok?:TikTokOAuthConnector;stateSecret:string}){this.repos=deps.repos;this.crypto=deps.crypto;this.meta=deps.meta;this.tiktok=deps.tiktok;this.stateSecret=deps.stateSecret}
-  async start(provider:'META'|'TIKTOK',brandId:string,userId:string):Promise<{url:string}>{
+  private readonly repos:Repositories;private readonly crypto:CredentialCryptoService;private readonly meta:MetaOAuthConnector|undefined;private readonly tiktok:TikTokOAuthConnector|undefined;private readonly google:GoogleOAuthConnector|undefined;private readonly stateSecret:string;
+  constructor(deps:{repos:Repositories;crypto:CredentialCryptoService;meta?:MetaOAuthConnector;tiktok?:TikTokOAuthConnector;google?:GoogleOAuthConnector;stateSecret:string}){this.repos=deps.repos;this.crypto=deps.crypto;this.meta=deps.meta;this.tiktok=deps.tiktok;this.google=deps.google;this.stateSecret=deps.stateSecret}
+  async start(provider:'META'|'TIKTOK'|'GOOGLE',brandId:string,userId:string):Promise<{url:string}>{
     const nonce=randomBytes(16).toString('base64url'),state=signState({provider,brandId,userId,nonce},this.stateSecret,Date.now());
     if(provider==='META'){if(!this.meta)throw new Error('META_NOT_CONFIGURED');return{url:this.meta.authorizeUrl(state)}}
-    if(!this.tiktok)throw new Error('TIKTOK_NOT_CONFIGURED');
-    const verifier=randomBytes(48).toString('base64url'),challenge=createHash('sha256').update(verifier).digest('hex');
+    const connector=provider==='GOOGLE'?this.google:this.tiktok;if(!connector)throw new Error(provider+'_NOT_CONFIGURED');
+    const verifier=randomBytes(48).toString('base64url'),challenge=createHash('sha256').update(verifier).digest(provider==='GOOGLE'?'base64url':'hex');
     const sealed=await this.crypto.encrypt(verifier,'oauth-verifier:'+nonce);
     await this.repos.oauthPending.insert({id:nonce,brandId,userId,tokenHash:'authorization:'+hash(nonce),...sealed,expiresAt:Date.now()+10*60_000});
-    return{url:this.tiktok.authorizeUrl(state,undefined,challenge)};
+    return{url:connector.authorizeUrl(state,undefined,challenge)};
   }
   async callback(code:string,state:string):Promise<{brandId:string;token:string}>{
     const claims=verifyState(state,this.stateSecret,Date.now());
-    if(claims.provider!=='META'&&claims.provider!=='TIKTOK')throw new Error('OAUTH_STATE_INVALID');
+    if(claims.provider!=='META'&&claims.provider!=='TIKTOK'&&claims.provider!=='GOOGLE')throw new Error('OAUTH_STATE_INVALID');
     const existing=await this.repos.oauthPending.get(claims.nonce);
     if(claims.provider==='META'&&existing)throw new Error('OAUTH_STATE_REPLAY');
-    if(claims.provider==='TIKTOK'&&(!existing||existing.tokenHash!=='authorization:'+hash(claims.nonce)||existing.expiresAt<Date.now()))throw new Error('OAUTH_STATE_REPLAY');
-    const connector=claims.provider==='META'?this.meta:this.tiktok;if(!connector)throw new Error('INVALID_PROVIDER');
-    const verifier=claims.provider==='TIKTOK'?await this.crypto.decrypt(existing!,'oauth-verifier:'+claims.nonce):undefined;
-    const tokens=claims.provider==='TIKTOK'?await this.tiktok!.exchangeCode(code,undefined,verifier):await this.meta!.exchangeCode(code);
+    if(claims.provider!=='META'&&(!existing||existing.tokenHash!=='authorization:'+hash(claims.nonce)||existing.expiresAt<Date.now()))throw new Error('OAUTH_STATE_REPLAY');
+    const connector=claims.provider==='META'?this.meta:claims.provider==='GOOGLE'?this.google:this.tiktok;if(!connector)throw new Error('INVALID_PROVIDER');
+    const verifier=claims.provider!=='META'?await this.crypto.decrypt(existing!,'oauth-verifier:'+claims.nonce):undefined;
+    const tokens=claims.provider==='GOOGLE'?await this.google!.exchangeCode(code,undefined,verifier):claims.provider==='TIKTOK'?await this.tiktok!.exchangeCode(code,undefined,verifier):await this.meta!.exchangeCode(code);
     const accounts=await connector.listAccounts(tokens);
     const token=randomBytes(32).toString('base64url');const sealed=await this.crypto.encrypt(JSON.stringify(accounts),'oauth-pending:'+claims.nonce);
     const row={tokenHash:hash(token),...sealed,expiresAt:Date.now()+15*60_000};
@@ -54,7 +55,7 @@ export class IntegrationsService {
         let social=(await tx.socialAccounts.findBy({brandId:row.brandId,platform:account.platform,platformAccountId:account.platformAccountId}))[0];
         if(social)social=await tx.socialAccounts.update(social.id,{displayName:account.displayName,...(account.username?{username:account.username}:{}),publishMode:'API',status:'CONNECTED'});
         else social=await tx.socialAccounts.insert({id:id('acc'),brandId:row.brandId,platform:account.platform,platformAccountId:account.platformAccountId,displayName:account.displayName,...(account.username?{username:account.username}:{}),publishMode:'API',status:'CONNECTED'});
-        const provider=account.platform==='TIKTOK'?'TIKTOK':'META';const aad='social-account:'+social.id+':'+provider,encrypted=await this.crypto.encrypt(account.tokens.accessToken,aad);
+        const provider=account.platform==='YOUTUBE'?'GOOGLE':account.platform==='TIKTOK'?'TIKTOK':'META';const aad='social-account:'+social.id+':'+provider,encrypted=await this.crypto.encrypt(account.tokens.accessToken,aad);
         const refresh=account.tokens.refreshToken?await this.crypto.encrypt(account.tokens.refreshToken,aad):undefined;
         const credential={provider,...encrypted,...(refresh?{refreshCiphertext:JSON.stringify(refresh)}:{}),...(account.tokens.expiresAt?{expiresAt:account.tokens.expiresAt}:{}),...(account.providerUserId?{providerUserId:account.providerUserId}:{}),scopes:account.tokens.scopes};
         const existing=(await tx.credentials.findBy({socialAccountId:social.id}))[0];if(existing)await tx.credentials.update(existing.id,credential);else await tx.credentials.insert({id:id('cred'),socialAccountId:social.id,...credential});
