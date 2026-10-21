@@ -5,7 +5,7 @@ import type {SocialAccount} from '../../../../../packages/shared/src/domain.ts';
 import type {Repositories} from '../../../../../packages/shared/src/repositories.ts';
 import {CredentialCryptoService} from '../../modules/accounts/credential-crypto.service.ts';
 
-export const TIKTOK_SCOPES=['user.info.basic','video.publish','video.upload'];
+export const TIKTOK_SCOPES=['user.info.basic','user.info.profile','user.info.stats','video.list','video.publish','video.upload'];
 export class TikTokOAuthConnector implements OAuthConnector{
   readonly provider='TIKTOK' as const;
   private readonly http:TikTokHttpClient;private readonly config:TikTokConfig;

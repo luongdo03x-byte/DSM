@@ -4,9 +4,11 @@ import type {PublishInput,PublishResult,PublishedPostData,PostMetricsData,Valida
 import type {SocialAccount} from '../../../../../packages/shared/src/domain.ts';
 import {MEDIA_RULES} from '../../../../../packages/shared/src/media-rules.ts';
 import {MetaGraphClient} from './meta-http.client.ts';
+import type {AccountMetricPoint,ProfileFacts,InsightsSource} from '../../../../../packages/platform-contracts/src/insights.ts';
+import {insightsError,metaDaily,present,metricNumber,brandDay,nextDay,withCurrentFollowers} from '../insights-helpers.ts';
 
 type Deps={graph:MetaGraphClient;tokens:(socialAccountId:string)=>Promise<string>;refresh?:(account:SocialAccount)=>Promise<TokenRefreshResult>};
-export class FacebookAdapter implements PlatformAdapter {
+export class FacebookAdapter implements PlatformAdapter,InsightsSource {
   readonly platform='FACEBOOK' as const;
   private readonly graph:MetaGraphClient;private readonly tokens:Deps['tokens'];private readonly refresh:Deps['refresh'];
   constructor(deps:Deps){this.graph=deps.graph;this.tokens=deps.tokens;this.refresh=deps.refresh}
@@ -73,5 +75,23 @@ export class FacebookAdapter implements PlatformAdapter {
     if(!context?.socialAccountId)throw new Error('ACCOUNT_CONTEXT_REQUIRED');const token=await this.tokens(context.socialAccountId);
     const data=await this.graph.get<{likes?:{summary?:{total_count?:number}};comments?:{summary?:{total_count?:number}};shares?:{count?:number}}>(`/${postId}`,token,{fields:'likes.summary(true),comments.summary(true),shares'});
     return {likes:data.likes?.summary?.total_count,comments:data.comments?.summary?.total_count,shares:data.shares?.count,raw:data};
+  }
+  async fetchAccountDaily(account:SocialAccount,fromDay:string,toDay:string,timeZone:string):Promise<AccountMetricPoint[]>{
+    const token=await this.tokens(account.id),page=account.platformAccountId??account.id;
+    try{
+      const data=await this.graph.get<{data?:Array<{name:string;values?:Array<{end_time?:string;value?:number}>}>}>(`/${page}/insights`,token,{metric:'page_total_media_view_unique',period:'day',since:fromDay,until:nextDay(toDay)});
+      const rows=metaDaily(data,fromDay,toDay,'FACEBOOK:page_total_media_view_unique',{views:'page_total_media_view_unique'});
+      if(brandDay(timeZone)<fromDay||brandDay(timeZone)>toDay)return rows;
+      const profile=await this.graph.get<{fan_count?:number}>(`/${page}`,token,{fields:'fan_count'});
+      return withCurrentFollowers(rows,fromDay,toDay,timeZone,metricNumber(profile.fan_count),'FACEBOOK:fan_count');
+    }catch(error){insightsError(error)}
+  }
+  async fetchProfile(account:SocialAccount):Promise<ProfileFacts>{
+    const token=await this.tokens(account.id),page=account.platformAccountId??account.id;
+    try{const raw=await this.graph.get<{picture?:{data?:{url?:string}};about?:string;website?:string}>(`/${page}`,token,{fields:'picture,about,website'});return{hasAvatar:present(raw.picture?.data?.url),hasBio:present(raw.about),hasLink:present(raw.website)}}catch(error){insightsError(error)}
+  }
+  async fetchPostMetrics(account:SocialAccount,platformPostId:string):Promise<PostMetricsData>{
+    const token=await this.tokens(account.id);
+    try{const base=await this.fetchMetrics(platformPostId,{socialAccountId:account.id});const data=await this.graph.get<{data?:Array<{name:string;values?:Array<{value?:number}>}>}>(`/${platformPostId}/insights`,token,{metric:'post_total_media_view_unique'});const views=metricNumber(data.data?.find(x=>x.name==='post_total_media_view_unique')?.values?.[0]?.value);return{...base,...(views===null?{}:{views}),raw:{...base.raw,insights:data}}}catch(error){insightsError(error)}
   }
 }

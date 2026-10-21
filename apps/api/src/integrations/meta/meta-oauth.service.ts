@@ -2,7 +2,7 @@ import {randomToken,signToken,verifyToken} from '../../../../../packages/shared/
 import type {ConnectableAccount,OAuthConnector,OAuthTokens} from '../../../../../packages/platform-contracts/src/oauth.ts';
 import {MetaGraphClient} from './meta-http.client.ts';
 
-export const META_SCOPES=['pages_show_list','pages_read_engagement','pages_manage_posts','instagram_basic','instagram_content_publish','business_management'];
+export const META_SCOPES=['pages_show_list','pages_read_engagement','pages_manage_posts','read_insights','instagram_basic','instagram_content_publish','instagram_manage_insights','business_management'];
 export class MetaOAuthConnector implements OAuthConnector {
   readonly provider='META' as const;
   private readonly graph:MetaGraphClient;private readonly appId:string;private readonly appSecret:string;private readonly redirectUri:string;private readonly authBaseUrl:string;

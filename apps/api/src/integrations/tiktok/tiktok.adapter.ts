@@ -6,13 +6,15 @@ import {isPublicMediaUrl} from '../../../../../packages/shared/src/preflight.ts'
 import {TikTokHttpClient} from './tiktok-http.client.ts';
 import {planChunks} from '../../modules/publishing/platforms/tiktok/tiktok-upload.service.ts';
 import {TikTokStatusService} from '../../modules/publishing/platforms/tiktok/tiktok-status.service.ts';
+import type {AccountMetricPoint,ProfileFacts,InsightsSource} from '../../../../../packages/platform-contracts/src/insights.ts';
+import {insightsError,metricNumber,present} from '../insights-helpers.ts';
 
 export interface TikTokPostSettings{privacyLevel:string;disableComment:boolean;disableDuet:boolean;disableStitch:boolean;brandContentToggle:boolean;brandOrganicToggle:boolean}
 export interface TikTokCreatorInfo{privacyLevelOptions:string[];maxVideoPostDurationSec:number;commentDisabled:boolean;duetDisabled:boolean;stitchDisabled:boolean}
 type Deps={http:TikTokHttpClient;tokens:(socialAccountId:string)=>Promise<string>;auditApproved:boolean;publicMediaBaseUrl?:string;loadVideo?:(url:string)=>Promise<Uint8Array>;refresh?:(account:SocialAccount)=>Promise<TokenRefreshResult>;username?:(accountId:string)=>Promise<string>};
 const invalid=(code:string,message=code)=>new PublishError({type:'VALIDATION_ERROR',code,message,retryable:false});
 
-export class TikTokAdapter implements PlatformAdapter{
+export class TikTokAdapter implements PlatformAdapter,InsightsSource{
   readonly platform='TIKTOK' as const;
   private readonly http:TikTokHttpClient;private readonly tokens:Deps['tokens'];private readonly auditApproved:boolean;private readonly loadVideo:NonNullable<Deps['loadVideo']>;private readonly refresh:Deps['refresh'];private readonly username:Deps['username'];private readonly status:TikTokStatusService;
   readonly publicMediaBaseUrl:string|undefined;
@@ -79,4 +81,19 @@ export class TikTokAdapter implements PlatformAdapter{
     return{externalPostId:result.externalPostId??postId,externalUrl:result.externalUrl,exists:result.processing===false};
   }
   async fetchMetrics(_postId:string,_context?:{socialAccountId?:string}):Promise<PostMetricsData>{return{raw:{}}}
+  private async insightsUser(account:SocialAccount):Promise<Record<string,unknown>>{
+    const token=await this.tokens(account.id);
+    try{const result=await this.http.api('/v2/user/info/?fields=avatar_url,bio_description,profile_deep_link,follower_count',token,'GET',undefined,account.id);return result.data?.user??result.user??{}}catch(error){insightsError(error)}
+  }
+  async fetchAccountDaily(account:SocialAccount,_fromDay:string,toDay:string,timeZone:string):Promise<AccountMetricPoint[]>{
+    const today=new Intl.DateTimeFormat('en-CA',{timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(Date.now());
+    if(toDay!==today)return[];
+    const raw=await this.insightsUser(account);
+    return[{day:today,followers:metricNumber(raw.follower_count),views:null,reach:null,engagements:null,profileViews:null,watchTimeMinutes:null,source:'TIKTOK:user.info.stats',raw}];
+  }
+  async fetchProfile(account:SocialAccount):Promise<ProfileFacts>{const raw=await this.insightsUser(account);return{hasAvatar:present(raw.avatar_url),hasBio:present(raw.bio_description),hasLink:null}}
+  async fetchPostMetrics(account:SocialAccount,platformPostId:string):Promise<PostMetricsData>{
+    const token=await this.tokens(account.id);
+    try{const data=await this.http.api('/v2/video/query/?fields=id,view_count,like_count,comment_count,share_count',token,'POST',{filters:{video_ids:[platformPostId]}},account.id);const video=data.data?.videos?.find((row:{id:string})=>row.id===platformPostId);return{...(metricNumber(video?.view_count)!==null?{views:Number(video.view_count)}:{}),...(metricNumber(video?.like_count)!==null?{likes:Number(video.like_count)}:{}),...(metricNumber(video?.comment_count)!==null?{comments:Number(video.comment_count)}:{}),...(metricNumber(video?.share_count)!==null?{shares:Number(video.share_count)}:{}),raw:data}}catch(error){insightsError(error)}
+  }
 }

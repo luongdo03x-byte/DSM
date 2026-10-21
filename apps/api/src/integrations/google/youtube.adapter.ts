@@ -7,10 +7,12 @@ import type {HttpClient,HttpRequest,HttpResponse} from '../../../../../packages/
 import type {ObjectStorage} from '../../modules/media/media.service.ts';
 import type {QuotaManager} from '../../../../../packages/shared/src/quota.ts';
 import {queryProgress,sendChunks,startResumable,type ResumableSession} from './resumable-upload.ts';
+import type {AccountMetricPoint,ProfileFacts,InsightsSource} from '../../../../../packages/platform-contracts/src/insights.ts';
+import {insightsError,metricNumber,present,brandDay,withCurrentFollowers} from '../insights-helpers.ts';
 
 type Deps={baseUrl:string;http:HttpClient;tokens:(id:string)=>Promise<string>;refreshAccessToken?:(id:string)=>Promise<string>;storage:ObjectStorage;audited:boolean;quota?:QuotaManager;dailyUploadLimit?:number;refresh?:(account:SocialAccount)=>Promise<TokenRefreshResult>};
 type Settings={categoryId?:string;tags?:string[];privacyStatus?:'public'|'unlisted'|'private';playlistId?:string;madeForKids?:boolean};
-export class YouTubeAdapter implements PlatformAdapter{
+export class YouTubeAdapter implements PlatformAdapter,InsightsSource{
   readonly platform='YOUTUBE' as const;
   private readonly deps:Deps;
   constructor(deps:Deps){this.deps=deps}
@@ -50,4 +52,25 @@ export class YouTubeAdapter implements PlatformAdapter{
   async pollStatus(input:{socialAccountId:string;remoteCorrelationId:string}):Promise<PublishResult>{if(input.remoteCorrelationId.startsWith('resumable:'))throw new Error('YT_SESSION_REQUIRES_UPLOAD');const videoId=input.remoteCorrelationId.startsWith('video:')?input.remoteCorrelationId.slice(6):input.remoteCorrelationId;const response=await this.requestWithRefresh<{items?:Array<{id:string;status?:{privacyStatus?:string}}> }>(input.socialAccountId,token=>({url:`${this.deps.baseUrl}/youtube/v3/videos?part=status&id=${encodeURIComponent(videoId)}`,headers:{authorization:`Bearer ${token}`}}));if(response.status>=400)throw new PublishError({type:response.status===401?'AUTH_ERROR':'PLATFORM_ERROR',code:'YT_STATUS_FAILED',message:'Cannot read YouTube status',retryable:response.status>=500});if(response.data.items?.[0]?.status?.privacyStatus==='public')return{externalPostId:videoId,externalUrl:`https://www.youtube.com/watch?v=${videoId}`,publishedAt:Date.now()};return{remoteCorrelationId:input.remoteCorrelationId,processing:true}}
   async fetchPost(postId:string,context?:{socialAccountId?:string}):Promise<PublishedPostData>{if(postId.startsWith('resumable:'))return{externalPostId:postId,exists:false};if(postId.startsWith('video:')&&context?.socialAccountId){const status=await this.pollStatus({socialAccountId:context.socialAccountId,remoteCorrelationId:postId});return{externalPostId:postId.slice(6),exists:!!status.externalPostId}}return{externalPostId:postId,exists:true}}
   async fetchMetrics(_postId:string,_context?:{socialAccountId?:string}):Promise<PostMetricsData>{return{raw:{}}}
+  async fetchAccountDaily(account:SocialAccount,fromDay:string,toDay:string,timeZone:string):Promise<AccountMetricPoint[]>{
+    const url=new URL(`${this.deps.baseUrl}/youtubeanalytics/v2/reports`);
+    for(const [key,value] of Object.entries({ids:'channel==MINE',startDate:fromDay,endDate:toDay,metrics:'views,estimatedMinutesWatched',dimensions:'day'}))url.searchParams.set(key,value);
+    try{const response=await this.requestWithRefresh<{rows?:Array<[string,number,number]>}>(account.id,token=>({url:url.toString(),headers:{authorization:`Bearer ${token}`}}));
+      if(response.status===401||response.status===403)throw new PublishError({type:'AUTH_ERROR',code:'INSIGHTS_PERMISSION_MISSING',message:'Cần cấp quyền YouTube Analytics',retryable:false});
+      if(response.status>=400)throw new PublishError({type:'PLATFORM_ERROR',code:`YT_ANALYTICS_${response.status}`,message:'Cannot fetch YouTube analytics',retryable:response.status>=500});
+      const rows:AccountMetricPoint[]=(response.data.rows??[]).map(row=>({day:row[0],followers:null,views:metricNumber(row[1]),reach:null,engagements:null,profileViews:null,watchTimeMinutes:metricNumber(row[2]),source:'YOUTUBE:analytics',raw:{row}}));
+      if(brandDay(timeZone)<fromDay||brandDay(timeZone)>toDay)return rows;
+      const channel=await this.requestWithRefresh<{items?:Array<{statistics?:{subscriberCount?:string}}> }>(account.id,token=>({url:`${this.deps.baseUrl}/youtube/v3/channels?part=statistics&mine=true`,headers:{authorization:`Bearer ${token}`}}));
+      if(channel.status===401||channel.status===403)throw new PublishError({type:'AUTH_ERROR',code:'INSIGHTS_PERMISSION_MISSING',message:'Cần cấp quyền YouTube',retryable:false});
+      return withCurrentFollowers(rows,fromDay,toDay,timeZone,metricNumber(channel.data.items?.[0]?.statistics?.subscriberCount),'YOUTUBE:subscriberCount');
+    }catch(error){insightsError(error)}
+  }
+  async fetchProfile(account:SocialAccount):Promise<ProfileFacts>{
+    const url=`${this.deps.baseUrl}/youtube/v3/channels?part=snippet,brandingSettings&mine=true`;
+    try{const response=await this.requestWithRefresh<{items?:Array<{snippet?:{description?:string;thumbnails?:{default?:{url?:string}}}}> }>(account.id,token=>({url,headers:{authorization:`Bearer ${token}`}}));if(response.status===401||response.status===403)throw new PublishError({type:'AUTH_ERROR',code:'INSIGHTS_PERMISSION_MISSING',message:'Cần cấp quyền YouTube',retryable:false});const row=response.data.items?.[0];return{hasAvatar:present(row?.snippet?.thumbnails?.default?.url),hasBio:present(row?.snippet?.description),hasLink:null}}catch(error){insightsError(error)}
+  }
+  async fetchPostMetrics(account:SocialAccount,platformPostId:string):Promise<PostMetricsData>{
+    const url=`${this.deps.baseUrl}/youtube/v3/videos?part=statistics&id=${encodeURIComponent(platformPostId)}`;
+    try{const response=await this.requestWithRefresh<{items?:Array<{statistics?:{viewCount?:string;likeCount?:string;commentCount?:string}}>}>(account.id,token=>({url,headers:{authorization:`Bearer ${token}`}}));if(response.status===401||response.status===403)throw new PublishError({type:'AUTH_ERROR',code:'INSIGHTS_PERMISSION_MISSING',message:'Cần cấp quyền YouTube',retryable:false});const raw=response.data.items?.[0]?.statistics??{};return{...(metricNumber(raw.viewCount)!==null?{views:Number(raw.viewCount)}:{}),...(metricNumber(raw.likeCount)!==null?{likes:Number(raw.likeCount)}:{}),...(metricNumber(raw.commentCount)!==null?{comments:Number(raw.commentCount)}:{}),raw}}catch(error){insightsError(error)}
+  }
 }

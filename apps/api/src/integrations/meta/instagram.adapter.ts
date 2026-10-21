@@ -5,10 +5,12 @@ import type {SocialAccount} from '../../../../../packages/shared/src/domain.ts';
 import {MEDIA_RULES} from '../../../../../packages/shared/src/media-rules.ts';
 import {MetaGraphClient} from './meta-http.client.ts';
 import type {QuotaManager} from '../../../../../packages/shared/src/quota.ts';
+import type {AccountMetricPoint,ProfileFacts,InsightsSource} from '../../../../../packages/platform-contracts/src/insights.ts';
+import {insightsError,metaDaily,present,metricNumber,brandDay,nextDay,withCurrentFollowers} from '../insights-helpers.ts';
 
 export const IG_CONTAINER_TIMEOUT_MS=10*60_000;
 type Deps={graph:MetaGraphClient;tokens:(socialAccountId:string)=>Promise<string>;accountIds:(socialAccountId:string)=>Promise<string>;quota?:QuotaManager;refresh?:(account:SocialAccount)=>Promise<TokenRefreshResult>};
-export class InstagramAdapter implements PlatformAdapter {
+export class InstagramAdapter implements PlatformAdapter,InsightsSource {
   readonly platform='INSTAGRAM' as const;
   private readonly graph:MetaGraphClient;private readonly tokens:Deps['tokens'];private readonly accountIds:Deps['accountIds'];private readonly refresh:Deps['refresh'];private readonly quota:Deps['quota'];
   constructor(deps:Deps){this.graph=deps.graph;this.tokens=deps.tokens;this.accountIds=deps.accountIds;this.refresh=deps.refresh;this.quota=deps.quota}
@@ -63,4 +65,13 @@ export class InstagramAdapter implements PlatformAdapter {
     const metrics:Record<string,number>={};for(const item of data.data??[])metrics[item.name]=Number(item.values?.[0]?.value??item.value??0);
     return{views:metrics.views,likes:metrics.likes,comments:metrics.comments,shares:metrics.shares,saves:metrics.saved,raw:data};
   }
+  async fetchAccountDaily(account:SocialAccount,fromDay:string,toDay:string,timeZone:string):Promise<AccountMetricPoint[]>{
+    const token=await this.tokens(account.id),igId=account.platformAccountId??await this.accountIds(account.id);
+    try{const data=await this.graph.get<{data?:Array<{name:string;values?:Array<{end_time?:string;value?:number}>}>}>(`/${igId}/insights`,token,{metric:'views,reach,accounts_engaged,profile_views',period:'day',since:fromDay,until:nextDay(toDay)});const rows=metaDaily(data,fromDay,toDay,'INSTAGRAM:insights',{views:'views',reach:'reach',engagements:'accounts_engaged',profileViews:'profile_views'});if(brandDay(timeZone)<fromDay||brandDay(timeZone)>toDay)return rows;const profile=await this.graph.get<{followers_count?:number}>(`/${igId}`,token,{fields:'followers_count'});return withCurrentFollowers(rows,fromDay,toDay,timeZone,metricNumber(profile.followers_count),'INSTAGRAM:followers_count')}catch(error){insightsError(error)}
+  }
+  async fetchProfile(account:SocialAccount):Promise<ProfileFacts>{
+    const token=await this.tokens(account.id),igId=account.platformAccountId??await this.accountIds(account.id);
+    try{const raw=await this.graph.get<{profile_picture_url?:string;biography?:string;website?:string}>(`/${igId}`,token,{fields:'profile_picture_url,biography,website'});return{hasAvatar:present(raw.profile_picture_url),hasBio:present(raw.biography),hasLink:present(raw.website)}}catch(error){insightsError(error)}
+  }
+  async fetchPostMetrics(account:SocialAccount,platformPostId:string):Promise<PostMetricsData>{try{return await this.fetchMetrics(platformPostId,{socialAccountId:account.id})}catch(error){insightsError(error)}}
 }

@@ -24,7 +24,7 @@ test('TikTok authorization carries client key, scopes, state and S256 challenge'
   assert.equal(url.searchParams.get('state'),'signed-state');
   assert.equal(url.searchParams.get('code_challenge'),'challenge-hex');
   assert.equal(url.searchParams.get('code_challenge_method'),'S256');
-  assert.equal(url.searchParams.get('scope'),'user.info.basic,video.publish,video.upload');
+  assert.equal(url.searchParams.get('scope'),'user.info.basic,user.info.profile,user.info.stats,video.list,video.publish,video.upload');
 });
 
 test('TikTok code exchange sends the stored PKCE verifier and maps one creator account',async()=>{
