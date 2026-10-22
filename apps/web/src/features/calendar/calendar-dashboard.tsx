@@ -19,6 +19,7 @@ function monthName(year:number,month:number){return new Intl.DateTimeFormat('vi-
 
 export function CalendarDashboard({brandId}:{brandId:string}){
   const [entries,setEntries]=useState<CalendarEntry[]>([]),[timeZone,setTimeZone]=useState('Asia/Ho_Chi_Minh');
+  const [events,setEvents]=useState<{date:string;name:string;kind:string}[]>([]);
   const [period,setPeriod]=useState(()=>{const now=new Date();return{year:now.getUTCFullYear(),month:now.getUTCMonth()+1}});
   const [mode,setMode]=useState<'month'|'week'>('month');
   const [weekDate,setWeekDate]=useState(()=>new Date().toISOString().slice(0,10));
@@ -29,6 +30,7 @@ export function CalendarDashboard({brandId}:{brandId:string}){
     setLoading(true);setError('');
     try{
       const brand=await browserApi.request<{timezone:string}>(`/brands/${brandId}`),zone=brand.timezone||'Asia/Ho_Chi_Minh';setTimeZone(zone);
+      const growth=await browserApi.request<{vnEvents:{date:string;name:string;kind:string}[]}>('/brands/'+brandId+'/growth?days=28&year='+period.year);setEvents(growth.vnEvents);
       const cells=monthGrid(period.year,period.month,zone).flat();
       const from=toUtcMs(cells[0]!.date,'00:00',zone),to=toUtcMs(plusDays(cells.at(-1)!.date,1),'00:00',zone);
       setEntries(await browserApi.request<CalendarEntry[]>(`/brands/${brandId}/calendar?from=${from}&to=${to}`));
@@ -55,7 +57,7 @@ export function CalendarDashboard({brandId}:{brandId:string}){
     <div className="stats-grid"><div className="ui-card stat-card"><span className="stat-card__label">Đang chờ</span><strong className="stat-card__value">{entries.filter(x=>x.status==='QUEUED').length}</strong></div><div className="ui-card stat-card"><span className="stat-card__label">Đang xử lý</span><strong className="stat-card__value">{entries.filter(x=>x.status==='PROCESSING'||x.status==='RETRYING').length}</strong></div><div className="ui-card stat-card"><span className="stat-card__label">Đã đăng</span><strong className="stat-card__value">{entries.filter(x=>x.status==='PUBLISHED').length}</strong></div><div className="ui-card stat-card"><span className="stat-card__label">Cần xử lý</span><strong className="stat-card__value">{entries.filter(x=>x.status==='FAILED').length}</strong></div></div>
     <Card><div className="calendar-toolbar"><div className="row-actions"><Button variant="ghost" onClick={()=>navigate(-1)}>{mode==='week'?'Tuần trước':'Tháng trước'}</Button><strong>{monthName(period.year,period.month)}</strong><Button variant="ghost" onClick={()=>navigate(1)}>{mode==='week'?'Tuần sau':'Tháng sau'}</Button></div><div className="row-actions"><label className="field">Hiển thị<select aria-label="Hiển thị lịch" value={mode} onChange={event=>{const next=event.target.value as 'month'|'week';if(next==='week'){const today=fromUtcMs(Date.now(),timeZone).date;setWeekDate(today.slice(0,7)===`${period.year}-${String(period.month).padStart(2,'0')}`?today:`${period.year}-${String(period.month).padStart(2,'0')}-01`)}setMode(next)}}><option value="month">Tháng</option><option value="week">Tuần</option></select></label><label className="field">Nền tảng<select aria-label="Lọc nền tảng" value={platform} onChange={event=>setPlatform(event.target.value as Platform|'')}><option value="">Tất cả</option>{(['FACEBOOK','INSTAGRAM','THREADS','TIKTOK','YOUTUBE'] as const).map(value=><option value={value} key={value}>{platformLabel(value)}</option>)}</select></label><label className="field">Trạng thái<select aria-label="Lọc trạng thái" value={status} onChange={event=>setStatus(event.target.value as JobStatus|'')}><option value="">Tất cả</option>{(['QUEUED','RETRYING','PROCESSING','PUBLISHED','FAILED','CANCELLED'] as const).map(value=><option value={value} key={value}>{statusLabel(value)}</option>)}</select></label></div></div>
       {loading?<LoadingState label="Đang tải lịch đăng..."/>:visible.length===0?<EmptyState title="Chưa có công việc nào" description="Công việc xuất bản sẽ xuất hiện sau khi bạn đăng hoặc lên lịch nội dung."/>:null}
-      {!loading?<CalendarGrid entries={visible} year={period.year} month={period.month} timeZone={timeZone} mode={mode} weekDate={weekDate} onMove={(entry,date)=>void move(entry,date)} renderEntry={jobCard}/>:null}
+      {!loading?<CalendarGrid entries={visible} year={period.year} month={period.month} timeZone={timeZone} mode={mode} weekDate={weekDate} onMove={(entry,date)=>void move(entry,date)} renderEntry={jobCard} events={events}/>:null}
     </Card>
   </div>;
 }

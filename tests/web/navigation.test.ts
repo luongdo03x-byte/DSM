@@ -4,7 +4,7 @@ import {NAV_ITEMS,buildBrandHref} from '../../apps/web/src/lib/ui/navigation.ts'
 
 test('DSM navigation uses the approved Vietnamese labels',()=>{
   assert.deepEqual(NAV_ITEMS.map(item=>item.label),[
-    'Tổng quan','Sản phẩm','Nội dung','Tạo bài','Lịch đăng','Chiến dịch','Tài khoản','Phân tích','Cài đặt'
+    'Tổng quan','Sản phẩm','Nội dung','Tạo bài','Lịch đăng','Chiến dịch','Tài khoản','Phân tích','Xây kênh','Cài đặt'
   ]);
 });
 

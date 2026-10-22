@@ -24,11 +24,11 @@ test('one account failure does not prevent another account snapshot',async()=>{
   assert.equal(result.accounts,2);assert.equal(result.written,1);assert.deepEqual(result.failed,[{socialAccountId:'a',code:'INSIGHTS_PERMISSION_MISSING'}]);
 });
 
-test('first snapshot fetches up to 28 calendar days but later runs only recent days',async()=>{
+test('first snapshot includes the 28-day growth baseline and later runs only recent days',async()=>{
   const repos=await fixture(),ranges:string[]=[];
   const yt=source(async(_account,fromDay,toDay)=>{ranges.push(`${fromDay}/${toDay}`);return[{day:'2026-10-21',followers:100,views:null,reach:null,engagements:null,profileViews:null,watchTimeMinutes:null,source:'YOUTUBE:subscriberCount',raw:{}}]});
   await runDailySnapshots({repos,sources:{YOUTUBE:yt},now});await runDailySnapshots({repos,sources:{YOUTUBE:yt},now:now+60_000});
-  assert.deepEqual(ranges,['2026-09-24/2026-10-21','2026-10-20/2026-10-21']);
+  assert.deepEqual(ranges,['2026-09-23/2026-10-21','2026-10-20/2026-10-21']);
 });
 
 test('brand snapshot scheduler runs at 02:00 in each brand timezone',async()=>{

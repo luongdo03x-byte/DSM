@@ -9,6 +9,7 @@ import type {BatchStatusService} from '../modules/publishing/batch-status.servic
 import type {AnalyticsService} from '../modules/analytics/analytics.service.ts';
 import type {TrackingService} from '../modules/tracking/tracking.service.ts';
 import {BioPageService} from '../modules/tracking/bio-page.service.ts';
+import {GrowthService} from '../modules/growth/growth.service.ts';
 import type {MediaService} from '../modules/media/media.service.ts';
 import type {CampaignsService} from '../modules/campaigns/campaigns.service.ts';
 import type {CampaignPerformanceService} from '../modules/campaigns/campaign-performance.service.ts';
@@ -51,6 +52,7 @@ type Dependencies={
   integrations?:IntegrationsService;
   dataDeletion?:MetaDataDeletionService;
   webAppBaseUrl?:string;
+  testMode?:boolean;
 };
 
 function asObject(value:unknown):Record<string,any>{
@@ -127,6 +129,27 @@ export class LocalApiRuntime {
 
       const userId=await this.authenticate(req);
       let m:RegExpExecArray|null;
+
+      if(this.d.testMode&&(m=route(req.path,/^\/__test\/brands\/([^/]+)\/growth-seed$/))&&method==='POST'){
+        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
+        const account=(await this.d.repos.socialAccounts.findBy({brandId}))[0];if(!account)throw new Error('ACCOUNT_NOT_FOUND');
+        await this.d.repos.socialAccounts.update(account.id,{status:'CONNECTED'});
+        const now=Date.now(),zone=(await this.d.repos.brands.get(brandId))?.timezone??'UTC';
+        const today=new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
+        const date=(offset:number)=>new Date(Date.parse(today+'T00:00:00Z')+offset*86_400_000).toISOString().slice(0,10);
+        await this.d.repos.channelGoals.insert({id:`test-growth-goal-${account.id}`,socialAccountId:account.id,postsPer28Days:8});
+        for(let offset=-28;offset<=0;offset++){const day=date(offset),existing=(await this.d.repos.channelSnapshots.findBy({socialAccountId:account.id,day}))[0],row={id:`test-growth-${account.id}-${day}`,socialAccountId:account.id,day,followers:100+offset,views:100,reach:80,engagements:8,profileViews:5,watchTimeMinutes:null,source:'TEST:fixture',capturedAt:now+offset*86_400_000,raw:{}};if(existing)await this.d.repos.channelSnapshots.update(existing.id,row);else await this.d.repos.channelSnapshots.insert(row)}
+        return{status:200,body:{seeded:true,accountId:account.id}};
+      }
+
+      if((m=route(req.path,/^\/brands\/([^/]+)\/growth\/accounts\/([^/]+)$/))){
+        const brandId=decodeURIComponent(m[1]!),accountId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);
+        if(method==='GET'){const days=Number(req.query?.days??28);return{status:200,body:await new GrowthService(this.d.repos).account(brandId,accountId,Date.now(),days)}}
+      }
+      if((m=route(req.path,/^\/brands\/([^/]+)\/growth$/))){
+        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
+        if(method==='GET'){const days=Number(req.query?.days??28),year=req.query?.year===undefined?undefined:Number(req.query.year);return{status:200,body:await new GrowthService(this.d.repos).overview(brandId,days,year)}}
+      }
 
       if((method==='GET'||method==='POST')&&req.path==='/integrations/meta/start'){
         if(!this.d.integrations)return{status:501,body:{error:'META_NOT_CONFIGURED'}};

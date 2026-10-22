@@ -23,7 +23,7 @@ export async function runDailySnapshots(deps:{repos:Repositories;sources:Partial
     try{
       const source=deps.sources[account.platform];if(!source)throw Object.assign(new Error('INSIGHTS_SOURCE_UNAVAILABLE'),{code:'INSIGHTS_SOURCE_UNAVAILABLE'});
       const brand=await repos.brands.get(account.brandId);if(!brand)throw Object.assign(new Error('BRAND_NOT_FOUND'),{code:'BRAND_NOT_FOUND'});if(brand.status!=='ACTIVE')continue;
-      const day=localDay(now,brand.timezone),prior=await repos.channelSnapshots.findBy({socialAccountId:account.id}),from=plusDays(day,prior.length? -1:-27);
+      const day=localDay(now,brand.timezone),prior=await repos.channelSnapshots.findBy({socialAccountId:account.id}),from=plusDays(day,prior.length? -1:-28);
       const points=await source.fetchAccountDaily(account,from,day,brand.timezone);
       for(const point of points){if(point.day<from||point.day>day)continue;
         const row={id:snapshotId(account.id,point.day),socialAccountId:account.id,...point,capturedAt:now};

@@ -107,6 +107,12 @@ Status: BLOCKED_EXTERNAL — requires a Windows runner with GPMLogin installed, 
 
 Status: NOT_VERIFIED — the staging VPS deployment and external object storage backup/restore still require an operational dry run. Local development has Node 24 and Docker available.
 
+## Growth metrics (SP8)
+
+Status: BLOCKED_EXTERNAL — chưa có kênh dogfood đã kết nối để đối chiếu số liệu với từng công cụ nền tảng.
+
+pnpm verify kiểm tra phép tính và luồng dữ liệu source/capturedAt bằng fixtures. Chưa thể giải thích chênh lệch giữa DSM và số liệu Meta, TikTok, YouTube cho đến khi có kênh được cấp quyền, đủ lịch sử snapshot và bản xuất từ công cụ gốc. Giờ đăng tốt nhất cần ít nhất 20 bài trong 90 ngày cùng số lượt xem 24 giờ và mốc người theo dõi khi đăng; dữ liệu thiếu sẽ hiện số bài cần bổ sung.
+
 ## GĐ1 dogfood
 
 Status: NOT_VERIFIED — cần đăng ít nhất 50 bài thật gồm ảnh, album và video trong 28 ngày; tỉ lệ đăng thành công phải đạt ít nhất 98% sau khi loại lỗi người dùng. Chưa có kết quả vận hành thật hoặc bằng chứng kiểm tra cổng này.
