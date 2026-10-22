@@ -8,6 +8,7 @@ import type {PublishingService} from '../modules/publishing/publishing.service.t
 import type {BatchStatusService} from '../modules/publishing/batch-status.service.ts';
 import type {AnalyticsService} from '../modules/analytics/analytics.service.ts';
 import type {TrackingService} from '../modules/tracking/tracking.service.ts';
+import {BioPageService} from '../modules/tracking/bio-page.service.ts';
 import type {MediaService} from '../modules/media/media.service.ts';
 import type {CampaignsService} from '../modules/campaigns/campaigns.service.ts';
 import type {CampaignPerformanceService} from '../modules/campaigns/campaign-performance.service.ts';
@@ -92,6 +93,9 @@ export class LocalApiRuntime {
       if(method==='GET'&&(publicMatch=route(req.path,/^\/r\/([^/]+)$/))){
         const referrer=req.headers?.referer,userAgent=req.headers?.['user-agent'];const target=await this.d.tracking.resolve(decodeURIComponent(publicMatch[1]!),{...(referrer?{referrer}:{}),...(userAgent?{userAgent}:{})});
         return{status:302,body:null,headers:{location:target}};
+      }
+      if(method==='GET'&&(publicMatch=route(req.path,/^\/b\/([^/]+)$/))){
+        return{status:200,body:await new BioPageService(this.d.repos).getPublic(decodeURIComponent(publicMatch[1]!))};
       }
 
       if(method==='GET'&&req.path==='/integrations/meta/callback'){
@@ -234,6 +238,15 @@ export class LocalApiRuntime {
         const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
         if(method==='POST'){const b=asObject(req.body);return{status:201,body:await this.d.tracking.create(brandId,{targetUrl:String(b.targetUrl??''),...(b.productId!==undefined?{productId:String(b.productId)}:{}),...(b.contentItemId!==undefined?{contentItemId:String(b.contentItemId)}:{}),...(b.utmSource!==undefined?{utmSource:String(b.utmSource)}:{}),...(b.utmMedium!==undefined?{utmMedium:String(b.utmMedium)}:{}),...(b.utmCampaign!==undefined?{utmCampaign:String(b.utmCampaign)}:{}),...(b.utmContent!==undefined?{utmContent:String(b.utmContent)}:{})})}}
       }
+      if((m=route(req.path,/^\/brands\/([^/]+)\/tracked-links\/([^/]+)\/bind$/))){
+        const brandId=decodeURIComponent(m[1]!),linkId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);
+        if(method==='POST'){const b=asObject(req.body);await this.d.tracking.bindToPublishedPost(brandId,linkId,String(b.publishedPostId??''));return{status:200,body:{id:linkId,publishedPostId:String(b.publishedPostId)}}}
+      }
+      if((m=route(req.path,/^\/brands\/([^/]+)\/bio-page$/))){
+        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);const bio=new BioPageService(this.d.repos);
+        if(method==='GET')return{status:200,body:(await this.d.repos.bioPages.findBy({brandId}))[0]??null};
+        if(method==='PUT'||method==='POST'){const b=asObject(req.body);return{status:200,body:await bio.save(brandId,{slug:String(b.slug??''),title:String(b.title??''),links:Array.isArray(b.links)?b.links:[]})}}
+      }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/calendar$/))){
         const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);if(method==='GET'){
@@ -373,8 +386,8 @@ export class LocalApiRuntime {
     if(['UNAUTHORIZED','INVALID_CREDENTIALS','INVALID_REFRESH','NODE_AUTH','INVALID_REGISTRATION','STALE_SIGNATURE','REPLAY','BAD_SIGNATURE'].includes(message))return{status:401,body:{error:message}};
     if(message==='FORBIDDEN')return{status:403,body:{error:message}};
     if(['OAUTH_PENDING_CONSUMED','OAUTH_STATE_REPLAY'].includes(message))return{status:409,body:{error:message}};
-    if(['BRAND_NOT_FOUND','PRODUCT_NOT_FOUND','CONTENT_NOT_FOUND','ACCOUNT_NOT_FOUND','BATCH_NOT_FOUND','JOB_NOT_FOUND','LINK_NOT_FOUND','NOTIFICATION_CHANNEL_NOT_FOUND'].includes(message))return{status:404,body:{error:'NOT_FOUND'}};
-    if(['CONFLICT','RETRY_NOT_ALLOWED','IDEMPOTENCY_CONFLICT','JOB_NOT_RESCHEDULABLE'].includes(message))return{status:409,body:{error:message}};
+    if(['BRAND_NOT_FOUND','PRODUCT_NOT_FOUND','CONTENT_NOT_FOUND','ACCOUNT_NOT_FOUND','BATCH_NOT_FOUND','JOB_NOT_FOUND','LINK_NOT_FOUND','BIO_PAGE_NOT_FOUND','BIO_LINK_NOT_FOUND','BINDING_NOT_FOUND','NOTIFICATION_CHANNEL_NOT_FOUND'].includes(message))return{status:404,body:{error:'NOT_FOUND'}};
+    if(['CONFLICT','BIO_SLUG_TAKEN','RETRY_NOT_ALLOWED','IDEMPOTENCY_CONFLICT','JOB_NOT_RESCHEDULABLE'].includes(message))return{status:409,body:{error:message}};
     if(['SCHEDULE_TOO_SOON','SCHEDULE_TOO_FAR'].includes(message))return{status:400,body:{error:message}};
     if(message.startsWith('INVALID_')||message.endsWith('_INVALID')||message.includes('UNSUPPORTED')||message==='TEXT_MEDIA_INVALID')return{status:400,body:{error:message}};
     return{status:500,body:{error:'INTERNAL_ERROR'}};

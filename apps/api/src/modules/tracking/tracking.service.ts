@@ -27,7 +27,11 @@ export class TrackingService {
     await this.repos.clickEvents.append({id: id('click'), trackedLinkId: link.id, timestamp: Date.now(),
       ...(meta.referrer ? {referrer: meta.referrer} : {}), ...(meta.userAgent ? {userAgent: meta.userAgent} : {}),
       ...(meta.country ? {country: meta.country} : {}), ...(meta.deviceType ? {deviceType: meta.deviceType} : {})});
-    return link.targetUrl;
+    const target=new URL(link.targetUrl);
+    for(const [key,value] of Object.entries({utm_source:link.utmSource,utm_medium:link.utmMedium,utm_campaign:link.utmCampaign,utm_content:link.utmContent})){
+      if(value)target.searchParams.set(key,value);
+    }
+    return target.toString();
   }
 
   async bindToPublishedPost(brandId: string, linkId: string, postId: string): Promise<void> {

@@ -10,7 +10,7 @@ test('v1 acceptance harness', async () => {
   assert.equal(result.jobs, 4);
   assert.equal(result.publishedPosts, 4);
   assert.equal(result.batchStatus, 'PUBLISHED');
-  assert.equal(result.redirect, 'https://shop.test/dog-brush');
+  assert.equal(result.redirect, 'https://shop.test/dog-brush?utm_source=social');
   assert.equal(result.analytics.posts, 4);
   assert.equal(result.analytics.views, 400);
   assert.equal(result.analytics.clicks, 1);

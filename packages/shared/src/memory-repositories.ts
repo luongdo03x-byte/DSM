@@ -121,6 +121,7 @@ export class MemoryRepositories implements Repositories {
   readonly competitorSnapshots: Repositories['competitorSnapshots'];
   readonly quotaUsage:QuotaUsageRepo;
   readonly trackedLinks: Repositories['trackedLinks'];
+  readonly bioPages: Repositories['bioPages'];
   readonly clickEvents: Repositories['clickEvents'];
 
   constructor(store: MemoryStore) {
@@ -157,6 +158,7 @@ export class MemoryRepositories implements Repositories {
     this.competitorSnapshots = new MapRepo(store.competitorSnapshots);
     this.quotaUsage={get:async id=>store.quotaUsage.get(id),tryConsume:async(row,limit)=>{const current=store.quotaUsage.get(row.id);if((current?.used??0)>=limit)return false;store.quotaUsage.set(row.id,{...row,used:(current?.used??0)+1});return true}};
     this.trackedLinks = new MapRepo(store.trackedLinks);
+    this.bioPages = new MapRepo(store.bioPages);
     this.clickEvents = new ArrayRepo(store.clickEvents);
   }
 

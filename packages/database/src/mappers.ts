@@ -40,6 +40,7 @@ const fields = {
   competitors: ['id','brandId','platform','handle','source'],
   competitorSnapshots: ['id','competitorId','day','followers','posts','source','capturedAt','raw'],
   trackedLinks: ['id', 'brandId', 'productId', 'contentItemId', 'publishedPostId', 'code', 'targetUrl', 'utmSource', 'utmMedium', 'utmCampaign', 'utmContent'],
+  bioPages: ['id','brandId','slug','title','links'],
   clickEvents: ['id', 'trackedLinkId', 'timestamp', 'referrer', 'userAgent', 'country', 'deviceType'],
 } as const;
 

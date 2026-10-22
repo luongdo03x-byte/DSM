@@ -136,6 +136,7 @@ export class PrismaRepositories implements Repositories {
   readonly competitorSnapshots: Repositories['competitorSnapshots'];
   readonly quotaUsage:QuotaUsageRepo;
   readonly trackedLinks: Repositories['trackedLinks'];
+  readonly bioPages: Repositories['bioPages'];
   readonly clickEvents: Repositories['clickEvents'];
 
   constructor(client: PrismaClient) {
@@ -174,6 +175,7 @@ export class PrismaRepositories implements Repositories {
     const quota=(client as any).quotaUsage;
     this.quotaUsage={get:async id=>quota.findUnique({where:{id}}),tryConsume:async(row,limit)=>{await quota.createMany({data:[{...row,used:0}],skipDuplicates:true});const result=await quota.updateMany({where:{id:row.id,used:{lt:limit}},data:{used:{increment:1}}});return result.count===1}};
     this.trackedLinks = new TableRepo(db.trackedLink!, 'trackedLinks');
+    this.bioPages = new TableRepo(db.bioPage!, 'bioPages');
     this.clickEvents = new TableAppendRepo(db.clickEvent!, 'clickEvents');
   }
 

@@ -39,4 +39,6 @@ export interface PublishedPost{id:string;brandId:string;publishJobId:string;soci
 export interface PostMetric{id:string;publishedPostId:string;capturedAt:number;captureKey:string;views?:number;likes?:number;comments?:number;shares?:number;saves?:number;clicks?:number;rawMetrics?:Record<string,unknown>}
 export interface ChannelSnapshot{id:string;socialAccountId:string;day:string;followers:number|null;views:number|null;reach:number|null;engagements:number|null;profileViews:number|null;watchTimeMinutes:number|null;source:string;capturedAt:number;raw:Record<string,unknown>}
 export interface TrackedLink{id:string;brandId:string;productId?:string;contentItemId?:string;publishedPostId?:string;code:string;targetUrl:string;utmSource?:string;utmMedium?:string;utmCampaign?:string;utmContent?:string}
+export interface BioPageLink{trackedLinkId:string;label:string;position:number}
+export interface BioPage{id:string;brandId:string;slug:string;title:string;links:BioPageLink[]}
 export interface ClickEvent{id:string;trackedLinkId:string;timestamp:number;referrer?:string;userAgent?:string;country?:string;deviceType?:string}

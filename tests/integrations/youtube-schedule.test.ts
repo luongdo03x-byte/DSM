@@ -10,7 +10,7 @@ import {MemoryStore} from '../../packages/shared/src/store.ts';
 import type {HttpClient,HttpRequest} from '../../packages/shared/src/http.ts';
 import type {JobQueue} from '../../packages/shared/src/job-queue.ts';
 
-const now=Date.UTC(2026,9,21,12),later=now+60*60_000;
+const now=Date.now(),later=now+60*60_000;
 function setup(){const repos=new MemoryRepositories(new MemoryStore()),calls:HttpRequest[]=[],scheduled:Array<{id:string;at:number}>=[];let privacy='private';
   const http:HttpClient={async request<T>(r:HttpRequest){calls.push(r);if(r.url.includes('uploadType=resumable'))return{status:200,data:{} as T,headers:{location:'https://upload.test/session'}};if(r.url==='https://upload.test/session')return{status:200,data:{id:'video-1'} as T};if(r.url.includes('/videos?'))return{status:200,data:{items:[{id:'video-1',status:{privacyStatus:privacy}}]} as T};return{status:200,data:{} as T}}};
   const storage=new InMemoryObjectStorage(),adapter=new YouTubeAdapter({baseUrl:'https://youtube.test',http,tokens:async()=> 'token',storage,audited:true});const registry=new PublisherRegistry();registry.register('YOUTUBE','API',adapter);

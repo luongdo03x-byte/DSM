@@ -119,6 +119,7 @@ model Brand {
   campaigns      Campaign[]
   publishBatches PublishBatch[]
   trackedLinks   TrackedLink[]
+  bioPages       BioPage[]
   pillars        ContentPillar[]
   competitors    Competitor[]
 
@@ -557,6 +558,17 @@ model TrackedLink {
   content         ContentItem?   @relation(fields: [contentItemId], references: [id], onDelete: SetNull)
   publishedPost   PublishedPost? @relation(fields: [publishedPostId], references: [id], onDelete: SetNull)
   clicks          ClickEvent[]
+
+  @@index([brandId])
+}
+
+model BioPage {
+  id      String @id
+  brandId String
+  slug    String @unique
+  title   String
+  links   Json
+  brand   Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
 
   @@index([brandId])
 }
