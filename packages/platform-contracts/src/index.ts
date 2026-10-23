@@ -11,3 +11,4 @@ export interface PlatformCapability{platform:Platform;contentType:ContentType;st
 export type {AdapterCapabilities,TokenRefreshResult,PlatformAdapter} from './adapter.ts';
 export type {OAuthTokens,ConnectableAccount,OAuthConnector} from './oauth.ts';
 export type {AccountMetricPoint,ProfileFacts,InsightsSource} from './insights.ts';
+export type {CommentSource} from './comments.ts';

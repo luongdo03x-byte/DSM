@@ -122,6 +122,7 @@ model Brand {
   bioPages       BioPage[]
   pillars        ContentPillar[]
   competitors    Competitor[]
+  socialComments SocialComment[]
 
   @@unique([workspaceId, slug])
   @@index([workspaceId])
@@ -166,8 +167,50 @@ model SocialAccount {
   publishedPosts    PublishedPost[]
   channelSnapshots   ChannelSnapshot[]
   channelGoal        ChannelGoal?
+  socialComments     SocialComment[]
 
   @@index([brandId, platform])
+}
+
+model SocialComment {
+  id                 String          @id
+  brandId            String
+  socialAccountId    String
+  platform           Platform
+  platformCommentId  String
+  platformPostId     String
+  publishedPostId    String?
+  parentCommentId    String?
+  authorId           String
+  authorName         String
+  isFromPage         Boolean
+  text               String
+  createdAt          BigInt
+  status             String
+  privateReplySentAt BigInt?
+  brand              Brand           @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  account            SocialAccount   @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  publishedPost      PublishedPost?  @relation(fields: [publishedPostId], references: [id], onDelete: SetNull)
+  actions            CommentAction[]
+
+  @@unique([platform, platformCommentId])
+  @@index([brandId, createdAt, id])
+  @@index([socialAccountId])
+}
+
+model CommentAction {
+  id        String        @id
+  commentId String
+  kind      String
+  text      String?
+  ruleId    String?
+  userId    String?
+  status    String
+  errorCode String?
+  createdAt BigInt
+  comment   SocialComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@index([commentId, createdAt])
 }
 
 model EncryptedCredential {
@@ -452,6 +495,7 @@ model PublishedPost {
   contentVariant   ContentVariant @relation(fields: [contentVariantId], references: [id], onDelete: Restrict)
   metrics          PostMetric[]
   trackedLinks     TrackedLink[]
+  socialComments   SocialComment[]
 
   @@index([brandId, publishedAt])
   @@index([socialAccountId])

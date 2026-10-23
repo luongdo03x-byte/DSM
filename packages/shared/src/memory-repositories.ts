@@ -1,4 +1,4 @@
-import type {BrowserRegistration, PublishJob} from './domain.ts';
+import type {BrowserRegistration, PublishJob, SocialComment} from './domain.ts';
 import type {AppendRepo, PublishJobRepo, Repo, Repositories,QuotaUsageRepo} from './repositories.ts';
 import {MemoryStore} from './store.ts';
 
@@ -57,6 +57,15 @@ class OrderedMapRepo<T extends {id: string; position: number}> extends MapRepo<T
   }
 }
 
+class MemorySocialCommentRepo extends MapRepo<SocialComment> {
+  private readonly comments: Map<string, SocialComment>;
+  constructor(comments: Map<string, SocialComment>) {super(comments); this.comments = comments}
+  async insert(row: SocialComment): Promise<SocialComment> {
+    if ([...this.comments.values()].some(value => value.platform === row.platform && value.platformCommentId === row.platformCommentId)) throw new Error('DUPLICATE_ID');
+    return super.insert(row);
+  }
+}
+
 class MemoryPublishJobRepo extends MapRepo<PublishJob> implements PublishJobRepo {
   private readonly jobs: Map<string, PublishJob>;
   constructor(jobs: Map<string, PublishJob>) {super(jobs); this.jobs = jobs}
@@ -104,6 +113,8 @@ export class MemoryRepositories implements Repositories {
   readonly authSessions: Repositories['authSessions'];
   readonly audit: Repositories['audit'];
   readonly socialAccounts: Repositories['socialAccounts'];
+  readonly socialComments: Repositories['socialComments'];
+  readonly commentActions: Repositories['commentActions'];
   readonly credentials: Repositories['credentials'];
   readonly oauthPending: Repositories['oauthPending'];
   readonly browserNodes: Repositories['browserNodes'];
@@ -141,6 +152,8 @@ export class MemoryRepositories implements Repositories {
     this.authSessions = new MapRepo(store.authSessions);
     this.audit = new ArrayRepo(store.audit);
     this.socialAccounts = new MapRepo(store.socialAccounts);
+    this.socialComments = new MemorySocialCommentRepo(store.socialComments);
+    this.commentActions = new MapRepo(store.commentActions);
     this.credentials = new MapRepo(store.credentials);
     this.oauthPending = new MapRepo(store.oauthPending);
     this.browserNodes = new MapRepo(store.browserNodes);

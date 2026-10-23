@@ -55,6 +55,17 @@ export function runRepositoryContract(name: string, make: () => Promise<Fixture>
     await assert.rejects(repos.products.insert(product), {message: 'DUPLICATE_ID'});
   });
 
+  check('bình luận cùng nền tảng và ID chỉ được lưu một lần', async repos => {
+    await seedBase(repos);
+    await repos.socialAccounts.insert(account);
+    const comment = {id: 'comment-1', brandId: brand.id, socialAccountId: account.id, platform: 'FACEBOOK' as const,
+      platformCommentId: 'remote-comment-1', platformPostId: 'remote-post-1', authorId: 'author-1',
+      authorName: 'Khách', isFromPage: false, text: 'Bao nhiêu?', createdAt: 1_700_000_000_000, status: 'NEW' as const};
+    assert.deepEqual(await repos.socialComments.insert(comment), comment);
+    await assert.rejects(repos.socialComments.insert({...comment, id: 'comment-2'}), {message: 'DUPLICATE_ID'});
+    assert.equal((await repos.socialComments.findBy({platform: 'FACEBOOK', platformCommentId: 'remote-comment-1'})).length, 1);
+  });
+
   check('update gộp patch và id thiếu ném NOT_FOUND', async repos => {
     await seedBase(repos);
     await repos.products.insert(product);

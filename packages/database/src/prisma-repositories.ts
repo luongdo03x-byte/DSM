@@ -119,6 +119,8 @@ export class PrismaRepositories implements Repositories {
   readonly authSessions: Repositories['authSessions'];
   readonly audit: Repositories['audit'];
   readonly socialAccounts: Repositories['socialAccounts'];
+  readonly socialComments: Repositories['socialComments'];
+  readonly commentActions: Repositories['commentActions'];
   readonly credentials: Repositories['credentials'];
   readonly oauthPending: Repositories['oauthPending'];
   readonly browserNodes: Repositories['browserNodes'];
@@ -157,6 +159,8 @@ export class PrismaRepositories implements Repositories {
     this.authSessions = new TableRepo(db.authSession!, 'authSessions');
     this.audit = new TableAppendRepo(db.auditLog!, 'audit');
     this.socialAccounts = new TableRepo(db.socialAccount!, 'socialAccounts', {browserProfile: true});
+    this.socialComments = new TableRepo(db.socialComment!, 'socialComments');
+    this.commentActions = new TableRepo(db.commentAction!, 'commentActions');
     this.credentials = new TableRepo(db.encryptedCredential!, 'credentials');
     this.oauthPending = new TableRepo(db.oAuthPending!, 'oauthPending');
     this.browserNodes = new TableRepo(db.browserNode!, 'browserNodes');
