@@ -15,7 +15,7 @@ export interface AiUsage{id:string;workspaceId:string;task:AiTask;inputTokens:nu
 export interface Product{id:string;brandId:string;name:string;slug:string;description?:string;imageAssetId?:string;supplierUrl?:string;landingUrl?:string;cost?:string;sellingPrice?:string;currency:string;status:'DRAFT'|'ACTIVE'|'ARCHIVED'}
 export interface MediaAsset{id:string;brandId:string;workspaceId:string;type:'VIDEO'|'IMAGE';storageKey:string;mimeType:string;sizeBytes?:number;width?:number;height?:number;durationMs?:number;derivedFromAssetId?:string;variantKey?:string;exifStripped?:boolean;codec?:string}
 export interface QuotaUsage{id:string;provider:'YOUTUBE'|'INSTAGRAM';scope:string;day:string;used:number}
-export interface ContentItem{id:string;brandId:string;productId?:string;pillarId?:string;type:ContentType;title:string;hook?:string;body?:string;cta?:string;masterAssetId?:string;status:'DRAFT'|'READY'|'ARCHIVED'}
+export interface ContentItem{id:string;brandId:string;productId?:string;pillarId?:string;type:ContentType;title:string;hook?:string;body?:string;cta?:string;masterAssetId?:string;status:'DRAFT'|'READY'|'ARCHIVED';plannedAt?:number;plannedSocialAccountId?:string;plannedEventName?:string}
 export interface ChannelGoal{id:string;socialAccountId:string;postsPer28Days:number;followersTarget?:number;targetDate?:string}
 export interface ContentPillar{id:string;brandId:string;name:string;color:string;description?:string}
 export interface Competitor{id:string;brandId:string;platform:Platform;handle:string;source:'API'|'MANUAL'}

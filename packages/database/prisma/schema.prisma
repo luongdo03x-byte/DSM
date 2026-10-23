@@ -380,6 +380,9 @@ model ContentItem {
   cta           String?
   masterAssetId String?
   status        String
+  plannedAt     BigInt?
+  plannedSocialAccountId String?
+  plannedEventName String?
   brand         Brand             @relation(fields: [brandId], references: [id], onDelete: Restrict)
   product       Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
   pillar        ContentPillar?    @relation(fields: [pillarId], references: [id], onDelete: SetNull)
@@ -390,6 +393,7 @@ model ContentItem {
   trackedLinks  TrackedLink[]
 
   @@index([brandId, status])
+  @@index([brandId, plannedAt])
   @@index([productId])
   @@index([pillarId])
 }

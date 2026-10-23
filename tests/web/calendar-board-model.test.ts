@@ -10,6 +10,9 @@ test('job PUBLISHED không kéo được',()=>{
   assert.equal(canDrag(entry),true);
   assert.equal(canDrag({...entry,status:'RETRYING'}),true);
 });
+test('bản nháp kế hoạch không thể kéo như công việc đã xếp lịch',()=>{
+  assert.equal(canDrag({...entry,kind:'PLANNED',status:'QUEUED'}),false);
+});
 test('moveToDate giữ 20:30 khi đổi ngày theo múi giờ brand',()=>{
   assert.equal(moveToDate(entry,'2026-10-20','Asia/Ho_Chi_Minh'),Date.UTC(2026,9,20,13,30));
 });

@@ -18,7 +18,7 @@ const fields = {
   aiUsage: ['id','workspaceId','task','inputTokens','outputTokens','cacheReadTokens','createdAt'],
   products: ['id', 'brandId', 'name', 'slug', 'description', 'imageAssetId', 'supplierUrl', 'landingUrl', 'cost', 'sellingPrice', 'currency', 'status'],
   media: ['id', 'brandId', 'workspaceId', 'type', 'storageKey', 'mimeType', 'sizeBytes', 'width', 'height', 'durationMs', 'derivedFromAssetId', 'variantKey', 'exifStripped', 'codec'],
-  contents: ['id', 'brandId', 'productId', 'pillarId', 'type', 'title', 'hook', 'body', 'cta', 'masterAssetId', 'status'],
+  contents: ['id', 'brandId', 'productId', 'pillarId', 'type', 'title', 'hook', 'body', 'cta', 'masterAssetId', 'status', 'plannedAt', 'plannedSocialAccountId', 'plannedEventName'],
   contentMedia: ['id', 'contentItemId', 'mediaAssetId', 'position'],
   variantMedia: ['id', 'contentVariantId', 'mediaAssetId', 'position', 'crop', 'isCover'],
   variants: ['id', 'contentItemId', 'socialAccountId', 'platform', 'caption', 'body', 'hashtags', 'cta', 'assetId', 'status', 'format', 'title', 'skippedReason', 'tiktokSettings', 'youtube'],
@@ -50,7 +50,7 @@ const fields = {
   clickEvents: ['id', 'trackedLinkId', 'timestamp', 'referrer', 'userAgent', 'country', 'deviceType'],
 } as const;
 
-const epochFields = new Set(['expiresAt', 'revokedAt', 'createdAt', 'privateReplySentAt', 'commentsPolledAt', 'lastSeenAt', 'scheduledAt', 'publishAt', 'processingStartedAt', 'startedAt', 'finishedAt', 'publishedAt', 'capturedAt', 'timestamp', 'consumedAt', 'sizeBytes', 'views', 'likes', 'comments', 'shares', 'saves', 'clicks','followers','reach','engagements','profileViews','watchTimeMinutes','posts']);
+const epochFields = new Set(['expiresAt', 'revokedAt', 'createdAt', 'plannedAt', 'privateReplySentAt', 'commentsPolledAt', 'lastSeenAt', 'scheduledAt', 'publishAt', 'processingStartedAt', 'startedAt', 'finishedAt', 'publishedAt', 'capturedAt', 'timestamp', 'consumedAt', 'sizeBytes', 'views', 'likes', 'comments', 'shares', 'saves', 'clicks','followers','reach','engagements','profileViews','watchTimeMinutes','posts']);
 
 export function toDomain(table: DomainTable, row: RecordValue): RecordValue {
   const result: RecordValue = {};

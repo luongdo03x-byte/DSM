@@ -85,6 +85,14 @@ export function runRepositoryContract(name: string, make: () => Promise<Fixture>
     assert.deepEqual(await repos.aiUsage.findBy({workspaceId:workspace.id}),[usage]);
   });
 
+  check('bản nháp kế hoạch giữ ngày, kênh và sự kiện', async repos => {
+    await seedBase(repos);
+    await repos.socialAccounts.insert(account);
+    const planned={...content,id:'planned-content',status:'DRAFT' as const,plannedAt:1_700_000_000_000,plannedSocialAccountId:account.id,plannedEventName:'Sale 11/11'};
+    assert.deepEqual(await repos.contents.insert(planned),planned);
+    assert.deepEqual(await repos.contents.get(planned.id),planned);
+  });
+
   check('update gộp patch và id thiếu ném NOT_FOUND', async repos => {
     await seedBase(repos);
     await repos.products.insert(product);

@@ -10,7 +10,7 @@ import {ContentService} from '../content/content.service.ts';
 type ValidationInput = {brandId: string; contentId: string; socialAccountIds: string[]; apiHealth?: Record<string, boolean>; browserHealth?: Record<string, boolean>};
 export const MAX_SCHEDULE_AHEAD_DAYS=75;
 export const YOUTUBE_EARLY_UPLOAD_MS=15*60_000;
-export interface CalendarEntry {jobId:string;contentItemId:string;title:string;platform:Platform;socialAccountId:string;format?:ContentFormat;scheduledAt:number;status:JobStatus;publishedUrl?:string;errorCode?:string;statusLabel?:string;warning?:string}
+export interface CalendarEntry {jobId:string;contentItemId:string;title:string;platform:Platform;socialAccountId:string;format?:ContentFormat;scheduledAt:number;status:JobStatus|'DRAFT';kind?:'PLANNED';publishedUrl?:string;errorCode?:string;statusLabel?:string;warning?:string}
 
 export class PublishingService {
   private readonly repos: Repositories;
@@ -25,7 +25,15 @@ export class PublishingService {
   async listCalendar(brandId:string,from:number,to:number):Promise<CalendarEntry[]>{
     if(!Number.isFinite(from)||!Number.isFinite(to)||from>=to)throw new Error('INVALID_CALENDAR_RANGE');
     const jobs=(await this.repos.publishJobs.findInRange(brandId,from,to)).filter(job=>(job.publishAt??job.scheduledAt)<to);
-    return Promise.all(jobs.map(job=>this.calendarEntry(job)));
+    const published=await Promise.all(jobs.map(job=>this.calendarEntry(job)));
+    const planned:CalendarEntry[]=[];
+    for(const content of (await this.repos.contents.findBy({brandId})).filter(row=>row.status==='DRAFT'&&row.plannedAt!==undefined&&row.plannedAt>=from&&row.plannedAt<to&&row.plannedSocialAccountId)){
+      const account=await this.repos.socialAccounts.get(content.plannedSocialAccountId!);
+      if(!account||account.brandId!==brandId)continue;
+      const variant=(await this.repos.variants.findBy({contentItemId:content.id,platform:account.platform}))[0];
+      planned.push({jobId:`planned:${content.id}`,contentItemId:content.id,title:content.title,platform:account.platform,socialAccountId:account.id,...(variant?.format?{format:variant.format}:{}),scheduledAt:content.plannedAt!,status:'DRAFT',kind:'PLANNED',statusLabel:'Bản nháp kế hoạch',...(content.plannedEventName?{warning:content.plannedEventName}:{})});
+    }
+    return [...published,...planned].sort((a,b)=>a.scheduledAt-b.scheduledAt||a.jobId.localeCompare(b.jobId));
   }
 
   async reschedule(brandId:string,jobId:string,scheduledAt:number,now:number):Promise<CalendarEntry>{

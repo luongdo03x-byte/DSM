@@ -23,6 +23,8 @@ import {verifySignature,parseMetaWebhook,type MetaCommentEvent} from '../integra
 import {EngagementService} from '../modules/engagement/engagement.service.ts';
 import {EngagementConfigService} from '../modules/engagement/engagement-config.service.ts';
 import type {AiService} from '../modules/ai/ai.service.ts';
+import {ContentPlanService} from '../modules/ai/content-plan.service.ts';
+import {HookLibrary} from '../modules/growth/hook-library.service.ts';
 import type {Platform,SocialComment} from '../../../../packages/shared/src/domain.ts';
 
 export interface LocalRequest {
@@ -169,6 +171,17 @@ export class LocalApiRuntime {
         const body=asObject(req.body);
         if(body.transcript!==undefined&&typeof body.transcript!=='string')throw new Error('INVALID_AI_REQUEST');
         return{status:200,body:await this.d.ai.youtubeMeta(brandId,String(body.contentId??''),body.transcript)};
+      }
+      if((m=route(req.path,/^\/brands\/([^/]+)\/ai\/plan$/))&&method==='POST'){
+        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
+        if(!this.d.ai)return{status:503,body:{error:'AI_NOT_CONFIGURED',message:'Chưa cấu hình khóa API cho trợ lý AI.'}};
+        const body=asObject(req.body);
+        if(!Array.isArray(body.socialAccountIds)||body.socialAccountIds.some((value:unknown)=>typeof value!=='string'))throw new Error('INVALID_AI_REQUEST');
+        return{status:200,body:await new ContentPlanService(this.d.repos,this.d.ai).generate(brandId,String(body.startDate??''),body.socialAccountIds)};
+      }
+      if((m=route(req.path,/^\/brands\/([^/]+)\/hooks$/))&&method==='GET'){
+        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
+        return{status:200,body:await new HookLibrary(this.d.repos).top(brandId)};
       }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/comments$/))&&method==='GET'){
