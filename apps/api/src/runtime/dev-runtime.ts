@@ -53,10 +53,11 @@ import {EngagementService} from '../modules/engagement/engagement.service.ts';
 import type {CommentSource} from '../../../../packages/platform-contracts/src/comments.ts';
 import Anthropic from '@anthropic-ai/sdk';
 import {AiService,type AiClient,type AiTask} from '../modules/ai/ai.service.ts';
+import {SubtitleQueue} from '../../../worker/src/media/subtitle-queue.ts';
 
 export interface DevelopmentRuntimeOptions{env?:Record<string,string|undefined>;hasher?:PasswordHasher;store?:MemoryStore;aiClient?:AiClient}
 export interface RuntimeOptions {env:Record<string,string|undefined>;hasher?:PasswordHasher;store?:MemoryStore;aiClient?:AiClient}
-function configuredAi(repos:Repositories,env:Record<string,string|undefined>,client?:AiClient){
+export function configuredAi(repos:Repositories,env:Record<string,string|undefined>,client?:AiClient){
   if(!client&&!env.ANTHROPIC_API_KEY)return undefined;
   const limit=Number(env.AI_DAILY_LIMIT??30);
   const effort:Partial<Record<AiTask,'low'|'medium'|'high'>>={};
@@ -150,9 +151,11 @@ export async function createRuntime(options:RuntimeOptions) {
   const client=createPrismaClient(env.DATABASE_URL);
   let queue:BullJobQueue|undefined;
   let metaCommentQueue:MetaCommentQueue|undefined;
+  let subtitleQueue:SubtitleQueue|undefined;
   try {
     await client.$connect();
     queue=new BullJobQueue({url:env.REDIS_URL},env.PUBLISH_QUEUE_NAME);
+    subtitleQueue=new SubtitleQueue(env.REDIS_URL);
     const repos:Repositories=new PrismaRepositories(client);
     const hasher=options.hasher??new Node24Argon2idHasher();
     const ids={ownerId:'local-owner',workspaceId:'local-workspace',brandId:'local-brand'};
@@ -180,7 +183,7 @@ export async function createRuntime(options:RuntimeOptions) {
     const dataDeletion=metaDeletion(repos,env);
     if(env.META_APP_SECRET&&env.META_WEBHOOK_VERIFY_TOKEN)metaCommentQueue=new MetaCommentQueue(env.REDIS_URL);
     const metaWebhook=metaCommentQueue&&env.META_APP_SECRET&&env.META_WEBHOOK_VERIFY_TOKEN?{appSecret:env.META_APP_SECRET,verifyToken:env.META_WEBHOOK_VERIFY_TOKEN,enqueue:(event:import('../integrations/meta/meta-webhook.ts').MetaCommentEvent)=>metaCommentQueue!.enqueue(event)}:undefined;
-    const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver(),queue,{publicMediaBaseUrl:env.PUBLIC_MEDIA_BASE_URL??''}),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),engagement:new EngagementService(repos,commentSources(registry)),ai:configuredAi(repos,env,options.aiClient),nodeAuth,browserNodes,webAppBaseUrl:env.WEB_APP_BASE_URL??'http://127.0.0.1:3000',testMode:env.APP_ENV==='test',...(integrations?{integrations}:{}),...(dataDeletion?{dataDeletion}:{}),...(metaWebhook?{metaWebhook}:{})});
-    return {repos,runtime,registry,queue,services:{accounts,products,content,batchStatus,analytics,tracking,media,campaigns,nodeAuth,browserNodes},ids,close:async()=>{await metaCommentQueue?.close();await queue!.close();await client.$disconnect()}};
-  } catch(error) {if(metaCommentQueue)await metaCommentQueue.close();if(queue)await queue.close();await client.$disconnect();throw error}
+    const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver(),queue,{publicMediaBaseUrl:env.PUBLIC_MEDIA_BASE_URL??''}),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),engagement:new EngagementService(repos,commentSources(registry)),ai:configuredAi(repos,env,options.aiClient),subtitleQueue,nodeAuth,browserNodes,webAppBaseUrl:env.WEB_APP_BASE_URL??'http://127.0.0.1:3000',testMode:env.APP_ENV==='test',...(integrations?{integrations}:{}),...(dataDeletion?{dataDeletion}:{}),...(metaWebhook?{metaWebhook}:{})});
+    return {repos,runtime,registry,queue,services:{accounts,products,content,batchStatus,analytics,tracking,media,campaigns,nodeAuth,browserNodes},ids,close:async()=>{await subtitleQueue?.close();await metaCommentQueue?.close();await queue!.close();await client.$disconnect()}};
+  } catch(error) {if(subtitleQueue)await subtitleQueue.close();if(metaCommentQueue)await metaCommentQueue.close();if(queue)await queue.close();await client.$disconnect();throw error}
 }

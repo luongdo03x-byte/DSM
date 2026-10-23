@@ -1,7 +1,8 @@
 import {Queue,Worker} from 'bullmq';
 import IORedis from 'ioredis';
 import type {PublisherRegistry} from '../../api/src/modules/publishing/publisher-registry.ts';
-import {createRuntime} from '../../api/src/runtime/dev-runtime.ts';
+import {createRuntime,configuredAi} from '../../api/src/runtime/dev-runtime.ts';
+import {runSubtitleJob,SUBTITLE_QUEUE,type SubtitleJob} from './media/subtitle-job.ts';
 import {BullJobQueue, PUBLISH_API_QUEUE} from './queue/bull-job-queue.ts';
 import {JobRunner} from './publishing/job-runner.service.ts';
 import {PublishInputBuilder} from './publishing/publish-input.builder.ts';
@@ -59,7 +60,9 @@ export async function startWorker(options: WorkerOptions): Promise<{close(): Pro
   const reportQueue=new Queue<{brandId:string}>(WEEKLY_REPORT_QUEUE,{connection:analyticsQueueConnection});
   const reportWorker=new Worker<{brandId:string}>(WEEKLY_REPORT_QUEUE,async job=>weeklyGrowthReport({repos:app.repos,dispatcher,brandId:String(job.data.brandId)}),{connection:analyticsWorkerConnection,concurrency:1,autorun:false});
   const metaCommentWorker=new Worker<MetaCommentEvent>(META_COMMENT_QUEUE,async job=>{const result=await ingestComment(app.repos,job.data);if(result==='CREATED'){const comment=(await app.repos.socialComments.findBy({platform:job.data.platform,platformCommentId:job.data.platformCommentId}))[0];if(comment)await runRulesForComment(app.repos,comment.id,engagement)}return result},{connection:analyticsWorkerConnection,concurrency:1,autorun:false});
+  const subtitleWorker=new Worker<SubtitleJob>(SUBTITLE_QUEUE,async job=>runSubtitleJob({repos:app.repos,storage:app.services.media.storage,ai:configuredAi(app.repos,env),binary:env.WHISPER_BINARY??'/usr/local/bin/whisper-cli',model:env.WHISPER_MODEL??'/opt/whisper/ggml-large-v3.bin'},job.data),{connection:analyticsWorkerConnection,concurrency:1,autorun:false});
   metaCommentWorker.on('error',error=>console.error('Meta comment worker failed',error));
+  subtitleWorker.on('error',error=>console.error('Subtitle worker failed',error));
   reportWorker.on('error',error=>console.error('weekly growth report worker failed',error));
   const refreshTokens=async()=>refreshExpiringTokens({repos:app.repos,adapters:{FACEBOOK:activeRegistry.get('FACEBOOK','API') as PlatformAdapter,INSTAGRAM:activeRegistry.get('INSTAGRAM','API') as PlatformAdapter,TIKTOK:activeRegistry.get('TIKTOK','API') as PlatformAdapter,YOUTUBE:activeRegistry.get('YOUTUBE','API') as PlatformAdapter},now:Date.now(),notify});
   const builder = new PublishInputBuilder(app.repos, app.services.media);
@@ -82,11 +85,13 @@ export async function startWorker(options: WorkerOptions): Promise<{close(): Pro
     void analyticsWorker.run().catch(error=>console.error('analytics worker run failed',error));
     void reportWorker.run().catch(error=>console.error('weekly report worker run failed',error));
     void metaCommentWorker.run().catch(error=>console.error('Meta comment worker run failed',error));
+    void subtitleWorker.run().catch(error=>console.error('Subtitle worker run failed',error));
   } catch (error) {
     await worker.close();
     await analyticsWorker.close();
     await reportWorker.close();
     await metaCommentWorker.close();
+    await subtitleWorker.close();
     await analyticsQueue.close();
     await reportQueue.close();
     analyticsQueueConnection.disconnect();
@@ -116,6 +121,7 @@ export async function startWorker(options: WorkerOptions): Promise<{close(): Pro
     await analyticsWorker.close();
     await reportWorker.close();
     await metaCommentWorker.close();
+    await subtitleWorker.close();
     await analyticsQueue.close();
     await reportQueue.close();
     analyticsQueueConnection.disconnect();

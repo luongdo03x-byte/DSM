@@ -17,7 +17,7 @@ const fields = {
   brandVoices: ['id','brandId','version','tone','doList','dontList','samplePosts'],
   aiUsage: ['id','workspaceId','task','inputTokens','outputTokens','cacheReadTokens','createdAt'],
   products: ['id', 'brandId', 'name', 'slug', 'description', 'imageAssetId', 'supplierUrl', 'landingUrl', 'cost', 'sellingPrice', 'currency', 'status'],
-  media: ['id', 'brandId', 'workspaceId', 'type', 'storageKey', 'mimeType', 'sizeBytes', 'width', 'height', 'durationMs', 'derivedFromAssetId', 'variantKey', 'exifStripped', 'codec'],
+  media: ['id', 'brandId', 'workspaceId', 'type', 'storageKey', 'mimeType', 'sizeBytes', 'width', 'height', 'durationMs', 'derivedFromAssetId', 'variantKey', 'exifStripped', 'codec', 'subtitleStorageKey'],
   contents: ['id', 'brandId', 'productId', 'pillarId', 'type', 'title', 'hook', 'body', 'cta', 'masterAssetId', 'status', 'plannedAt', 'plannedSocialAccountId', 'plannedEventName'],
   contentMedia: ['id', 'contentItemId', 'mediaAssetId', 'position'],
   variantMedia: ['id', 'contentVariantId', 'mediaAssetId', 'position', 'crop', 'isCover'],

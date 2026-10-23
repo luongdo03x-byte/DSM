@@ -48,6 +48,17 @@ export class YouTubeAdapter implements PlatformAdapter,InsightsSource,CommentSou
     const authorized=async(request:(accessToken:string)=>Parameters<HttpClient['request']>[0])=>{let response=await this.deps.http.request(request(token));if(response.status===401&&!refreshed){await refreshOnce();response=await this.deps.http.request(request(token))}if(response.status===401)throw new PublishError({type:'AUTH_ERROR',code:'YT_TOKEN_EXPIRED',message:'YouTube access token expired',retryable:false});return response};
     if(settings.playlistId){const response=await authorized(accessToken=>({url:`${this.deps.baseUrl}/youtube/v3/playlistItems?part=snippet`,method:'POST',headers:{authorization:`Bearer ${accessToken}`},body:{snippet:{playlistId:settings.playlistId,resourceId:{kind:'youtube#video',videoId}}}}));if(response.status>=400)warnings.push('Không thể thêm vào playlist')}
     if(input.metadata?.thumbnailStorageKey){const bytes=await this.deps.storage.getObject(String(input.metadata.thumbnailStorageKey));const response=await authorized(accessToken=>({url:`${this.deps.baseUrl}/upload/youtube/v3/thumbnails/set?videoId=${encodeURIComponent(videoId)}`,method:'POST',headers:{authorization:`Bearer ${accessToken}`,'content-type':String(input.metadata?.thumbnailMimeType??'image/jpeg')},body:bytes}));if(response.status>=400)warnings.push('Không thể đặt ảnh bìa')}
+    if(input.metadata?.subtitleStorageKey){
+      const bytes=await this.deps.storage.getObject(String(input.metadata.subtitleStorageKey));
+      if(bytes.length>100_000_000)warnings.push('Phụ đề vượt giới hạn tải lên của YouTube');
+      else{
+        const boundary=`dsm-caption-${crypto.randomUUID()}`;
+        const metadata=JSON.stringify({snippet:{videoId,language:'vi',name:'Tiếng Việt',isDraft:false}});
+        const body=Buffer.concat([Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n`),bytes,Buffer.from(`\r\n--${boundary}--\r\n`)]);
+        const response=await authorized(accessToken=>({url:`${this.deps.baseUrl}/upload/youtube/v3/captions?uploadType=multipart&part=snippet`,method:'POST',headers:{authorization:`Bearer ${accessToken}`,'content-type':`multipart/related; boundary=${boundary}`},body}));
+        if(response.status>=400)warnings.push('Không thể tải phụ đề tiếng Việt lên YouTube');
+      }
+    }
     return{...(scheduled?{processing:true,remoteCorrelationId:`video:${videoId}`}:{externalPostId:videoId,externalUrl:`https://www.youtube.com/watch?v=${videoId}`}),...(warnings.length?{note:warnings.join('; ')}:{})};
   }
   async reschedule(input:{socialAccountId:string;videoId:string;publishAt:number}):Promise<void>{const response=await this.requestWithRefresh(input.socialAccountId,token=>({url:`${this.deps.baseUrl}/youtube/v3/videos?part=status`,method:'PUT',headers:{authorization:`Bearer ${token}`},body:{id:input.videoId,status:{privacyStatus:'private',publishAt:new Date(input.publishAt).toISOString()}}}));if(response.status>=400)throw new PublishError({type:response.status===401?'AUTH_ERROR':'PLATFORM_ERROR',code:'YT_RESCHEDULE_FAILED',message:'Cannot update YouTube publish time',retryable:response.status>=500})}

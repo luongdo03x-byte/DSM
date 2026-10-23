@@ -357,6 +357,7 @@ model MediaAsset {
   variantKey      String?
   exifStripped    Boolean?
   codec           String?
+  subtitleStorageKey String?
   brand           Brand    @relation(fields: [brandId], references: [id], onDelete: Restrict)
   derivedFrom     MediaAsset? @relation("DerivedMedia", fields: [derivedFromAssetId], references: [id], onDelete: SetNull)
   derivatives     MediaAsset[] @relation("DerivedMedia")

@@ -25,6 +25,7 @@ import {EngagementConfigService} from '../modules/engagement/engagement-config.s
 import type {AiService} from '../modules/ai/ai.service.ts';
 import {ContentPlanService} from '../modules/ai/content-plan.service.ts';
 import {HookLibrary} from '../modules/growth/hook-library.service.ts';
+import type {SubtitleJob} from '../../../worker/src/media/subtitle-job.ts';
 import type {Platform,SocialComment} from '../../../../packages/shared/src/domain.ts';
 
 export interface LocalRequest {
@@ -62,6 +63,7 @@ type Dependencies={
   metaWebhook?:{appSecret:string;verifyToken:string;enqueue:(event:MetaCommentEvent)=>Promise<void>};
   engagement?:EngagementService;
   ai?:AiService|undefined;
+  subtitleQueue?:{enqueue:(job:SubtitleJob)=>Promise<void>};
   webAppBaseUrl?:string;
   testMode?:boolean;
 };
@@ -334,6 +336,17 @@ export class LocalApiRuntime {
       if((m=route(req.path,/^\/brands\/([^/]+)\/media\/uploads$/))){
         const brandId=decodeURIComponent(m[1]!);const access=await this.authorize(userId,brandId);
         if(method==='POST'){if(!this.d.media)return{status:501,body:{error:'MEDIA_NOT_CONFIGURED'}};const b=asObject(req.body);return{status:201,body:await this.d.media.createUpload({workspaceId:access.workspaceId,brandId},{type:b.type,mimeType:String(b.mimeType??''),...(b.category!==undefined?{category:String(b.category)}:{})})}}
+      }
+      if((m=route(req.path,/^\/brands\/([^/]+)\/media\/([^/]+)\/subtitles$/))){
+        const brandId=decodeURIComponent(m[1]!),assetId=decodeURIComponent(m[2]!);await this.authorize(userId,brandId);
+        const asset=await this.d.repos.media.get(assetId);
+        if(!asset||asset.brandId!==brandId||asset.type!=='VIDEO')return{status:404,body:{error:'MEDIA_NOT_FOUND'}};
+        if(method==='GET')return{status:200,body:{status:asset.subtitleStorageKey?'READY':'PENDING',...(asset.subtitleStorageKey?{downloadUrl:await this.d.media?.storage.getSignedUrl(asset.subtitleStorageKey,900)}:{})}};
+        if(method==='POST'){
+          if(asset.subtitleStorageKey)return{status:200,body:{status:'READY'}};
+          if(!this.d.subtitleQueue)return{status:503,body:{error:'SUBTITLES_NOT_CONFIGURED'}};
+          await this.d.subtitleQueue.enqueue({brandId,assetId});return{status:202,body:{status:'QUEUED',assetId}};
+        }
       }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/products\/([^/]+)\/archive$/))){
