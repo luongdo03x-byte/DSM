@@ -23,10 +23,7 @@ export async function runRulesForComment(repos:Repositories,commentId:string,eng
       try{
         if(kind==='REPLY'&&match.texts.reply){await engagement.reply(comment.brandId,commentId,renderTemplate(match.texts.reply,vars),'automation',match.ruleId);completed++}
         else if(kind==='HIDE'){await engagement.hide(comment.brandId,commentId,true,'automation',match.ruleId);completed++}
-        else if(kind==='PRIVATE_REPLY'&&match.texts.privateReply&&'privateReply' in engagement){
-          const service=engagement as EngagementService&{privateReply(brandId:string,commentId:string,text:string,userId:string,ruleId?:string):Promise<unknown>};
-          await service.privateReply(comment.brandId,commentId,renderTemplate(match.texts.privateReply,vars),'automation',match.ruleId);completed++;
-        }
+        else if(kind==='PRIVATE_REPLY'&&match.texts.privateReply){await engagement.privateReply(comment.brandId,commentId,renderTemplate(match.texts.privateReply,vars),'automation',match.ruleId);completed++}
       }catch(error){console.error('comment automation failed',match.ruleId,commentId,kind,error)}
     }
   }

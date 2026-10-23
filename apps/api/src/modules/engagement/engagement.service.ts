@@ -72,5 +72,19 @@ export class EngagementService{
     catch(error){const errorCode=gone(error)?'COMMENT_GONE':String((error as {code?:string})?.code??'PLATFORM_ERROR');await this.repos.commentActions.update(action.id,{status:'FAILED',errorCode});if(errorCode==='COMMENT_GONE'){await this.repos.socialComments.update(comment.id,{status:'DELETED'});throw new Error(errorCode)}throw error}
   }
 
+  async privateReply(brandId:string,commentId:string,text:string,userId:string,ruleId?:string):Promise<SocialComment>{
+    const {comment,account}=await this.context(brandId,commentId);
+    if(comment.platform!=='FACEBOOK'&&comment.platform!=='INSTAGRAM'||comment.isFromPage)throw new Error('NOT_SUPPORTED');
+    if(comment.status==='DELETED')throw new Error('COMMENT_GONE');
+    if(comment.privateReplySentAt||(await this.repos.commentActions.findBy({commentId,kind:'PRIVATE_REPLY'})).length)throw new Error('PRIVATE_REPLY_ALREADY_SENT');
+    if(Date.now()-comment.createdAt>=7*86_400_000)throw new Error('PRIVATE_REPLY_WINDOW_CLOSED');
+    const message=text.trim();if(!message)throw new Error('INVALID_REPLY');
+    const source=this.sources[comment.platform];if(!source?.privateReply)throw new Error('NOT_SUPPORTED');
+    const action:CommentAction={id:id('comment-action'),commentId,kind:'PRIVATE_REPLY',text:message,userId,...(ruleId?{ruleId}:{}),status:'PENDING',createdAt:Date.now()};
+    try{await this.repos.commentActions.insert(action)}catch(error){if(error instanceof Error&&error.message==='DUPLICATE_ID')throw new Error('PRIVATE_REPLY_ALREADY_SENT');throw error}
+    try{await source.privateReply(account,comment.platformCommentId,message);await this.repos.commentActions.update(action.id,{status:'DONE'});return this.repos.socialComments.update(comment.id,{privateReplySentAt:Date.now()})}
+    catch(error){const errorCode=gone(error)?'COMMENT_GONE':String((error as {code?:string})?.code??'DELIVERY_UNKNOWN');await this.repos.commentActions.update(action.id,{status:'FAILED',errorCode});if(errorCode==='COMMENT_GONE')await this.repos.socialComments.update(comment.id,{status:'DELETED'});throw error}
+  }
+
   async read(brandId:string,commentId:string):Promise<SocialComment>{const {comment}=await this.context(brandId,commentId);if(comment.status==='DELETED')throw new Error('COMMENT_GONE');return this.repos.socialComments.update(comment.id,{status:'READ'})}
 }

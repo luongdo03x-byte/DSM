@@ -104,4 +104,8 @@ export class FacebookAdapter implements PlatformAdapter,InsightsSource,CommentSo
   async hide(account:SocialAccount,platformCommentId:string,hidden:boolean):Promise<void>{
     const token=await this.tokens(account.id);await this.graph.post(`/${platformCommentId}`,token,{is_hidden:hidden});
   }
+  async privateReply(account:SocialAccount,platformCommentId:string,text:string):Promise<void>{
+    const token=await this.tokens(account.id),page=account.platformAccountId??account.id;
+    await this.graph.post(`/${page}/messages`,token,{recipient:{comment_id:platformCommentId},message:{text}});
+  }
 }

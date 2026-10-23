@@ -1,4 +1,4 @@
-import type {BrowserRegistration, PublishJob, SocialComment} from './domain.ts';
+import type {BrowserRegistration, PublishJob, SocialComment, CommentAction} from './domain.ts';
 import type {AppendRepo, PublishJobRepo, Repo, Repositories,QuotaUsageRepo} from './repositories.ts';
 import {MemoryStore} from './store.ts';
 
@@ -62,6 +62,15 @@ class MemorySocialCommentRepo extends MapRepo<SocialComment> {
   constructor(comments: Map<string, SocialComment>) {super(comments); this.comments = comments}
   async insert(row: SocialComment): Promise<SocialComment> {
     if ([...this.comments.values()].some(value => value.platform === row.platform && value.platformCommentId === row.platformCommentId)) throw new Error('DUPLICATE_ID');
+    return super.insert(row);
+  }
+}
+
+class MemoryCommentActionRepo extends MapRepo<CommentAction>{
+  private readonly actions:Map<string,CommentAction>;
+  constructor(actions:Map<string,CommentAction>){super(actions);this.actions=actions}
+  async insert(row:CommentAction):Promise<CommentAction>{
+    if(row.kind==='PRIVATE_REPLY'&&[...this.actions.values()].some(value=>value.commentId===row.commentId&&value.kind==='PRIVATE_REPLY'))throw new Error('DUPLICATE_ID');
     return super.insert(row);
   }
 }
@@ -155,7 +164,7 @@ export class MemoryRepositories implements Repositories {
     this.audit = new ArrayRepo(store.audit);
     this.socialAccounts = new MapRepo(store.socialAccounts);
     this.socialComments = new MemorySocialCommentRepo(store.socialComments);
-    this.commentActions = new MapRepo(store.commentActions);
+    this.commentActions = new MemoryCommentActionRepo(store.commentActions);
     this.replyTemplates = new MapRepo(store.replyTemplates);
     this.automationRules = new MapRepo(store.automationRules);
     this.credentials = new MapRepo(store.credentials);

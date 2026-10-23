@@ -84,4 +84,8 @@ export class InstagramAdapter implements PlatformAdapter,InsightsSource,CommentS
   async hide(account:SocialAccount,platformCommentId:string,hidden:boolean):Promise<void>{
     const token=await this.tokens(account.id);await this.graph.post(`/${platformCommentId}`,token,{hide:hidden});
   }
+  async privateReply(account:SocialAccount,platformCommentId:string,text:string):Promise<void>{
+    const token=await this.tokens(account.id),igId=await this.accountIds(account.id);
+    await this.graph.post(`/${igId}/messages`,token,{recipient:{comment_id:platformCommentId},message:{text}});
+  }
 }
