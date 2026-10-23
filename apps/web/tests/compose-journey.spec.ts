@@ -5,6 +5,30 @@ import {E2E_OWNER} from './e2e-owner.ts';
 const sample=fileURLToPath(new URL('../../../tests/fixtures/media/sample.png',import.meta.url));
 const video=fileURLToPath(new URL('../../../tests/fixtures/media/vertical-3s.mp4',import.meta.url));
 
+test('AI suggestion edits a draft only after selection and never publishes it',async({page})=>{
+  let aiCalls=0,publishCalls=0;
+  await page.route('**/brands/local-brand/ai/captions',async route=>{
+    aiCalls++;
+    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({suggestions:[1,2,3].map(index=>({platform:'FACEBOOK',hook:`Mở đầu ${index}`,caption:`Gợi ý Facebook ${index}`,hashtags:[],rationale:'Bản thử',issues:[]}))})});
+  });
+  await page.route('**/brands/local-brand/publish',async route=>{publishCalls++;await route.continue()});
+  await page.goto('/login');
+  await page.getByLabel('Email').fill(E2E_OWNER.email);
+  await page.getByLabel('Mật khẩu').fill(E2E_OWNER.password);
+  await page.getByRole('button',{name:'Đăng nhập'}).click();
+  await page.getByRole('navigation').getByRole('link',{name:'Tạo bài'}).click();
+  await page.getByLabel('Tiêu đề').fill('Bài AI thử nghiệm');
+  await page.getByLabel('Nội dung gốc').fill('Nội dung gốc');
+  await page.getByRole('checkbox',{name:/Facebook/}).check();
+  await page.getByRole('button',{name:'Gợi ý bằng AI'}).click();
+  await expect(page.getByRole('button',{name:'Dùng gợi ý 2'})).toBeVisible();
+  await page.getByRole('button',{name:'Dùng gợi ý 2'}).click();
+  await expect(page.getByLabel('Chú thích Facebook')).toHaveValue('Gợi ý Facebook 2');
+  expect(aiCalls).toBe(1);
+  expect(publishCalls).toBe(0);
+  await expect(page.getByRole('button',{name:'Đăng ngay'})).toBeVisible();
+});
+
 test('compose journey publishes an ordered album to two accounts',async({page})=>{
   await page.route('https://storage.local/put/**',route=>route.fulfill({status:200,body:''}));
   await page.goto('/login');

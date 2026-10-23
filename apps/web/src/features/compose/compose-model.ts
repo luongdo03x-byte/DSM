@@ -2,7 +2,7 @@ import type {ContentFormat,ContentType,CropBox,Platform} from '../../../../../pa
 import type {PreflightIssue} from '../../../../../packages/shared/src/preflight.ts';
 import type {TikTokPostSettings} from '../../../../api/src/integrations/tiktok/tiktok.adapter.ts';
 import type {YouTubeVariantSettings} from '../../../../../packages/shared/src/domain.ts';
-export interface VariantDraft{variantId?:string;platform:Platform;format?:ContentFormat;caption:string;title?:string;hashtags:string[];mediaOrder:string[];crops:Record<string,CropBox>;coverAssetId?:string;issues:PreflightIssue[];skippedReason?:string;tiktokSettings?:Partial<TikTokPostSettings>;youtube?:YouTubeVariantSettings}
+export interface VariantDraft{variantId?:string;platform:Platform;format?:ContentFormat;caption:string;hook?:string;title?:string;hashtags:string[];mediaOrder:string[];crops:Record<string,CropBox>;coverAssetId?:string;issues:PreflightIssue[];skippedReason?:string;tiktokSettings?:Partial<TikTokPostSettings>;youtube?:YouTubeVariantSettings}
 export interface ComposeSnapshot{type:ContentType;title:string;body:string;hook:string;cta:string;mediaAssetIds:string[];selectedAccountIds:string[];accountPlatforms:Record<string,Platform>;variants:Record<string,VariantDraft>;schedule:{mode:'now'}|{mode:'at';date:string;time:string}}
 export interface ComposeState extends ComposeSnapshot{contentId?:string;saved:ComposeSnapshot}
 export type ComposeAction=
@@ -14,6 +14,7 @@ export type ComposeAction=
   |{type:'setCover';platform:Platform;mediaAssetId:string}
   |{type:'toggleAccount';accountId:string;platform:Platform}
   |{type:'editVariant';platform:Platform;patch:Partial<VariantDraft>}
+  |{type:'applyAiSuggestion';platform:Platform;suggestion:{caption:string;hook:string;hashtags:string[]}}
   |{type:'applyPreflight';platform:Platform;issues:PreflightIssue[]}
   |{type:'setSchedule';schedule:ComposeSnapshot['schedule']}
   |{type:'markSaved';snapshot?:ComposeState};
@@ -49,6 +50,7 @@ export function composeReducer(state:ComposeState,action:ComposeAction):ComposeS
       return{...state,selectedAccountIds:selected?state.selectedAccountIds.filter(id=>id!==action.accountId):[...state.selectedAccountIds,action.accountId],accountPlatforms:{...state.accountPlatforms,[action.accountId]:action.platform}};
     }
     case'editVariant':return{...state,variants:{...state.variants,[action.platform]:{...variantFor(state,action.platform),...action.patch,platform:action.platform}}};
+    case'applyAiSuggestion':return{...state,variants:{...state.variants,[action.platform]:{...variantFor(state,action.platform),caption:action.suggestion.caption,hook:action.suggestion.hook,hashtags:[...action.suggestion.hashtags]}}};
     case'applyPreflight':return{...state,variants:{...state.variants,[action.platform]:{...variantFor(state,action.platform),issues:[...action.issues]}}};
     case'setSchedule':return{...state,schedule:action.schedule};
     case'markSaved':return{...state,saved:snapshot(action.snapshot??state)};
