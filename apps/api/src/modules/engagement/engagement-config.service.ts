@@ -13,6 +13,7 @@ function ruleInput(value:unknown):Omit<AutomationRule,'id'|'brandId'> {
   if(!actions||typeof actions!=='object')throw new Error('INVALID_ENGAGEMENT_CONFIG');
   const reply=actions.reply===undefined?undefined:nonempty(actions.reply,2000),privateReply=actions.privateReply===undefined?undefined:nonempty(actions.privateReply,2000),hide=actions.hide===true;
   if(!reply&&!privateReply&&!hide)throw new Error('INVALID_ENGAGEMENT_CONFIG');
+  if((privateReply||hide)&&platforms.includes('YOUTUBE'))throw new Error('INVALID_ENGAGEMENT_CONFIG');
   const maxPerHour=Number(input.maxPerHour??30);if(!Number.isInteger(maxPerHour)||maxPerHour<1||maxPerHour>1000)throw new Error('INVALID_ENGAGEMENT_CONFIG');
   return{name:nonempty(input.name,100),enabled:input.enabled===true,platforms,match:{keywords:match.keywords.map((item:string)=>item.trim()),mode:match.mode as 'ANY'|'ALL'},actions:{...(reply?{reply}:{}),...(privateReply?{privateReply}:{}),...(hide?{hide:true}:{})},maxPerHour};
 }

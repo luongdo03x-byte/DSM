@@ -14,6 +14,10 @@ export class MetaDataDeletionService {
     const credentials=await this.repos.credentials.findBy({provider:'META',providerUserId:claims.user_id});
     await this.repos.transaction(async tx=>{
       for(const credential of credentials){
+        for(const comment of await tx.socialComments.findBy({socialAccountId:credential.socialAccountId})){
+          for(const action of await tx.commentActions.findBy({commentId:comment.id}))await tx.commentActions.remove(action.id);
+          await tx.socialComments.remove(comment.id);
+        }
         await tx.credentials.remove(credential.id);
         await tx.socialAccounts.update(credential.socialAccountId,{status:'DISCONNECTED',platformAccountId:null,username:null,displayName:null} as any);
       }

@@ -6,6 +6,7 @@ import {MemoryStore} from '../../packages/shared/src/store.ts';
 import {MemoryRepositories} from '../../packages/shared/src/memory-repositories.ts';
 import {EngagementService} from '../../apps/api/src/modules/engagement/engagement.service.ts';
 import {runRulesForComment} from '../../apps/worker/src/engagement/run-rules.job.ts';
+import {EngagementConfigService} from '../../apps/api/src/modules/engagement/engagement-config.service.ts';
 
 const comment:SocialComment={id:'c',brandId:'b',socialAccountId:'a',platform:'FACEBOOK',platformCommentId:'remote',platformPostId:'post',authorId:'person',authorName:'Nguyễn An',isFromPage:false,text:'GIA BAO NHIEU vậy shop',createdAt:1,status:'NEW'};
 const rule:AutomationRule={id:'r',brandId:'b',name:'Giá',enabled:true,platforms:['FACEBOOK'],match:{keywords:['giá bao nhiêu'],mode:'ANY'},actions:{reply:'Chào {ten}, xem {link}'},maxPerHour:30};
@@ -36,4 +37,11 @@ test('quy tắc chỉ gửi một lần cho bình luận mới',async()=>{
   assert.equal(await runRulesForComment(repos,'c',engagement),0);
   assert.deepEqual(sent,['Chào Nguyễn An, xem']);
   assert.equal((await repos.commentActions.findBy({ruleId:'r'}))[0]?.status,'DONE');
+});
+
+test('không lưu quy tắc có thao tác mà nền tảng không hỗ trợ',async()=>{
+  const config=new EngagementConfigService(new MemoryRepositories(new MemoryStore()));
+  const base={name:'Tư vấn',platforms:['YOUTUBE'],match:{keywords:['giá'],mode:'ANY'},maxPerHour:30};
+  assert.throws(()=>config.createRule('b',{...base,actions:{privateReply:'Chào bạn'}}),/INVALID_ENGAGEMENT_CONFIG/);
+  assert.throws(()=>config.createRule('b',{...base,actions:{hide:true}}),/INVALID_ENGAGEMENT_CONFIG/);
 });

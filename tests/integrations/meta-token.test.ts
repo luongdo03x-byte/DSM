@@ -44,12 +44,16 @@ test('Meta data deletion rejects invalid signature and removes matching credenti
   await repos.socialAccounts.insert({id:'a',brandId:'b',platform:'FACEBOOK',platformAccountId:'page',publishMode:'API',status:'CONNECTED'});
   await accounts.saveCredential('a','META','page-token');
   const credential=(await repos.credentials.findBy({socialAccountId:'a'}))[0]!;await repos.credentials.update(credential.id,{providerUserId:'meta-user'});
+  await repos.socialComments.insert({id:'comment',brandId:'b',socialAccountId:'a',platform:'FACEBOOK',platformCommentId:'remote-comment',platformPostId:'post',authorId:'person',authorName:'An',isFromPage:false,text:'Thông tin cá nhân',createdAt:123,status:'NEW'});
+  await repos.commentActions.insert({id:'action',commentId:'comment',kind:'REPLY',text:'Đã trả lời',status:'DONE',createdAt:124});
   const service=new MetaDataDeletionService({repos,appSecret:'secret',statusBaseUrl:'https://dsm.test/data-deletion'});
   await assert.rejects(service.handle('invalid.signature'),/INVALID_SIGNED_REQUEST/);
   const response=await service.handle(signedRequest({user_id:'meta-user',algorithm:'HMAC-SHA256',issued_at:123},'secret'));
   assert.match(response.url,/data-deletion/);assert.ok(response.confirmation_code);
   assert.equal((await repos.credentials.findBy({socialAccountId:'a'})).length,0);
   assert.equal((await repos.socialAccounts.get('a'))?.status,'DISCONNECTED');
+  assert.equal(await repos.socialComments.get('comment'),undefined);
+  assert.equal(await repos.commentActions.get('action'),undefined);
 });
 
 test('Meta refresh exchanges user token and replaces encrypted Page token',async()=>{
