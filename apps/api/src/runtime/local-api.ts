@@ -163,6 +163,13 @@ export class LocalApiRuntime {
         if(![1,2,3].includes(n))throw new Error('INVALID_AI_REQUEST');
         return{status:200,body:await this.d.ai.captions(brandId,String(body.contentId??''),platforms,n)};
       }
+      if((m=route(req.path,/^\/brands\/([^/]+)\/ai\/youtube-meta$/))&&method==='POST'){
+        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
+        if(!this.d.ai)return{status:503,body:{error:'AI_NOT_CONFIGURED',message:'Chưa cấu hình khóa API cho trợ lý AI.'}};
+        const body=asObject(req.body);
+        if(body.transcript!==undefined&&typeof body.transcript!=='string')throw new Error('INVALID_AI_REQUEST');
+        return{status:200,body:await this.d.ai.youtubeMeta(brandId,String(body.contentId??''),body.transcript)};
+      }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/comments$/))&&method==='GET'){
         const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);

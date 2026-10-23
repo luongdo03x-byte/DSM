@@ -7,7 +7,7 @@ import {id} from '../../../../../packages/shared/src/ids.ts';
 import {MEDIA_RULES} from '../../../../../packages/shared/src/media-rules.ts';
 import {preflight,type PreflightIssue} from '../../../../../packages/shared/src/preflight.ts';
 import {buildSystem} from './prompts.ts';
-import {CaptionSuggestionsSchema,type CaptionSuggestion} from './schemas.ts';
+import {CaptionSuggestionsSchema,YoutubeMetaSchema,type CaptionSuggestion} from './schemas.ts';
 
 export type {AiTask};
 export interface AiClient {
@@ -68,5 +68,30 @@ export class AiService {
       issues.push(...preflight({platform:suggestion.platform,format,caption,hashtags,media:[],...(suggestion.platform==='YOUTUBE'?{youtube:{madeForKids:false}}:{})}).filter(issue=>issue.field==='caption'||issue.field==='hashtags'));
       return{...suggestion,caption,hashtags,issues};
     })};
+  }
+
+  async youtubeMeta(brandId:string,contentId:string,transcript?:string){
+    const content=await this.repos.contents.get(contentId);
+    if(!content||content.brandId!==brandId)throw new Error('CONTENT_NOT_FOUND');
+    if(content.type!=='VIDEO')throw new Error('AI_FORMAT_UNSUPPORTED');
+    const prompt=JSON.stringify({task:'Đề xuất 3 đến 5 tiêu đề, mô tả, tag và chapter YouTube bằng tiếng Việt. Chỉ dùng dữ kiện được cung cấp.',content:{title:content.title,hook:content.hook,body:content.body},transcript:transcript?.slice(0,100_000)});
+    const {data}=await this.run('YOUTUBE_META',brandId,YoutubeMetaSchema,prompt);
+    const issues:PreflightIssue[]=[];
+    const titles=data.titles.map(title=>title.trim()).filter(title=>{
+      if(title.length<=100&&title.length>0)return true;
+      issues.push({code:'YT_TITLE_MAX',severity:'warning',message:'Đã bỏ tiêu đề dài quá 100 ký tự.',field:'title'});
+      return false;
+    });
+    if(!titles.length)throw new Error('AI_INVALID_OUTPUT');
+    let description=data.description;
+    if(/[<>]/.test(description)){description=description.replace(/[<>]/g,'');issues.push({code:'YT_DESCRIPTION_ANGLE_BRACKETS',severity:'warning',message:'Đã bỏ dấu < và > trong mô tả.',field:'description'})}
+    if(description.length>5000){description=description.slice(0,5000);issues.push({code:'YT_DESCRIPTION_MAX',severity:'warning',message:'Đã cắt mô tả còn 5000 ký tự.',field:'description'})}
+    let chapters=data.chapters;
+    if(chapters.length&&!/^0{1,2}:00(?::00)?$/.test(chapters[0]!.start)){chapters=[];issues.push({code:'YT_CHAPTER_START',severity:'warning',message:'Đã bỏ chapter vì mốc đầu tiên không bắt đầu ở 0:00.'})}
+    const tags=data.tags.map(tag=>tag.trim()).filter(Boolean);
+    while(tags.join(',').length>500)tags.pop();
+    if(tags.length<data.tags.length)issues.push({code:'YT_TAGS_TOO_LONG',severity:'warning',message:'Đã cắt tag cho đúng giới hạn.',field:'hashtags'});
+    issues.push(...preflight({platform:'YOUTUBE',format:'VIDEO',caption:'',title:titles[0]!,description,hashtags:[],youtube:{madeForKids:false},media:[]}).filter(issue=>issue.field==='title'||issue.field==='description'));
+    return{titles,description,tags,chapters,issues};
   }
 }
