@@ -53,7 +53,7 @@ function credentialKey(env:Record<string,string|undefined>){const raw=env.CREDEN
 function configuredIntegrations(repos:Repositories,crypto:CredentialCryptoService,env:Record<string,string|undefined>){
   const config=metaConfig(env),tiktok=tiktokConfig(env),google=googleConfig(env),stateSecret=config.stateSecret||env.OAUTH_STATE_SECRET;
   if(!stateSecret)return undefined;
-  const meta=env.META_APP_ID&&env.META_APP_SECRET&&config.redirectUri?new MetaOAuthConnector({graph:new MetaGraphClient({baseUrl:config.graphBaseUrl,version:config.graphVersion}),appId:env.META_APP_ID,appSecret:env.META_APP_SECRET,redirectUri:config.redirectUri,...(env.META_AUTH_BASE_URL?{authBaseUrl:env.META_AUTH_BASE_URL}:{})}):undefined;
+  const meta=env.META_APP_ID&&env.META_APP_SECRET&&config.redirectUri?new MetaOAuthConnector({graph:new MetaGraphClient({baseUrl:config.graphBaseUrl,version:config.graphVersion}),appId:env.META_APP_ID,appSecret:env.META_APP_SECRET,...(config.scopes?{scopes:config.scopes}:{}),redirectUri:config.redirectUri,...(env.META_AUTH_BASE_URL?{authBaseUrl:env.META_AUTH_BASE_URL}:{})}):undefined;
   const tt=tiktok.clientKey&&tiktok.clientSecret&&tiktok.redirectUri?new TikTokOAuthConnector({http:new TikTokHttpClient(new FetchHttpClient(),tiktok),config:tiktok}):undefined;
   const gg=google.clientId&&google.clientSecret&&google.redirectUri?new GoogleOAuthConnector({http:new FetchHttpClient(),config:google}):undefined;
   if(!meta&&!tt&&!gg)return undefined;
@@ -61,7 +61,7 @@ function configuredIntegrations(repos:Repositories,crypto:CredentialCryptoServic
 }
 function metaTokenRefresher(repos:Repositories,crypto:CredentialCryptoService,env:Record<string,string|undefined>){
   const config=metaConfig(env);if(!env.META_APP_ID||!env.META_APP_SECRET||!config.redirectUri)return undefined;
-  const connector=new MetaOAuthConnector({graph:new MetaGraphClient({baseUrl:config.graphBaseUrl,version:config.graphVersion}),appId:env.META_APP_ID,appSecret:env.META_APP_SECRET,redirectUri:config.redirectUri});
+  const connector=new MetaOAuthConnector({graph:new MetaGraphClient({baseUrl:config.graphBaseUrl,version:config.graphVersion}),appId:env.META_APP_ID,appSecret:env.META_APP_SECRET,...(config.scopes?{scopes:config.scopes}:{}),redirectUri:config.redirectUri});
   return new MetaTokenRefreshService(repos,crypto,connector);
 }
 function googleTokenRefresher(repos:Repositories,crypto:CredentialCryptoService,env:Record<string,string|undefined>){const config=googleConfig(env);if(!config.clientId||!config.clientSecret||!config.redirectUri)return undefined;return new GoogleTokenRefreshService(repos,crypto,new GoogleOAuthConnector({http:new FetchHttpClient(),config}))}

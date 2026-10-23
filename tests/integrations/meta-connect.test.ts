@@ -10,6 +10,15 @@ import {startMetaGraphStub} from '../support/meta-graph-stub.ts';
 import {createDevelopmentRuntime} from '../../apps/api/src/runtime/dev-runtime.ts';
 import {startApiServer} from '../../apps/api/src/main.ts';
 
+test('Meta authorization requests only configured scopes when insights are unavailable', () => {
+  const scopes=['pages_show_list','pages_read_engagement','pages_manage_posts'];
+  const connector=new MetaOAuthConnector({graph:new MetaGraphClient({baseUrl:'https://graph.facebook.com',version:'v24.0'}),appId:'app',appSecret:'secret',redirectUri:'https://local.test/callback',scopes});
+  const url=new URL(connector.authorizeUrl('state'));
+  assert.deepEqual(url.searchParams.get('scope')?.split(','),scopes);
+  assert.equal(url.searchParams.get('state'),'state');
+  assert.equal(url.searchParams.get('redirect_uri'),'https://local.test/callback');
+});
+
 test('Meta exchanges code for long-lived user token and lists Page with linked Instagram', async () => {
   const stub=await startMetaGraphStub();
   try {
