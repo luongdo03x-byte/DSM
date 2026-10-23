@@ -3,7 +3,7 @@ import {appendFileSync, existsSync, readFileSync} from 'node:fs';
 import {join} from 'node:path';
 
 // Số test Node tối thiểu phải pass. Tăng khi thêm test; xóa bớt test thì cổng đỏ.
-const MIN_NODE_TESTS = 342;
+const MIN_NODE_TESTS = 344;
 const REQUIRED_NODE_TESTS = ['v1 acceptance harness', 'http api smoke journey'];
 const REQUIRED_E2E_TITLES = ['v1 critical UI journey', 'compose journey publishes an ordered album to two accounts', 'compose journey queues one video for four platforms and one album for three', 'growth dashboard shows channel health and posting heatmap', 'inbox reply dùng mẫu câu và hiện trạng thái đã trả lời'];
 const REQUIRED_SECTIONS = ['Automated implementation gate', 'Critical journey', 'CI baseline (SP1)'];

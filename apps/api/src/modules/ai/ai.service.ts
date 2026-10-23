@@ -16,6 +16,7 @@ export interface AiClient {
     stream(params:Anthropic.Beta.MessageCreateParamsStreaming):{finalMessage():Promise<Anthropic.Beta.BetaMessage>};
   }};
 }
+export function createAiClient(apiKey:string):AiClient{return new Anthropic({apiKey}) as unknown as AiClient}
 
 export class AiService {
   private readonly client:AiClient;

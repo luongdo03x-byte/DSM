@@ -16,3 +16,4 @@ next-env.d.ts
 test-results/
 playwright-report/
 packages/database/src/generated/
+scripts/ai/eval-set.json
