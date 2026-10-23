@@ -26,6 +26,8 @@ const fields = {
   socialAccounts: ['id', 'brandId', 'platform', 'username', 'displayName', 'platformAccountId', 'publishMode', 'status', 'browserProfileId', 'commentsPolledAt'],
   socialComments: ['id', 'brandId', 'socialAccountId', 'platform', 'platformCommentId', 'platformPostId', 'publishedPostId', 'parentCommentId', 'authorId', 'authorName', 'isFromPage', 'text', 'createdAt', 'status', 'privateReplySentAt'],
   commentActions: ['id', 'commentId', 'kind', 'text', 'ruleId', 'userId', 'status', 'errorCode', 'createdAt'],
+  replyTemplates: ['id', 'brandId', 'name', 'text'],
+  automationRules: ['id', 'brandId', 'name', 'enabled', 'platforms', 'match', 'actions', 'maxPerHour'],
   credentials: ['id', 'socialAccountId', 'provider', 'ciphertext', 'iv', 'authTag', 'refreshCiphertext', 'expiresAt', 'scopes', 'providerUserId'],
   oauthPending: ['id', 'brandId', 'userId', 'tokenHash', 'ciphertext', 'iv', 'authTag', 'expiresAt', 'consumedAt'],
   browserNodes: ['id', 'workspaceId', 'name', 'host', 'port', 'status', 'provider', 'lastSeenAt', 'maxConcurrency', 'encryptedNodeKey'],

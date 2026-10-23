@@ -3,6 +3,8 @@ import type {SocialComment} from '../../../../packages/shared/src/domain.ts';
 import {id} from '../../../../packages/shared/src/ids.ts';
 import type {MetaCommentEvent} from '../../../api/src/integrations/meta/meta-webhook.ts';
 import type {MemoryStore} from '../../../../packages/shared/src/store.ts';
+import type {EngagementService} from '../../../api/src/modules/engagement/engagement.service.ts';
+import {runRulesForComment} from './run-rules.job.ts';
 
 export async function ingestComment(repos:Repositories,event:MetaCommentEvent):Promise<'CREATED'|'UPDATED'|'DUPLICATE'|'IGNORED'> {
   const account=(await repos.socialAccounts.findBy({platform:event.platform,platformAccountId:event.socialPlatformAccountId,status:'CONNECTED'}))[0];
@@ -27,10 +29,11 @@ export async function ingestComment(repos:Repositories,event:MetaCommentEvent):P
   return'CREATED';
 }
 
-export async function runPendingMetaComments(store:MemoryStore,repos:Repositories):Promise<number>{
+export async function runPendingMetaComments(store:MemoryStore,repos:Repositories,engagement?:EngagementService):Promise<number>{
   let processed=0;
   for(const [eventId,event] of store.metaWebhookEvents){
-    await ingestComment(repos,event);
+    const result=await ingestComment(repos,event);
+    if(result==='CREATED'&&engagement){const comment=(await repos.socialComments.findBy({platform:event.platform,platformCommentId:event.platformCommentId}))[0];if(comment)await runRulesForComment(repos,comment.id,engagement)}
     store.metaWebhookEvents.delete(eventId);
     processed++;
   }

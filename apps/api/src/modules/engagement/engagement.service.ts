@@ -42,12 +42,12 @@ export class EngagementService{
     return{comment,account};
   }
 
-  async reply(brandId:string,commentId:string,text:string,userId:string):Promise<SocialComment>{
+  async reply(brandId:string,commentId:string,text:string,userId:string,ruleId?:string):Promise<SocialComment>{
     const {comment,account}=await this.context(brandId,commentId);
     if(comment.status==='DELETED')throw new Error('COMMENT_GONE');
     const message=text.trim();if(!message)throw new Error('INVALID_REPLY');
     const source=this.sources[comment.platform];if(!source)throw new Error('NOT_SUPPORTED');
-    const action:CommentAction={id:id('comment-action'),commentId,kind:'REPLY',text:message,userId,status:'PENDING',createdAt:Date.now()};
+    const action:CommentAction={id:id('comment-action'),commentId,kind:'REPLY',text:message,userId,...(ruleId?{ruleId}:{}),status:'PENDING',createdAt:Date.now()};
     await this.repos.commentActions.insert(action);
     try{
       await source.reply(account,comment.platformCommentId,message);
@@ -61,12 +61,12 @@ export class EngagementService{
     }
   }
 
-  async hide(brandId:string,commentId:string,hidden:boolean,userId:string):Promise<SocialComment>{
+  async hide(brandId:string,commentId:string,hidden:boolean,userId:string,ruleId?:string):Promise<SocialComment>{
     const {comment,account}=await this.context(brandId,commentId);
     if(comment.platform==='YOUTUBE'||comment.platform==='TIKTOK')throw new Error('NOT_SUPPORTED');
     if(comment.status==='DELETED')throw new Error('COMMENT_GONE');
     const source=this.sources[comment.platform];if(!source?.hide)throw new Error('NOT_SUPPORTED');
-    const action:CommentAction={id:id('comment-action'),commentId,kind:hidden?'HIDE':'UNHIDE',userId,status:'PENDING',createdAt:Date.now()};
+    const action:CommentAction={id:id('comment-action'),commentId,kind:hidden?'HIDE':'UNHIDE',userId,...(ruleId?{ruleId}:{}),status:'PENDING',createdAt:Date.now()};
     await this.repos.commentActions.insert(action);
     try{await source.hide(account,comment.platformCommentId,hidden);await this.repos.commentActions.update(action.id,{status:'DONE'});return this.repos.socialComments.update(comment.id,{status:hidden?'HIDDEN':'READ'})}
     catch(error){const errorCode=gone(error)?'COMMENT_GONE':String((error as {code?:string})?.code??'PLATFORM_ERROR');await this.repos.commentActions.update(action.id,{status:'FAILED',errorCode});if(errorCode==='COMMENT_GONE'){await this.repos.socialComments.update(comment.id,{status:'DELETED'});throw new Error(errorCode)}throw error}

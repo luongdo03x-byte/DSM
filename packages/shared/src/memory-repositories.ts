@@ -115,6 +115,8 @@ export class MemoryRepositories implements Repositories {
   readonly socialAccounts: Repositories['socialAccounts'];
   readonly socialComments: Repositories['socialComments'];
   readonly commentActions: Repositories['commentActions'];
+  readonly replyTemplates: Repositories['replyTemplates'];
+  readonly automationRules: Repositories['automationRules'];
   readonly credentials: Repositories['credentials'];
   readonly oauthPending: Repositories['oauthPending'];
   readonly browserNodes: Repositories['browserNodes'];
@@ -154,6 +156,8 @@ export class MemoryRepositories implements Repositories {
     this.socialAccounts = new MapRepo(store.socialAccounts);
     this.socialComments = new MemorySocialCommentRepo(store.socialComments);
     this.commentActions = new MapRepo(store.commentActions);
+    this.replyTemplates = new MapRepo(store.replyTemplates);
+    this.automationRules = new MapRepo(store.automationRules);
     this.credentials = new MapRepo(store.credentials);
     this.oauthPending = new MapRepo(store.oauthPending);
     this.browserNodes = new MapRepo(store.browserNodes);

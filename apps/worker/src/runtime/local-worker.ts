@@ -8,6 +8,7 @@ import {runPendingMetaComments} from '../engagement/ingest-comment.job.ts';
 import type {MemoryStore} from '../../../../packages/shared/src/store.ts';
 import {pollComments,COMMENT_POLL_INTERVAL_MS} from '../engagement/poll-comments.job.ts';
 import type {CommentSource} from '../../../../packages/platform-contracts/src/comments.ts';
+import {EngagementService} from '../../../api/src/modules/engagement/engagement.service.ts';
 
 export function metricsCaptureKey(now = Date.now()) {
   const date = new Date(now);
@@ -22,6 +23,7 @@ export class LocalWorkerRuntime {
   private readonly metrics: MetricsSyncService;
   private readonly store:MemoryStore|undefined;
   private readonly commentSources:{YOUTUBE?:CommentSource};
+  private readonly engagement:EngagementService;
   private lastCommentPollAt=0;
   constructor(repos: Repositories, registry: PublisherRegistry, media: MediaService,store?:MemoryStore) {
     this.repos = repos;
@@ -30,11 +32,14 @@ export class LocalWorkerRuntime {
     this.metrics = new MetricsSyncService(repos, registry);
     this.store=store;
     const youtube=registry.get('YOUTUBE','API');this.commentSources='listSince' in youtube&&'reply' in youtube?{YOUTUBE:youtube as unknown as CommentSource}:{};
+    const sources={} as import('../../../api/src/modules/engagement/engagement.service.ts').CommentSources;
+    for(const platform of ['FACEBOOK','INSTAGRAM','YOUTUBE'] as const){const source=registry.get(platform,'API');if('reply' in source)sources[platform]=source as unknown as CommentSource}
+    this.engagement=new EngagementService(repos,sources);
   }
 
   async tick(now = Date.now()) {
-    if(this.store)await runPendingMetaComments(this.store,this.repos);
-    if(now-this.lastCommentPollAt>=COMMENT_POLL_INTERVAL_MS){this.lastCommentPollAt=now;await pollComments(this.repos,this.commentSources,now)}
+    if(this.store)await runPendingMetaComments(this.store,this.repos,this.engagement);
+    if(now-this.lastCommentPollAt>=COMMENT_POLL_INTERVAL_MS){this.lastCommentPollAt=now;await pollComments(this.repos,this.commentSources,now,this.engagement)}
     const due = await this.repos.publishJobs.findDue(now, 20);
     let count = 0;
     for (const job of due) {

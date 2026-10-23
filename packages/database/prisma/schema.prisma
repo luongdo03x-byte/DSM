@@ -123,6 +123,8 @@ model Brand {
   pillars        ContentPillar[]
   competitors    Competitor[]
   socialComments SocialComment[]
+  replyTemplates ReplyTemplate[]
+  automationRules AutomationRule[]
 
   @@unique([workspaceId, slug])
   @@index([workspaceId])
@@ -212,6 +214,28 @@ model CommentAction {
   comment   SocialComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
 
   @@index([commentId, createdAt])
+}
+
+model ReplyTemplate {
+  id String @id
+  brandId String
+  name String
+  text String
+  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  @@index([brandId])
+}
+
+model AutomationRule {
+  id String @id
+  brandId String
+  name String
+  enabled Boolean @default(false)
+  platforms Json
+  match Json
+  actions Json
+  maxPerHour Int @default(30)
+  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  @@index([brandId, enabled])
 }
 
 model EncryptedCredential {

@@ -2,7 +2,7 @@ import type {
   AuditLog, AuthSession, Brand, BioPage, BrowserNode, BrowserProfile, BrowserRegistration, ChannelSnapshot, ChannelGoal, ContentPillar, Competitor, CompetitorSnapshot,
   Campaign, ClickEvent, ContentItem, ContentVariant, EncryptedCredential, JobStatus,
   MediaAsset, ContentMedia, VariantMedia, OAuthPending, PostMetric, Product, PublishAttempt, PublishBatch, PublishedPost,
-  PublishJob, SocialAccount, SocialComment, CommentAction, TrackedLink, User, Workspace, WorkspaceMember, NotificationChannel, QuotaUsage,
+  PublishJob, SocialAccount, SocialComment, CommentAction, ReplyTemplate, AutomationRule, TrackedLink, User, Workspace, WorkspaceMember, NotificationChannel, QuotaUsage,
 } from './domain.ts';
 
 export interface Repo<T extends {id: string}> {
@@ -43,6 +43,8 @@ export interface Repositories {
   socialAccounts: Repo<SocialAccount>;
   socialComments: Repo<SocialComment>;
   commentActions: Repo<CommentAction>;
+  replyTemplates: Repo<ReplyTemplate>;
+  automationRules: Repo<AutomationRule>;
   credentials: Repo<EncryptedCredential>;
   oauthPending: Repo<OAuthPending>;
   browserNodes: Repo<BrowserNode>;

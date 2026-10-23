@@ -66,6 +66,15 @@ export function runRepositoryContract(name: string, make: () => Promise<Fixture>
     assert.equal((await repos.socialComments.findBy({platform: 'FACEBOOK', platformCommentId: 'remote-comment-1'})).length, 1);
   });
 
+  check('mẫu câu và quy tắc giữ dữ liệu JSON qua lưu trữ', async repos => {
+    await seedBase(repos);
+    const template={id:'template-1',brandId:brand.id,name:'Chào khách',text:'Chào {ten}'};
+    const rule={id:'rule-1',brandId:brand.id,name:'Hỏi giá',enabled:false,platforms:['FACEBOOK' as const],match:{keywords:['giá'],mode:'ANY' as const},actions:{reply:'Cảm ơn {ten}'},maxPerHour:30};
+    assert.deepEqual(await repos.replyTemplates.insert(template),template);
+    assert.deepEqual(await repos.automationRules.insert(rule),rule);
+    assert.deepEqual(await repos.automationRules.get(rule.id),rule);
+  });
+
   check('update gộp patch và id thiếu ném NOT_FOUND', async repos => {
     await seedBase(repos);
     await repos.products.insert(product);
