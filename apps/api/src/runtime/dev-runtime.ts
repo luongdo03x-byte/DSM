@@ -51,9 +51,18 @@ import {id} from '../../../../packages/shared/src/ids.ts';
 import {MetaCommentQueue} from '../../../worker/src/engagement/meta-comment-queue.ts';
 import {EngagementService} from '../modules/engagement/engagement.service.ts';
 import type {CommentSource} from '../../../../packages/platform-contracts/src/comments.ts';
+import Anthropic from '@anthropic-ai/sdk';
+import {AiService,type AiClient,type AiTask} from '../modules/ai/ai.service.ts';
 
-export interface DevelopmentRuntimeOptions{env?:Record<string,string|undefined>;hasher?:PasswordHasher;store?:MemoryStore}
-export interface RuntimeOptions {env:Record<string,string|undefined>;hasher?:PasswordHasher;store?:MemoryStore}
+export interface DevelopmentRuntimeOptions{env?:Record<string,string|undefined>;hasher?:PasswordHasher;store?:MemoryStore;aiClient?:AiClient}
+export interface RuntimeOptions {env:Record<string,string|undefined>;hasher?:PasswordHasher;store?:MemoryStore;aiClient?:AiClient}
+function configuredAi(repos:Repositories,env:Record<string,string|undefined>,client?:AiClient){
+  if(!client&&!env.ANTHROPIC_API_KEY)return undefined;
+  const limit=Number(env.AI_DAILY_LIMIT??30);
+  const effort:Partial<Record<AiTask,'low'|'medium'|'high'>>={};
+  for(const task of ['CAPTION','YOUTUBE_META','PLAN_30D','SUBTITLE_CLEANUP'] as const){const value=env[`AI_EFFORT_${task}`];if(value==='low'||value==='medium'||value==='high')effort[task]=value}
+  return new AiService({client:client??new Anthropic({apiKey:env.ANTHROPIC_API_KEY}) as unknown as AiClient,repos,quota:async workspaceId=>Number.isInteger(limit)&&limit>0&&(await repos.aiUsage.findBy({workspaceId})).filter(row=>row.createdAt>=new Date().setUTCHours(0,0,0,0)).length<limit,model:env.AI_MODEL??'claude-opus-5-5',effort});
+}
 function credentialKey(env:Record<string,string|undefined>){const raw=env.CREDENTIAL_ENCRYPTION_KEY;if(!raw)throw new Error('CREDENTIAL_ENCRYPTION_KEY_REQUIRED');const bytes=Buffer.from(raw,'base64');if(bytes.byteLength!==32)throw new Error('CREDENTIAL_ENCRYPTION_KEY_MUST_BE_32_BYTES');return new Uint8Array(bytes)}
 function configuredIntegrations(repos:Repositories,crypto:CredentialCryptoService,env:Record<string,string|undefined>){
   const config=metaConfig(env),tiktok=tiktokConfig(env),google=googleConfig(env),stateSecret=config.stateSecret||env.OAUTH_STATE_SECRET;
@@ -116,7 +125,7 @@ export async function createDevelopmentRuntime(options:DevelopmentRuntimeOptions
   const metaWebhook=env.META_APP_SECRET&&env.META_WEBHOOK_VERIFY_TOKEN?{appSecret:env.META_APP_SECRET,verifyToken:env.META_WEBHOOK_VERIFY_TOKEN,enqueue:async(event:import('../integrations/meta/meta-webhook.ts').MetaCommentEvent)=>{store.metaWebhookEvents.set(id('meta-event'),event)}}:undefined;
   const engagementSources=commentSources(registry);
   if(env.APP_ENV==='test'&&env.E2E_FAKE_PUBLISHERS==='1')engagementSources.FACEBOOK=new FakeCommentSource();
-  const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver(),undefined,{publicMediaBaseUrl:env.PUBLIC_MEDIA_BASE_URL??''}),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),engagement:new EngagementService(repos,engagementSources),nodeAuth,browserNodes,webAppBaseUrl:env.WEB_APP_BASE_URL??'http://127.0.0.1:3000',testMode:env.APP_ENV==='test',...(integrations?{integrations}:{}),...(dataDeletion?{dataDeletion}:{}),...(metaWebhook?{metaWebhook}:{})});
+  const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver(),undefined,{publicMediaBaseUrl:env.PUBLIC_MEDIA_BASE_URL??''}),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),engagement:new EngagementService(repos,engagementSources),ai:configuredAi(repos,env,options.aiClient),nodeAuth,browserNodes,webAppBaseUrl:env.WEB_APP_BASE_URL??'http://127.0.0.1:3000',testMode:env.APP_ENV==='test',...(integrations?{integrations}:{}),...(dataDeletion?{dataDeletion}:{}),...(metaWebhook?{metaWebhook}:{})});
   return{store,repos,runtime,registry,services:{accounts,products,content,batchStatus,analytics,tracking,media,campaigns,nodeAuth,browserNodes},ids:{ownerId,workspaceId,brandId}};
 }
 
@@ -171,7 +180,7 @@ export async function createRuntime(options:RuntimeOptions) {
     const dataDeletion=metaDeletion(repos,env);
     if(env.META_APP_SECRET&&env.META_WEBHOOK_VERIFY_TOKEN)metaCommentQueue=new MetaCommentQueue(env.REDIS_URL);
     const metaWebhook=metaCommentQueue&&env.META_APP_SECRET&&env.META_WEBHOOK_VERIFY_TOKEN?{appSecret:env.META_APP_SECRET,verifyToken:env.META_WEBHOOK_VERIFY_TOKEN,enqueue:(event:import('../integrations/meta/meta-webhook.ts').MetaCommentEvent)=>metaCommentQueue!.enqueue(event)}:undefined;
-    const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver(),queue,{publicMediaBaseUrl:env.PUBLIC_MEDIA_BASE_URL??''}),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),engagement:new EngagementService(repos,commentSources(registry)),nodeAuth,browserNodes,webAppBaseUrl:env.WEB_APP_BASE_URL??'http://127.0.0.1:3000',testMode:env.APP_ENV==='test',...(integrations?{integrations}:{}),...(dataDeletion?{dataDeletion}:{}),...(metaWebhook?{metaWebhook}:{})});
+    const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver(),queue,{publicMediaBaseUrl:env.PUBLIC_MEDIA_BASE_URL??''}),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),engagement:new EngagementService(repos,commentSources(registry)),ai:configuredAi(repos,env,options.aiClient),nodeAuth,browserNodes,webAppBaseUrl:env.WEB_APP_BASE_URL??'http://127.0.0.1:3000',testMode:env.APP_ENV==='test',...(integrations?{integrations}:{}),...(dataDeletion?{dataDeletion}:{}),...(metaWebhook?{metaWebhook}:{})});
     return {repos,runtime,registry,queue,services:{accounts,products,content,batchStatus,analytics,tracking,media,campaigns,nodeAuth,browserNodes},ids,close:async()=>{await metaCommentQueue?.close();await queue!.close();await client.$disconnect()}};
   } catch(error) {if(metaCommentQueue)await metaCommentQueue.close();if(queue)await queue.close();await client.$disconnect();throw error}
 }

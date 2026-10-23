@@ -22,6 +22,7 @@ import {ReliabilityService} from '../modules/analytics/reliability.service.ts';
 import {verifySignature,parseMetaWebhook,type MetaCommentEvent} from '../integrations/meta/meta-webhook.ts';
 import {EngagementService} from '../modules/engagement/engagement.service.ts';
 import {EngagementConfigService} from '../modules/engagement/engagement-config.service.ts';
+import type {AiService} from '../modules/ai/ai.service.ts';
 import type {Platform,SocialComment} from '../../../../packages/shared/src/domain.ts';
 
 export interface LocalRequest {
@@ -58,6 +59,7 @@ type Dependencies={
   dataDeletion?:MetaDataDeletionService;
   metaWebhook?:{appSecret:string;verifyToken:string;enqueue:(event:MetaCommentEvent)=>Promise<void>};
   engagement?:EngagementService;
+  ai?:AiService|undefined;
   webAppBaseUrl?:string;
   testMode?:boolean;
 };
@@ -150,6 +152,17 @@ export class LocalApiRuntime {
 
       const userId=await this.authenticate(req);
       let m:RegExpExecArray|null;
+
+      if((m=route(req.path,/^\/brands\/([^/]+)\/ai\/captions$/))&&method==='POST'){
+        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
+        if(!this.d.ai)return{status:503,body:{error:'AI_NOT_CONFIGURED',message:'Chưa cấu hình khóa API cho trợ lý AI.'}};
+        const body=asObject(req.body);
+        const platforms=body.platforms;
+        if(!Array.isArray(platforms)||platforms.some(value=>!['FACEBOOK','INSTAGRAM','THREADS','TIKTOK','YOUTUBE'].includes(value)))throw new Error('INVALID_AI_REQUEST');
+        const n=body.variantsPerPlatform??1;
+        if(![1,2,3].includes(n))throw new Error('INVALID_AI_REQUEST');
+        return{status:200,body:await this.d.ai.captions(brandId,String(body.contentId??''),platforms,n)};
+      }
 
       if((m=route(req.path,/^\/brands\/([^/]+)\/comments$/))&&method==='GET'){
         const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
@@ -477,6 +490,10 @@ export class LocalApiRuntime {
     if(['BRAND_NOT_FOUND','PRODUCT_NOT_FOUND','CONTENT_NOT_FOUND','ACCOUNT_NOT_FOUND','COMMENT_NOT_FOUND','TEMPLATE_NOT_FOUND','RULE_NOT_FOUND','BATCH_NOT_FOUND','JOB_NOT_FOUND','LINK_NOT_FOUND','BIO_PAGE_NOT_FOUND','BIO_LINK_NOT_FOUND','BINDING_NOT_FOUND','NOTIFICATION_CHANNEL_NOT_FOUND'].includes(message))return{status:404,body:{error:'NOT_FOUND'}};
     if(['CONFLICT','BIO_SLUG_TAKEN','RETRY_NOT_ALLOWED','IDEMPOTENCY_CONFLICT','JOB_NOT_RESCHEDULABLE','NOT_SUPPORTED','COMMENT_GONE','ACCOUNT_NOT_CONNECTED','PRIVATE_REPLY_ALREADY_SENT','PRIVATE_REPLY_WINDOW_CLOSED'].includes(message))return{status:409,body:{error:message}};
     if(['SCHEDULE_TOO_SOON','SCHEDULE_TOO_FAR'].includes(message))return{status:400,body:{error:message}};
+    if(message==='AI_QUOTA_EXCEEDED')return{status:429,body:{error:message,message:'Đã hết lượt dùng AI trong hôm nay.'}};
+    if(message==='AI_BUSY'||message==='AI_UNAVAILABLE')return{status:503,body:{error:message,message:'Trợ lý AI đang bận. Hãy thử lại sau.'}};
+    if(message==='AI_REFUSED')return{status:422,body:{error:message,message:'AI không thể tạo nội dung này. Hãy chỉnh yêu cầu và thử lại.'}};
+    if(message==='AI_INVALID_OUTPUT')return{status:502,body:{error:message,message:'AI trả kết quả không hợp lệ. Hãy thử lại.'}};
     if(message.startsWith('INVALID_')||message.endsWith('_INVALID')||message.includes('UNSUPPORTED')||message==='TEXT_MEDIA_INVALID')return{status:400,body:{error:message}};
     return{status:500,body:{error:'INTERNAL_ERROR'}};
   }
