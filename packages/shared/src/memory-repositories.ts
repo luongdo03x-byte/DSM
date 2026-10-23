@@ -111,6 +111,8 @@ export class MemoryRepositories implements Repositories {
   readonly workspaces: Repositories['workspaces'];
   readonly notificationChannels: Repositories['notificationChannels'];
   readonly brands: Repositories['brands'];
+  readonly brandVoices: Repositories['brandVoices'];
+  readonly aiUsage: Repositories['aiUsage'];
   readonly memberships: Repositories['memberships'];
   readonly products: Repositories['products'];
   readonly media: Repositories['media'];
@@ -152,6 +154,8 @@ export class MemoryRepositories implements Repositories {
     this.workspaces = new MapRepo(store.workspaces);
     this.notificationChannels = new MapRepo(store.notificationChannels);
     this.brands = new MapRepo(store.brands);
+    this.brandVoices = new MapRepo(store.brandVoices);
+    this.aiUsage = new ArrayRepo(store.aiUsage);
     this.memberships = new ArrayRepo(store.memberships);
     this.products = new MapRepo(store.products);
     this.media = new MapRepo(store.media);

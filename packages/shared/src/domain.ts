@@ -9,6 +9,9 @@ export interface Workspace{id:string;name:string}
 export interface NotificationChannel{id:string;workspaceId:string;kind:'TELEGRAM'|'EMAIL'|'ZALO';target:string;encryptedSecret?:string;enabled:boolean}
 export interface WorkspaceMember{workspaceId:string;userId:string;role:Role}
 export interface Brand{id:string;workspaceId:string;name:string;slug:string;language:string;timezone:string;currency:string;status:'ACTIVE'|'ARCHIVED'}
+export type AiTask='CAPTION'|'YOUTUBE_META'|'PLAN_30D'|'SUBTITLE_CLEANUP';
+export interface BrandVoice{id:string;brandId:string;version:number;tone:string;doList:string[];dontList:string[];samplePosts:string[]}
+export interface AiUsage{id:string;workspaceId:string;task:AiTask;inputTokens:number;outputTokens:number;cacheReadTokens:number;createdAt:number}
 export interface Product{id:string;brandId:string;name:string;slug:string;description?:string;imageAssetId?:string;supplierUrl?:string;landingUrl?:string;cost?:string;sellingPrice?:string;currency:string;status:'DRAFT'|'ACTIVE'|'ARCHIVED'}
 export interface MediaAsset{id:string;brandId:string;workspaceId:string;type:'VIDEO'|'IMAGE';storageKey:string;mimeType:string;sizeBytes?:number;width?:number;height?:number;durationMs?:number;derivedFromAssetId?:string;variantKey?:string;exifStripped?:boolean;codec?:string}
 export interface QuotaUsage{id:string;provider:'YOUTUBE'|'INSTAGRAM';scope:string;day:string;used:number}

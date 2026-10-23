@@ -1,5 +1,5 @@
 import type {
-  AuditLog, AuthSession, Brand, BioPage, BrowserNode, BrowserProfile, BrowserRegistration, ChannelSnapshot, ChannelGoal, ContentPillar, Competitor, CompetitorSnapshot,
+  AuditLog, AuthSession, Brand, BrandVoice, AiUsage, BioPage, BrowserNode, BrowserProfile, BrowserRegistration, ChannelSnapshot, ChannelGoal, ContentPillar, Competitor, CompetitorSnapshot,
   Campaign, ClickEvent, ContentItem, ContentVariant, EncryptedCredential, JobStatus,
   MediaAsset, ContentMedia, VariantMedia, OAuthPending, PostMetric, Product, PublishAttempt, PublishBatch, PublishedPost,
   PublishJob, SocialAccount, SocialComment, CommentAction, ReplyTemplate, AutomationRule, TrackedLink, User, Workspace, WorkspaceMember, NotificationChannel, QuotaUsage,
@@ -30,6 +30,8 @@ export interface Repositories {
   workspaces: Repo<Workspace>;
   notificationChannels: Repo<NotificationChannel>;
   brands: Repo<Brand>;
+  brandVoices: Repo<BrandVoice>;
+  aiUsage: AppendRepo<AiUsage>;
   memberships: AppendRepo<WorkspaceMember>;
   products: Repo<Product>;
   media: Repo<MediaAsset>;

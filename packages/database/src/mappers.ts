@@ -14,6 +14,8 @@ const fields = {
   notificationChannels: ['id', 'workspaceId', 'kind', 'target', 'encryptedSecret', 'enabled'],
   memberships: ['workspaceId', 'userId', 'role'],
   brands: ['id', 'workspaceId', 'name', 'slug', 'language', 'timezone', 'currency', 'status'],
+  brandVoices: ['id','brandId','version','tone','doList','dontList','samplePosts'],
+  aiUsage: ['id','workspaceId','task','inputTokens','outputTokens','cacheReadTokens','createdAt'],
   products: ['id', 'brandId', 'name', 'slug', 'description', 'imageAssetId', 'supplierUrl', 'landingUrl', 'cost', 'sellingPrice', 'currency', 'status'],
   media: ['id', 'brandId', 'workspaceId', 'type', 'storageKey', 'mimeType', 'sizeBytes', 'width', 'height', 'durationMs', 'derivedFromAssetId', 'variantKey', 'exifStripped', 'codec'],
   contents: ['id', 'brandId', 'productId', 'pillarId', 'type', 'title', 'hook', 'body', 'cta', 'masterAssetId', 'status'],

@@ -75,6 +75,16 @@ export function runRepositoryContract(name: string, make: () => Promise<Fixture>
     assert.deepEqual(await repos.automationRules.get(rule.id),rule);
   });
 
+  check('giọng thương hiệu và lượng dùng AI được lưu đầy đủ', async repos => {
+    await seedBase(repos);
+    const voice={id:'voice-1',brandId:brand.id,version:1,tone:'Thân thiện',doList:['rõ giá'],dontList:['nói quá'],samplePosts:['Bài mẫu']};
+    await repos.brandVoices.insert(voice);
+    assert.deepEqual(await repos.brandVoices.get(voice.id),voice);
+    const usage={id:'ai-usage-1',workspaceId:workspace.id,task:'CAPTION' as const,inputTokens:12,outputTokens:4,cacheReadTokens:7,createdAt:1_700_000_000_000};
+    await repos.aiUsage.append(usage);
+    assert.deepEqual(await repos.aiUsage.findBy({workspaceId:workspace.id}),[usage]);
+  });
+
   check('update gộp patch và id thiếu ném NOT_FOUND', async repos => {
     await seedBase(repos);
     await repos.products.insert(product);

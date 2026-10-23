@@ -76,6 +76,7 @@ model Workspace {
   browserNodes BrowserNode[]
   auditLogs    AuditLog[]
   notificationChannels NotificationChannel[]
+  aiUsage      AiUsage[]
 }
 
 model NotificationChannel {
@@ -125,9 +126,34 @@ model Brand {
   socialComments SocialComment[]
   replyTemplates ReplyTemplate[]
   automationRules AutomationRule[]
+  brandVoice BrandVoice?
 
   @@unique([workspaceId, slug])
   @@index([workspaceId])
+}
+
+model BrandVoice {
+  id          String @id
+  brandId     String @unique
+  version     Int
+  tone        String
+  doList      Json
+  dontList    Json
+  samplePosts Json
+  brand       Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+}
+
+model AiUsage {
+  id              String @id
+  workspaceId     String
+  task            String
+  inputTokens     Int
+  outputTokens    Int
+  cacheReadTokens Int
+  createdAt       BigInt
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
 }
 
 model Product {

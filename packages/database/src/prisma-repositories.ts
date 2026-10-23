@@ -108,6 +108,8 @@ export class PrismaRepositories implements Repositories {
   readonly workspaces: Repositories['workspaces'];
   readonly notificationChannels: Repositories['notificationChannels'];
   readonly brands: Repositories['brands'];
+  readonly brandVoices: Repositories['brandVoices'];
+  readonly aiUsage: Repositories['aiUsage'];
   readonly memberships: Repositories['memberships'];
   readonly products: Repositories['products'];
   readonly media: Repositories['media'];
@@ -150,6 +152,8 @@ export class PrismaRepositories implements Repositories {
     this.workspaces = new TableRepo(db.workspace!, 'workspaces');
     this.notificationChannels = new TableRepo(db.notificationChannel!, 'notificationChannels');
     this.brands = new TableRepo(db.brand!, 'brands');
+    this.brandVoices = new TableRepo(db.brandVoice!, 'brandVoices');
+    this.aiUsage = new TableAppendRepo(db.aiUsage!, 'aiUsage');
     this.memberships = new TableAppendRepo(db.workspaceMember!, 'memberships');
     this.products = new TableRepo(db.product!, 'products');
     this.media = new TableRepo(db.mediaAsset!, 'media');
