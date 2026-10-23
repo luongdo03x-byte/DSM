@@ -46,6 +46,8 @@ import {NodeAuthService} from '../modules/browser-nodes/node-auth.service.ts';
 import {BrowserNodesService} from '../modules/browser-nodes/browser-nodes.service.ts';
 import {FakePublisher} from '../../../worker/src/testing/fake-publisher.ts';
 import {QuotaManager} from '../../../../packages/shared/src/quota.ts';
+import {id} from '../../../../packages/shared/src/ids.ts';
+import {MetaCommentQueue} from '../../../worker/src/engagement/meta-comment-queue.ts';
 
 export interface DevelopmentRuntimeOptions{env?:Record<string,string|undefined>;hasher?:PasswordHasher;store?:MemoryStore}
 export interface RuntimeOptions {env:Record<string,string|undefined>;hasher?:PasswordHasher;store?:MemoryStore}
@@ -103,7 +105,8 @@ export async function createDevelopmentRuntime(options:DevelopmentRuntimeOptions
   const analytics=new AnalyticsService(repos),products=new ProductsService(repos),content=new ContentService(repos,undefined,{publicMediaBaseUrl:env.PUBLIC_MEDIA_BASE_URL??''}),batchStatus=new BatchStatusService(repos),tracking=new TrackingService(repos),media=new MediaService(repos,storage),campaigns=new CampaignsService(repos);
   const integrations=configuredIntegrations(repos,credentialCrypto,env);
   const dataDeletion=metaDeletion(repos,env);
-  const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver(),undefined,{publicMediaBaseUrl:env.PUBLIC_MEDIA_BASE_URL??''}),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),nodeAuth,browserNodes,webAppBaseUrl:env.WEB_APP_BASE_URL??'http://127.0.0.1:3000',testMode:env.APP_ENV==='test',...(integrations?{integrations}:{}),...(dataDeletion?{dataDeletion}:{})});
+  const metaWebhook=env.META_APP_SECRET&&env.META_WEBHOOK_VERIFY_TOKEN?{appSecret:env.META_APP_SECRET,verifyToken:env.META_WEBHOOK_VERIFY_TOKEN,enqueue:async(event:import('../integrations/meta/meta-webhook.ts').MetaCommentEvent)=>{store.metaWebhookEvents.set(id('meta-event'),event)}}:undefined;
+  const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver(),undefined,{publicMediaBaseUrl:env.PUBLIC_MEDIA_BASE_URL??''}),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),nodeAuth,browserNodes,webAppBaseUrl:env.WEB_APP_BASE_URL??'http://127.0.0.1:3000',testMode:env.APP_ENV==='test',...(integrations?{integrations}:{}),...(dataDeletion?{dataDeletion}:{}),...(metaWebhook?{metaWebhook}:{})});
   return{store,repos,runtime,registry,services:{accounts,products,content,batchStatus,analytics,tracking,media,campaigns,nodeAuth,browserNodes},ids:{ownerId,workspaceId,brandId}};
 }
 
@@ -127,6 +130,7 @@ export async function createRuntime(options:RuntimeOptions) {
   if(!env.REDIS_URL)throw new Error('REDIS_URL_REQUIRED');
   const client=createPrismaClient(env.DATABASE_URL);
   let queue:BullJobQueue|undefined;
+  let metaCommentQueue:MetaCommentQueue|undefined;
   try {
     await client.$connect();
     queue=new BullJobQueue({url:env.REDIS_URL},env.PUBLISH_QUEUE_NAME);
@@ -155,7 +159,9 @@ export async function createRuntime(options:RuntimeOptions) {
     const analytics=new AnalyticsService(repos),products=new ProductsService(repos),content=new ContentService(repos,undefined,{publicMediaBaseUrl:env.PUBLIC_MEDIA_BASE_URL??''}),batchStatus=new BatchStatusService(repos,undefined,queue),tracking=new TrackingService(repos),media=new MediaService(repos,storage),campaigns=new CampaignsService(repos);
     const integrations=configuredIntegrations(repos,credentialCrypto,env);
     const dataDeletion=metaDeletion(repos,env);
-    const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver(),queue,{publicMediaBaseUrl:env.PUBLIC_MEDIA_BASE_URL??''}),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),nodeAuth,browserNodes,webAppBaseUrl:env.WEB_APP_BASE_URL??'http://127.0.0.1:3000',testMode:env.APP_ENV==='test',...(integrations?{integrations}:{}),...(dataDeletion?{dataDeletion}:{})});
-    return {repos,runtime,registry,queue,services:{accounts,products,content,batchStatus,analytics,tracking,media,campaigns,nodeAuth,browserNodes},ids,close:async()=>{await queue!.close();await client.$disconnect()}};
-  } catch(error) {if(queue)await queue.close();await client.$disconnect();throw error}
+    if(env.META_APP_SECRET&&env.META_WEBHOOK_VERIFY_TOKEN)metaCommentQueue=new MetaCommentQueue(env.REDIS_URL);
+    const metaWebhook=metaCommentQueue&&env.META_APP_SECRET&&env.META_WEBHOOK_VERIFY_TOKEN?{appSecret:env.META_APP_SECRET,verifyToken:env.META_WEBHOOK_VERIFY_TOKEN,enqueue:(event:import('../integrations/meta/meta-webhook.ts').MetaCommentEvent)=>metaCommentQueue!.enqueue(event)}:undefined;
+    const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver(),queue,{publicMediaBaseUrl:env.PUBLIC_MEDIA_BASE_URL??''}),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),nodeAuth,browserNodes,webAppBaseUrl:env.WEB_APP_BASE_URL??'http://127.0.0.1:3000',testMode:env.APP_ENV==='test',...(integrations?{integrations}:{}),...(dataDeletion?{dataDeletion}:{}),...(metaWebhook?{metaWebhook}:{})});
+    return {repos,runtime,registry,queue,services:{accounts,products,content,batchStatus,analytics,tracking,media,campaigns,nodeAuth,browserNodes},ids,close:async()=>{await metaCommentQueue?.close();await queue!.close();await client.$disconnect()}};
+  } catch(error) {if(metaCommentQueue)await metaCommentQueue.close();if(queue)await queue.close();await client.$disconnect();throw error}
 }

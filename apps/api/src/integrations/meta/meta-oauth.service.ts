@@ -3,6 +3,7 @@ import type {ConnectableAccount,OAuthConnector,OAuthTokens} from '../../../../..
 import {MetaGraphClient} from './meta-http.client.ts';
 
 export const META_SCOPES=['pages_show_list','pages_read_engagement','pages_manage_posts','read_insights','instagram_basic','instagram_content_publish','instagram_manage_insights','business_management'];
+export const META_COMMENT_SCOPES=['pages_manage_metadata','pages_manage_engagement','pages_read_user_content','instagram_manage_comments','pages_messaging','instagram_manage_messages'];
 export class MetaOAuthConnector implements OAuthConnector {
   readonly provider='META' as const;
   private readonly scopes:string[];private readonly graph:MetaGraphClient;private readonly appId:string;private readonly appSecret:string;private readonly redirectUri:string;private readonly authBaseUrl:string;
@@ -27,6 +28,11 @@ export class MetaOAuthConnector implements OAuthConnector {
   async refreshUserToken(userToken:string):Promise<OAuthTokens>{
     const data=await this.graph.get<{access_token:string;expires_in?:number}>('/oauth/access_token','',{grant_type:'fb_exchange_token',client_id:this.appId,client_secret:this.appSecret,fb_exchange_token:userToken});
     return{accessToken:data.access_token,scopes:this.scopes,...(data.expires_in?{expiresAt:Date.now()+data.expires_in*1000}:{})};
+  }
+  async subscribePageComments(account:ConnectableAccount):Promise<boolean>{
+    if(account.platform!=='FACEBOOK'||!account.tokens.scopes.includes('pages_manage_metadata'))return false;
+    const result=await this.graph.post<{success?:boolean}>(`/${account.platformAccountId}/subscribed_apps`,account.tokens.accessToken,{subscribed_fields:'feed'});
+    return result.success===true;
   }
 }
 export class MetaOAuthService{private secret:string;private used=new Set<string>();constructor(secret:string){this.secret=secret}async getAuthorizationUrl(input:{platform:Extract<Platform,'FACEBOOK'|'INSTAGRAM'|'THREADS'>;brandId:string;userId:string;returnPath?:string;clientId:string;redirectUri:string;authBaseUrl:string;scopes:string[]}){const nonce=randomToken(12),state=await signToken({...input,nonce},this.secret,600);return `${input.authBaseUrl}?client_id=${encodeURIComponent(input.clientId)}&redirect_uri=${encodeURIComponent(input.redirectUri)}&scope=${encodeURIComponent(input.scopes.join(','))}&state=${encodeURIComponent(state)}`}async consumeState(state:string){const d=await verifyToken<any>(state,this.secret);if(this.used.has(d.nonce))throw new Error('OAUTH_STATE_REPLAY');this.used.add(d.nonce);return d}}

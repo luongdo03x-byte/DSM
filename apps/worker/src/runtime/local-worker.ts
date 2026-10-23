@@ -4,6 +4,8 @@ import type {MediaService} from '../../../api/src/modules/media/media.service.ts
 import {JobRunner} from '../publishing/job-runner.service.ts';
 import {PublishInputBuilder} from '../publishing/publish-input.builder.ts';
 import {MetricsSyncService} from '../analytics/metrics-sync.service.ts';
+import {runPendingMetaComments} from '../engagement/ingest-comment.job.ts';
+import type {MemoryStore} from '../../../../packages/shared/src/store.ts';
 
 export function metricsCaptureKey(now = Date.now()) {
   const date = new Date(now);
@@ -16,14 +18,17 @@ export class LocalWorkerRuntime {
   private readonly runner: JobRunner;
   private readonly builder: PublishInputBuilder;
   private readonly metrics: MetricsSyncService;
-  constructor(repos: Repositories, registry: PublisherRegistry, media: MediaService) {
+  private readonly store:MemoryStore|undefined;
+  constructor(repos: Repositories, registry: PublisherRegistry, media: MediaService,store?:MemoryStore) {
     this.repos = repos;
     this.runner = new JobRunner(repos, registry);
     this.builder = new PublishInputBuilder(repos, media);
     this.metrics = new MetricsSyncService(repos, registry);
+    this.store=store;
   }
 
   async tick(now = Date.now()) {
+    if(this.store)await runPendingMetaComments(this.store,this.repos);
     const due = await this.repos.publishJobs.findDue(now, 20);
     let count = 0;
     for (const job of due) {

@@ -29,6 +29,7 @@ async function bodyOf(req:any):Promise<unknown>{
   if(String(req.headers?.['content-type']??'').startsWith('application/x-www-form-urlencoded'))return Object.fromEntries(new URLSearchParams(raw));
   try{return JSON.parse(raw)}catch{throw new Error('INVALID_JSON')}
 }
+async function rawBodyOf(req:any):Promise<Buffer>{const chunks:Buffer[]=[];for await(const chunk of req)chunks.push(Buffer.from(chunk));return Buffer.concat(chunks)}
 function stripRefresh(response:LocalResponse):{response:LocalResponse;cookies?:string[]}{
   if(!response.body||typeof response.body!=='object'||Array.isArray(response.body))return{response};
   const body=response.body as Record<string,unknown>;const refreshToken=body.refreshToken,csrfToken=body.csrfToken;
@@ -45,18 +46,18 @@ export function startApiServer(portNumber=port,runtime?:LocalApiRuntime){
     if(req.method==='GET'&&path==='/health'){json(res,200,{status:'HEALTHY',service:'api'},cors);return}
     if(!runtime){json(res,404,{error:'NOT_FOUND'},cors);return}
     try{
-      const headers=normalizeHeaders(req.headers??{});let body=await bodyOf(req);
+      const headers=normalizeHeaders(req.headers??{});const rawBody=path==='/webhooks/meta'&&req.method==='POST'?await rawBodyOf(req):undefined;let body=rawBody===undefined?await bodyOf(req):undefined;
       if((path==='/auth/refresh'||path==='/auth/logout')&&req.method==='POST'){
         const cookies=parseCookies(headers.cookie);const refresh=cookies.refresh_token,csrfCookie=cookies.csrf_token,csrfHeader=headers['x-csrf-token'];
         if(!refresh){json(res,401,{error:'INVALID_REFRESH'},cors);return}
         if(!csrfCookie||!csrfHeader||csrfCookie!==csrfHeader){json(res,403,{error:'CSRF_MISMATCH'},cors);return}
         body={refreshToken:refresh};
       }
-      const request:LocalRequest={method:String(req.method??'GET'),path,query:Object.fromEntries(parsedUrl.searchParams),headers};if(body!==undefined)request.body=body;
+      const request:LocalRequest={method:String(req.method??'GET'),path,query:Object.fromEntries(parsedUrl.searchParams),headers};if(body!==undefined)request.body=body;if(rawBody!==undefined)request.rawBody=rawBody;
       let response=await runtime.handle(request);
       const transformed=stripRefresh(response);response=transformed.response;
       const outHeaders:Record<string,unknown>={...cors,...(response.headers??{})};if(transformed.cookies)outHeaders['set-cookie']=transformed.cookies;if(path==='/auth/logout'&&response.status===204)outHeaders['set-cookie']=clearAuthCookies();
-      json(res,response.status,response.body,outHeaders);
+      if(outHeaders['content-type']==='text/plain; charset=utf-8'){res.writeHead(response.status,outHeaders);res.end(String(response.body??''))}else json(res,response.status,response.body,outHeaders);
     }catch(error:unknown){
       if(error instanceof Error&&error.message==='INVALID_JSON'){json(res,400,{error:'INVALID_JSON'},cors);return}
       json(res,500,{error:'INTERNAL_ERROR'},cors);
@@ -73,7 +74,7 @@ async function boot(){
     const store=persistence?await persistence.load():undefined;
     const app=await createRuntime({env:process.env,...(store?{store}:{})});
     if(!('store' in app))throw new Error('MEMORY_RUNTIME_REQUIRED');
-    const server=startApiServer(port,app.runtime),worker=new LocalWorkerRuntime(app.repos,app.registry,app.services.media);
+    const server=startApiServer(port,app.runtime),worker=new LocalWorkerRuntime(app.repos,app.registry,app.services.media,app.store);
     const timer=setInterval(()=>{void worker.tick().catch(error=>console.error('local worker tick failed',error));void worker.syncMetrics(metricsCaptureKey()).catch(error=>console.error('local metrics sync failed',error))},Number(process.env.LOCAL_WORKER_INTERVAL_MS??1000));
     let saving=false;const persist=async()=>{if(!persistence||saving)return;saving=true;try{await persistence.save(app.store)}catch(error){console.error('local store persistence failed',error)}finally{saving=false}};
     const persistenceTimer=persistence?setInterval(()=>void persist(),Number(process.env.LOCAL_STORE_FLUSH_MS??2000)):undefined;

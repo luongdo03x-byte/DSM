@@ -2,7 +2,7 @@ import {mkdir,readFile,rename,writeFile} from 'node:fs/promises';
 import {dirname} from 'node:path';
 import {MemoryStore} from '../../../../packages/shared/src/store.ts';
 
-const mapFields=['users','workspaces','notificationChannels','brands','products','media','contents','variants','campaigns','authSessions','socialAccounts','credentials','oauthPending','browserNodes','browserProfiles','browserRegistrations','publishBatches','publishJobs','publishedPosts','trackedLinks'] as const;
+const mapFields=['users','workspaces','notificationChannels','brands','products','media','contents','variants','campaigns','authSessions','socialAccounts','credentials','oauthPending','browserNodes','browserProfiles','browserRegistrations','publishBatches','publishJobs','publishedPosts','trackedLinks','socialComments','commentActions','metaWebhookEvents'] as const;
 const arrayFields=['memberships','audit','publishAttempts','postMetrics','clickEvents'] as const;
 
 type Snapshot={version:1;maps:Record<string,[string,unknown][]>;arrays:Record<string,unknown[]>};

@@ -15,6 +15,9 @@ import type {NotificationEvent} from '../../../packages/shared/src/notifications
 import type {InsightsSource} from '../../../packages/platform-contracts/src/insights.ts';
 import {runDailySnapshots,scheduleBrandSnapshots,SNAPSHOT_QUEUE} from './analytics/snapshot.job.ts';
 import {scheduleWeeklyReports,weeklyGrowthReport,WEEKLY_REPORT_QUEUE} from './analytics/weekly-report.job.ts';
+import {META_COMMENT_QUEUE} from './engagement/meta-comment-queue.ts';
+import {ingestComment} from './engagement/ingest-comment.job.ts';
+import type {MetaCommentEvent} from '../../api/src/integrations/meta/meta-webhook.ts';
 
 export interface WorkerOptions {env: Record<string, string | undefined>; registry?: PublisherRegistry}
 
@@ -43,6 +46,8 @@ export async function startWorker(options: WorkerOptions): Promise<{close(): Pro
   analyticsWorker.on('error',error=>console.error('analytics snapshot worker failed',error));
   const reportQueue=new Queue<{brandId:string}>(WEEKLY_REPORT_QUEUE,{connection:analyticsQueueConnection});
   const reportWorker=new Worker<{brandId:string}>(WEEKLY_REPORT_QUEUE,async job=>weeklyGrowthReport({repos:app.repos,dispatcher,brandId:String(job.data.brandId)}),{connection:analyticsWorkerConnection,concurrency:1,autorun:false});
+  const metaCommentWorker=new Worker<MetaCommentEvent>(META_COMMENT_QUEUE,async job=>ingestComment(app.repos,job.data),{connection:analyticsWorkerConnection,concurrency:1,autorun:false});
+  metaCommentWorker.on('error',error=>console.error('Meta comment worker failed',error));
   reportWorker.on('error',error=>console.error('weekly growth report worker failed',error));
   const refreshTokens=async()=>refreshExpiringTokens({repos:app.repos,adapters:{FACEBOOK:activeRegistry.get('FACEBOOK','API') as PlatformAdapter,INSTAGRAM:activeRegistry.get('INSTAGRAM','API') as PlatformAdapter,TIKTOK:activeRegistry.get('TIKTOK','API') as PlatformAdapter,YOUTUBE:activeRegistry.get('YOUTUBE','API') as PlatformAdapter},now:Date.now(),notify});
   const builder = new PublishInputBuilder(app.repos, app.services.media);
@@ -64,10 +69,12 @@ export async function startWorker(options: WorkerOptions): Promise<{close(): Pro
     void worker.run().catch(error => console.error('worker run failed', error));
     void analyticsWorker.run().catch(error=>console.error('analytics worker run failed',error));
     void reportWorker.run().catch(error=>console.error('weekly report worker run failed',error));
+    void metaCommentWorker.run().catch(error=>console.error('Meta comment worker run failed',error));
   } catch (error) {
     await worker.close();
     await analyticsWorker.close();
     await reportWorker.close();
+    await metaCommentWorker.close();
     await analyticsQueue.close();
     await reportQueue.close();
     analyticsQueueConnection.disconnect();
@@ -93,6 +100,7 @@ export async function startWorker(options: WorkerOptions): Promise<{close(): Pro
     await worker.close();
     await analyticsWorker.close();
     await reportWorker.close();
+    await metaCommentWorker.close();
     await analyticsQueue.close();
     await reportQueue.close();
     analyticsQueueConnection.disconnect();

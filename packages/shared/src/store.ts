@@ -1,4 +1,4 @@
-import type {AuditLog,AuthSession,Brand,BioPage,Campaign,ContentItem,ContentVariant,ContentMedia,VariantMedia,MediaAsset,Product,User,Workspace,WorkspaceMember,SocialAccount,SocialComment,CommentAction,EncryptedCredential,OAuthPending,BrowserNode,BrowserProfile,BrowserRegistration,PublishBatch,PublishJob,PublishAttempt,PublishedPost,PostMetric,ChannelSnapshot,ChannelGoal,ContentPillar,Competitor,CompetitorSnapshot,TrackedLink,ClickEvent,NotificationChannel,QuotaUsage} from './domain.ts';
+import type {AuditLog,AuthSession,Brand,BioPage,Campaign,ContentItem,ContentVariant,ContentMedia,VariantMedia,MediaAsset,Product,User,Workspace,WorkspaceMember,SocialAccount,SocialComment,CommentAction,PendingMetaComment,EncryptedCredential,OAuthPending,BrowserNode,BrowserProfile,BrowserRegistration,PublishBatch,PublishJob,PublishAttempt,PublishedPost,PostMetric,ChannelSnapshot,ChannelGoal,ContentPillar,Competitor,CompetitorSnapshot,TrackedLink,ClickEvent,NotificationChannel,QuotaUsage} from './domain.ts';
 export class MemoryStore {
  users=new Map<string,User>(); workspaces=new Map<string,Workspace>(); notificationChannels=new Map<string,NotificationChannel>(); memberships:WorkspaceMember[]=[]; brands=new Map<string,Brand>();
  products=new Map<string,Product>(); media=new Map<string,MediaAsset>(); contents=new Map<string,ContentItem>(); variants=new Map<string,ContentVariant>(); contentMedia=new Map<string,ContentMedia>(); variantMedia=new Map<string,VariantMedia>(); campaigns=new Map<string,Campaign>();
@@ -9,4 +9,5 @@ export class MemoryStore {
  competitors=new Map<string,Competitor>(); competitorSnapshots=new Map<string,CompetitorSnapshot>();
  bioPages=new Map<string,BioPage>();
  socialComments=new Map<string,SocialComment>(); commentActions=new Map<string,CommentAction>();
+ metaWebhookEvents=new Map<string,PendingMetaComment>();
 }

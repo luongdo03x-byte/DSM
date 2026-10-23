@@ -48,7 +48,7 @@ export class IntegrationsService {
   async confirm(token:string,platformAccountIds:string[]):Promise<SocialAccount[]>{
     const {row,accounts}=await this.load(token);const wanted=new Set(platformAccountIds);
     if(wanted.size!==platformAccountIds.length||wanted.size===0||accounts.some(x=>!x.platformAccountId)||[...wanted].some(x=>!accounts.some(account=>account.platformAccountId===x)))throw new Error('INVALID_ACCOUNT_SELECTION');
-    return this.repos.transaction(async tx=>{
+    const confirmed=await this.repos.transaction(async tx=>{
       const current=await tx.oauthPending.get(row.id);if(!current||current.consumedAt||current.expiresAt<Date.now())throw new Error('OAUTH_PENDING_CONSUMED');
       const result:SocialAccount[]=[];
       for(const account of accounts.filter(x=>wanted.has(x.platformAccountId))){
@@ -63,5 +63,9 @@ export class IntegrationsService {
       }
       await tx.oauthPending.update(row.id,{consumedAt:Date.now()});return result;
     });
+    for(const account of accounts.filter(x=>wanted.has(x.platformAccountId)&&x.platform==='FACEBOOK')){
+      try{await this.meta?.subscribePageComments(account)}catch(error){console.error('Meta Page feed subscription failed',error)}
+    }
+    return confirmed;
   }
 }

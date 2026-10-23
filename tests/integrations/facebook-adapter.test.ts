@@ -88,9 +88,9 @@ test('Facebook media retry stops when the remote outcome remains unknown',async(
 
 test('Facebook Reel finish timeout does not submit a second Reel',async()=>{
   const stub=await startMetaGraphStub();try{
-    let starts=0;stub.setResponse('/v24.0/page/video_reels',req=>({status:200,body:(req.body as any)?.upload_phase==='start'?{video_id:'reel-'+(++starts),upload_url:stub.url+'/video-upload/reel'}:{success:true},delayMs:(req.body as any)?.upload_phase==='finish'?50:0}));
+    let starts=0;stub.setResponse('/v24.0/page/video_reels',req=>({status:200,body:(req.body as any)?.upload_phase==='start'?{video_id:'reel-'+(++starts),upload_url:stub.url+'/video-upload/reel'}:{success:true},delayMs:(req.body as any)?.upload_phase==='finish'?300:0}));
     stub.setResponse('/video-upload/reel',()=>({status:200,body:{success:true}}));
-    const adapter=new FacebookAdapter({graph:new MetaGraphClient({baseUrl:stub.url,version:'v24.0',timeoutMs:20}),tokens:async()=> 'token'});
+    const adapter=new FacebookAdapter({graph:new MetaGraphClient({baseUrl:stub.url,version:'v24.0',timeoutMs:100}),tokens:async()=> 'token'});
     const reel={...base,contentType:'VIDEO' as const,mediaUrl:'https://cdn.test/v.mp4',metadata:{pageId:'page',format:'REEL'}};
     await assert.rejects(adapter.publish(reel),{code:'FB_REEL_OUTCOME_UNKNOWN',retryable:false});
     assert.equal(starts,1);

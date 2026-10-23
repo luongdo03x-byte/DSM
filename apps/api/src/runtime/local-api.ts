@@ -19,6 +19,7 @@ import type {IntegrationsService} from '../modules/integrations/integrations.ser
 import type {MetaDataDeletionService} from '../modules/integrations/meta-data-deletion.service.ts';
 import {id} from '../../../../packages/shared/src/ids.ts';
 import {ReliabilityService} from '../modules/analytics/reliability.service.ts';
+import {verifySignature,parseMetaWebhook,type MetaCommentEvent} from '../integrations/meta/meta-webhook.ts';
 
 export interface LocalRequest {
   method: string;
@@ -26,6 +27,7 @@ export interface LocalRequest {
   query?: Record<string,string>;
   headers?: Record<string,string>;
   body?: unknown;
+  rawBody?: Buffer;
 }
 export interface LocalResponse {
   status: number;
@@ -51,6 +53,7 @@ type Dependencies={
   browserNodes?:BrowserNodesService;
   integrations?:IntegrationsService;
   dataDeletion?:MetaDataDeletionService;
+  metaWebhook?:{appSecret:string;verifyToken:string;enqueue:(event:MetaCommentEvent)=>Promise<void>};
   webAppBaseUrl?:string;
   testMode?:boolean;
 };
@@ -68,6 +71,20 @@ export class LocalApiRuntime {
   async handle(req:LocalRequest):Promise<LocalResponse>{
     const method=req.method.toUpperCase();
     try {
+      if(req.path==='/webhooks/meta'){
+        const webhook=this.d.metaWebhook;
+        if(!webhook)return{status:503,body:{error:'META_WEBHOOK_NOT_CONFIGURED'}};
+        if(method==='GET'){
+          if(req.query?.['hub.mode']!=='subscribe'||req.query?.['hub.verify_token']!==webhook.verifyToken)return{status:403,body:{error:'INVALID_VERIFY_TOKEN'}};
+          return{status:200,body:req.query?.['hub.challenge']??'',headers:{'content-type':'text/plain; charset=utf-8'}};
+        }
+        if(method==='POST'){
+          if(!req.rawBody||!verifySignature(req.rawBody,req.headers?.['x-hub-signature-256'],webhook.appSecret))return{status:401,body:{error:'INVALID_SIGNATURE'}};
+          let payload:unknown;try{payload=JSON.parse(req.rawBody.toString('utf8'))}catch{return{status:400,body:{error:'INVALID_JSON'}}}
+          for(const event of parseMetaWebhook(payload))await webhook.enqueue(event);
+          return{status:200,body:{received:true}};
+        }
+      }
       if(method==='POST'&&req.path==='/auth/login'){
         const body=asObject(req.body);
         const result=await this.d.auth.login(String(body.email??''),String(body.password??''));
