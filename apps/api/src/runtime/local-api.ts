@@ -21,6 +21,7 @@ import {id} from '../../../../packages/shared/src/ids.ts';
 import {ReliabilityService} from '../modules/analytics/reliability.service.ts';
 import {verifySignature,parseMetaWebhook,type MetaCommentEvent} from '../integrations/meta/meta-webhook.ts';
 import {EngagementService} from '../modules/engagement/engagement.service.ts';
+import {EngagementConfigService} from '../modules/engagement/engagement-config.service.ts';
 import type {Platform,SocialComment} from '../../../../packages/shared/src/domain.ts';
 
 export interface LocalRequest {
@@ -170,6 +171,30 @@ export class LocalApiRuntime {
         return{status:200,body:await service.read(brandId,commentId)};
       }
 
+      if((m=route(req.path,/^\/brands\/([^/]+)\/(reply-templates|automation-rules)(?:\/([^/]+))?$/))){
+        const brandId=decodeURIComponent(m[1]!),resource=m[2],itemId=m[3]?decodeURIComponent(m[3]):undefined;await this.authorize(userId,brandId);
+        const config=new EngagementConfigService(this.d.repos);
+        if(resource==='reply-templates'){
+          if(!itemId&&method==='GET')return{status:200,body:await config.listTemplates(brandId)};
+          if(!itemId&&method==='POST')return{status:201,body:await config.createTemplate(brandId,req.body)};
+          if(itemId&&method==='PATCH')return{status:200,body:await config.updateTemplate(brandId,itemId,req.body)};
+          if(itemId&&method==='DELETE'){await config.removeTemplate(brandId,itemId);return{status:200,body:{removed:true}}}
+        }else{
+          if(!itemId&&method==='GET')return{status:200,body:await config.listRules(brandId)};
+          if(!itemId&&method==='POST')return{status:201,body:await config.createRule(brandId,req.body)};
+          if(itemId&&method==='PATCH')return{status:200,body:await config.updateRule(brandId,itemId,req.body)};
+          if(itemId&&method==='DELETE'){await config.removeRule(brandId,itemId);return{status:200,body:{removed:true}}}
+        }
+      }
+
+      if(this.d.testMode&&(m=route(req.path,/^\/__test\/brands\/([^/]+)\/inbox-seed$/))&&method==='POST'){
+        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
+        const account=(await this.d.repos.socialAccounts.findBy({brandId,platform:'FACEBOOK'}))[0];if(!account)throw new Error('ACCOUNT_NOT_FOUND');
+        await this.d.repos.socialAccounts.update(account.id,{status:'CONNECTED'});
+        const comment=await this.d.repos.socialComments.insert({id:id('test-comment'),brandId,socialAccountId:account.id,platform:'FACEBOOK',platformCommentId:id('remote-comment'),platformPostId:'test-post',authorId:'test-customer',authorName:'An',isFromPage:false,text:'Cho mình xin giá sản phẩm',createdAt:Date.now(),status:'NEW'});
+        return{status:201,body:comment};
+      }
+
       if(this.d.testMode&&(m=route(req.path,/^\/__test\/brands\/([^/]+)\/growth-seed$/))&&method==='POST'){
         const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
         const account=(await this.d.repos.socialAccounts.findBy({brandId}))[0];if(!account)throw new Error('ACCOUNT_NOT_FOUND');
@@ -248,8 +273,8 @@ export class LocalApiRuntime {
         if(method==='POST'){
           if(!['OWNER','ADMIN'].includes(access.role))throw new Error('FORBIDDEN');
           const b=asObject(req.body),kind=String(b.kind??''),target=String(b.target??'').trim();
-          if(!['TELEGRAM','EMAIL'].includes(kind)||!target||kind==='EMAIL'&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target))throw new Error('INVALID_NOTIFICATION_CHANNEL');
-          const {encryptedSecret:_secret,...row}=await this.d.repos.notificationChannels.insert({id:id('notifier'),workspaceId:access.workspaceId,kind:kind as 'TELEGRAM'|'EMAIL',target,enabled:true});
+          if(!['TELEGRAM','EMAIL','ZALO'].includes(kind)||!target||kind==='EMAIL'&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target))throw new Error('INVALID_NOTIFICATION_CHANNEL');
+          const {encryptedSecret:_secret,...row}=await this.d.repos.notificationChannels.insert({id:id('notifier'),workspaceId:access.workspaceId,kind:kind as 'TELEGRAM'|'EMAIL'|'ZALO',target,enabled:true});
           return{status:201,body:row};
         }
       }
@@ -449,7 +474,7 @@ export class LocalApiRuntime {
     if(['UNAUTHORIZED','INVALID_CREDENTIALS','INVALID_REFRESH','NODE_AUTH','INVALID_REGISTRATION','STALE_SIGNATURE','REPLAY','BAD_SIGNATURE'].includes(message))return{status:401,body:{error:message}};
     if(message==='FORBIDDEN')return{status:403,body:{error:message}};
     if(['OAUTH_PENDING_CONSUMED','OAUTH_STATE_REPLAY'].includes(message))return{status:409,body:{error:message}};
-    if(['BRAND_NOT_FOUND','PRODUCT_NOT_FOUND','CONTENT_NOT_FOUND','ACCOUNT_NOT_FOUND','COMMENT_NOT_FOUND','BATCH_NOT_FOUND','JOB_NOT_FOUND','LINK_NOT_FOUND','BIO_PAGE_NOT_FOUND','BIO_LINK_NOT_FOUND','BINDING_NOT_FOUND','NOTIFICATION_CHANNEL_NOT_FOUND'].includes(message))return{status:404,body:{error:'NOT_FOUND'}};
+    if(['BRAND_NOT_FOUND','PRODUCT_NOT_FOUND','CONTENT_NOT_FOUND','ACCOUNT_NOT_FOUND','COMMENT_NOT_FOUND','TEMPLATE_NOT_FOUND','RULE_NOT_FOUND','BATCH_NOT_FOUND','JOB_NOT_FOUND','LINK_NOT_FOUND','BIO_PAGE_NOT_FOUND','BIO_LINK_NOT_FOUND','BINDING_NOT_FOUND','NOTIFICATION_CHANNEL_NOT_FOUND'].includes(message))return{status:404,body:{error:'NOT_FOUND'}};
     if(['CONFLICT','BIO_SLUG_TAKEN','RETRY_NOT_ALLOWED','IDEMPOTENCY_CONFLICT','JOB_NOT_RESCHEDULABLE','NOT_SUPPORTED','COMMENT_GONE','ACCOUNT_NOT_CONNECTED','PRIVATE_REPLY_ALREADY_SENT','PRIVATE_REPLY_WINDOW_CLOSED'].includes(message))return{status:409,body:{error:message}};
     if(['SCHEDULE_TOO_SOON','SCHEDULE_TOO_FAR'].includes(message))return{status:400,body:{error:message}};
     if(message.startsWith('INVALID_')||message.endsWith('_INVALID')||message.includes('UNSUPPORTED')||message==='TEXT_MEDIA_INVALID')return{status:400,body:{error:message}};

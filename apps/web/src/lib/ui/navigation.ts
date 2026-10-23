@@ -1,4 +1,4 @@
-export type BrandSection='overview'|'products'|'content'|'compose'|'calendar'|'campaigns'|'accounts'|'analytics'|'growth'|'settings';
+export type BrandSection='overview'|'products'|'content'|'compose'|'calendar'|'campaigns'|'accounts'|'analytics'|'growth'|'inbox'|'settings';
 
 export const NAV_ITEMS:{section:BrandSection;label:string;icon:string}[]=[
   {section:'overview',label:'Tổng quan',icon:'home'},
@@ -10,6 +10,7 @@ export const NAV_ITEMS:{section:BrandSection;label:string;icon:string}[]=[
   {section:'accounts',label:'Tài khoản',icon:'users'},
   {section:'analytics',label:'Phân tích',icon:'chart'},
   {section:'growth',label:'Xây kênh',icon:'chart'},
+  {section:'inbox',label:'Hộp thư',icon:'edit'},
   {section:'settings',label:'Cài đặt',icon:'settings'},
 ];
 

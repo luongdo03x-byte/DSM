@@ -45,6 +45,7 @@ import {BrowserPublisherProxy} from '../modules/publishing/browser-publisher.pro
 import {NodeAuthService} from '../modules/browser-nodes/node-auth.service.ts';
 import {BrowserNodesService} from '../modules/browser-nodes/browser-nodes.service.ts';
 import {FakePublisher} from '../../../worker/src/testing/fake-publisher.ts';
+import {FakeCommentSource} from '../../../worker/src/testing/fake-comment-source.ts';
 import {QuotaManager} from '../../../../packages/shared/src/quota.ts';
 import {id} from '../../../../packages/shared/src/ids.ts';
 import {MetaCommentQueue} from '../../../worker/src/engagement/meta-comment-queue.ts';
@@ -113,7 +114,9 @@ export async function createDevelopmentRuntime(options:DevelopmentRuntimeOptions
   const integrations=configuredIntegrations(repos,credentialCrypto,env);
   const dataDeletion=metaDeletion(repos,env);
   const metaWebhook=env.META_APP_SECRET&&env.META_WEBHOOK_VERIFY_TOKEN?{appSecret:env.META_APP_SECRET,verifyToken:env.META_WEBHOOK_VERIFY_TOKEN,enqueue:async(event:import('../integrations/meta/meta-webhook.ts').MetaCommentEvent)=>{store.metaWebhookEvents.set(id('meta-event'),event)}}:undefined;
-  const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver(),undefined,{publicMediaBaseUrl:env.PUBLIC_MEDIA_BASE_URL??''}),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),engagement:new EngagementService(repos,commentSources(registry)),nodeAuth,browserNodes,webAppBaseUrl:env.WEB_APP_BASE_URL??'http://127.0.0.1:3000',testMode:env.APP_ENV==='test',...(integrations?{integrations}:{}),...(dataDeletion?{dataDeletion}:{}),...(metaWebhook?{metaWebhook}:{})});
+  const engagementSources=commentSources(registry);
+  if(env.APP_ENV==='test'&&env.E2E_FAKE_PUBLISHERS==='1')engagementSources.FACEBOOK=new FakeCommentSource();
+  const runtime=new LocalApiRuntime({repos,auth:new AuthService(repos,hasher,env.JWT_ACCESS_SECRET??'development-only-access-secret'),brandAccess:new BrandAccessService(repos),products,content,accounts,publishing:new PublishingService(repos,registry,new StrategyResolver(),undefined,{publicMediaBaseUrl:env.PUBLIC_MEDIA_BASE_URL??''}),batchStatus,analytics,tracking,media,campaigns,campaignPerformance:new CampaignPerformanceService(repos,analytics),engagement:new EngagementService(repos,engagementSources),nodeAuth,browserNodes,webAppBaseUrl:env.WEB_APP_BASE_URL??'http://127.0.0.1:3000',testMode:env.APP_ENV==='test',...(integrations?{integrations}:{}),...(dataDeletion?{dataDeletion}:{}),...(metaWebhook?{metaWebhook}:{})});
   return{store,repos,runtime,registry,services:{accounts,products,content,batchStatus,analytics,tracking,media,campaigns,nodeAuth,browserNodes},ids:{ownerId,workspaceId,brandId}};
 }
 

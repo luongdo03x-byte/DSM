@@ -11,6 +11,9 @@ import type {PlatformAdapter} from '../../../packages/platform-contracts/src/ada
 import {NotificationDispatcher} from './notifications/notification-dispatcher.ts';
 import {TelegramNotifier} from './notifications/telegram.notifier.ts';
 import {EmailNotifier} from './notifications/email.notifier.ts';
+import {ZaloNotifier} from './notifications/zalo.notifier.ts';
+import {ZaloTokenVault} from './notifications/zalo-token-vault.ts';
+import {CredentialCryptoService} from '../../api/src/modules/accounts/credential-crypto.service.ts';
 import type {NotificationEvent} from '../../../packages/shared/src/notifications.ts';
 import type {InsightsSource} from '../../../packages/platform-contracts/src/insights.ts';
 import {runDailySnapshots,scheduleBrandSnapshots,SNAPSHOT_QUEUE} from './analytics/snapshot.job.ts';
@@ -37,7 +40,10 @@ export async function startWorker(options: WorkerOptions): Promise<{close(): Pro
   const connection = new IORedis(env.REDIS_URL, {maxRetriesPerRequest: null});
   const name = env.PUBLISH_QUEUE_NAME ?? PUBLISH_API_QUEUE;
   const appUrl=env.WEB_APP_BASE_URL??'http://127.0.0.1:3000';
-  const dispatcher=new NotificationDispatcher(app.repos,{TELEGRAM:new TelegramNotifier({token:env.TELEGRAM_BOT_TOKEN??'',appUrl,...(env.TELEGRAM_API_BASE_URL?{baseUrl:env.TELEGRAM_API_BASE_URL}:{})}),EMAIL:new EmailNotifier({host:env.SMTP_HOST??'',port:Number(env.SMTP_PORT??587),secure:env.SMTP_SECURE==='true',from:env.SMTP_FROM??'',appUrl,...(env.SMTP_USER?{user:env.SMTP_USER}:{}),...(env.SMTP_PASSWORD?{password:env.SMTP_PASSWORD}:{})})});
+  const zaloVault=env.CREDENTIAL_ENCRYPTION_KEY?new ZaloTokenVault(app.repos,new CredentialCryptoService(new Uint8Array(Buffer.from(env.CREDENTIAL_ENCRYPTION_KEY,'base64')))):undefined;
+  const storedZaloTokens=await zaloVault?.load();
+  const zaloRefreshToken=storedZaloTokens?.refresh_token??env.ZALO_OA_REFRESH_TOKEN;
+  const dispatcher=new NotificationDispatcher(app.repos,{TELEGRAM:new TelegramNotifier({token:env.TELEGRAM_BOT_TOKEN??'',appUrl,...(env.TELEGRAM_API_BASE_URL?{baseUrl:env.TELEGRAM_API_BASE_URL}:{})}),EMAIL:new EmailNotifier({host:env.SMTP_HOST??'',port:Number(env.SMTP_PORT??587),secure:env.SMTP_SECURE==='true',from:env.SMTP_FROM??'',appUrl,...(env.SMTP_USER?{user:env.SMTP_USER}:{}),...(env.SMTP_PASSWORD?{password:env.SMTP_PASSWORD}:{})}),ZALO:new ZaloNotifier({accessToken:storedZaloTokens?.access_token??env.ZALO_OA_ACCESS_TOKEN??'',appUrl,...(zaloRefreshToken?{refreshToken:zaloRefreshToken}:{}),...(env.ZALO_APP_ID?{appId:env.ZALO_APP_ID}:{}),...(env.ZALO_APP_SECRET?{appSecret:env.ZALO_APP_SECRET}:{}),...(zaloVault?{onTokenRefresh:(tokens:{access_token:string;refresh_token:string})=>zaloVault.save(tokens)}:{})})});
   const notify=async(event:NotificationEvent)=>{try{const brand=await app.repos.brands.get(event.brandId);if(brand)await dispatcher.dispatch(brand.workspaceId,event)}catch(error){console.error('notification dispatch failed',error)}};
   const runner = new JobRunner(app.repos, options.registry ?? app.registry,undefined,queue,Date.now,dispatcher);
   const activeRegistry=app.registry;

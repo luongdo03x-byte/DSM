@@ -5,6 +5,7 @@ import {join} from 'node:path';
 import {test} from 'node:test';
 import {JsonStorePersistence} from '../../apps/api/src/runtime/json-store-persistence.ts';
 import {MemoryRepositories} from '../../packages/shared/src/memory-repositories.ts';
+import {MemoryStore} from '../../packages/shared/src/store.ts';
 
 test('memory repositories nạp snapshot cũ', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'dsm-sp2-snapshot-'));
@@ -20,4 +21,19 @@ test('memory repositories nạp snapshot cũ', async () => {
   } finally {
     await rm(dir, {recursive: true, force: true});
   }
+});
+
+test('snapshot giữ mẫu câu, quy tắc và dữ liệu xây kênh sau khởi động lại',async()=>{
+  const dir=await mkdtemp(join(tmpdir(),'dsm-sp9-snapshot-'));
+  try{
+    const file=join(dir,'store.json'),store=new MemoryStore();
+    store.replyTemplates.set('t',{id:'t',brandId:'b',name:'Chào',text:'Chào {ten}'});
+    store.automationRules.set('r',{id:'r',brandId:'b',name:'Giá',enabled:false,platforms:['FACEBOOK'],match:{keywords:['giá'],mode:'ANY'},actions:{reply:'Chào'},maxPerHour:30});
+    store.channelGoals.set('g',{id:'g',socialAccountId:'a',postsPer28Days:8});
+    const persistence=new JsonStorePersistence(file);await persistence.save(store);
+    const restored=await persistence.load();
+    assert.equal(restored.replyTemplates.get('t')?.name,'Chào');
+    assert.equal(restored.automationRules.get('r')?.match.keywords[0],'giá');
+    assert.equal(restored.channelGoals.get('g')?.postsPer28Days,8);
+  }finally{await rm(dir,{recursive:true,force:true})}
 });

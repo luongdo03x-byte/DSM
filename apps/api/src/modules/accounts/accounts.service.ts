@@ -60,6 +60,10 @@ export class AccountsService {
       const changed = await tx.socialAccounts.update(accountId, {status: 'DISCONNECTED'});
       const credential = (await tx.credentials.findBy({socialAccountId: accountId}))[0];
       if (credential) await tx.credentials.remove(credential.id);
+      for(const comment of await tx.socialComments.findBy({socialAccountId:accountId})){
+        for(const action of await tx.commentActions.findBy({commentId:comment.id}))await tx.commentActions.remove(action.id);
+        await tx.socialComments.remove(comment.id);
+      }
       if (this.audit && workspaceId) await this.audit.record({workspaceId, ...(userId ? {userId} : {}), action: 'ACCOUNT_DISCONNECT', entityType: 'SOCIAL_ACCOUNT', entityId: accountId}, tx);
       return changed;
     });
