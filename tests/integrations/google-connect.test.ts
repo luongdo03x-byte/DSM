@@ -25,7 +25,7 @@ async function repositories(){const repos=new MemoryRepositories(new MemoryStore
 test('Google authorization asks for offline upload/read scopes and PKCE',()=>{
   const {connector}=connectorFixture();const url=new URL(connector.authorizeUrl('state',config.redirectUri,'challenge'));
   assert.equal(url.searchParams.get('access_type'),'offline');assert.equal(url.searchParams.get('prompt'),'consent');assert.equal(url.searchParams.get('code_challenge_method'),'S256');
-  assert.equal(url.searchParams.get('code_challenge'),'challenge');assert.deepEqual(url.searchParams.get('scope')?.split(' '),['https://www.googleapis.com/auth/youtube.upload','https://www.googleapis.com/auth/youtube.readonly','https://www.googleapis.com/auth/yt-analytics.readonly']);
+  assert.equal(url.searchParams.get('code_challenge'),'challenge');assert.deepEqual(url.searchParams.get('scope')?.split(' '),['https://www.googleapis.com/auth/youtube.upload','https://www.googleapis.com/auth/youtube.readonly','https://www.googleapis.com/auth/yt-analytics.readonly','https://www.googleapis.com/auth/youtube.force-ssl']);
 });
 test('Google callback lists channels and confirmation stores encrypted refresh token',async()=>{
   const {connector,calls}=connectorFixture(),repos=await repositories(),crypto=new CredentialCryptoService(new Uint8Array(32).fill(8));

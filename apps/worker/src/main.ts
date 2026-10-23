@@ -18,6 +18,8 @@ import {scheduleWeeklyReports,weeklyGrowthReport,WEEKLY_REPORT_QUEUE} from './an
 import {META_COMMENT_QUEUE} from './engagement/meta-comment-queue.ts';
 import {ingestComment} from './engagement/ingest-comment.job.ts';
 import type {MetaCommentEvent} from '../../api/src/integrations/meta/meta-webhook.ts';
+import {pollComments,COMMENT_POLL_INTERVAL_MS} from './engagement/poll-comments.job.ts';
+import type {CommentSource} from '../../../packages/platform-contracts/src/comments.ts';
 
 export interface WorkerOptions {env: Record<string, string | undefined>; registry?: PublisherRegistry}
 
@@ -37,6 +39,7 @@ export async function startWorker(options: WorkerOptions): Promise<{close(): Pro
   const notify=async(event:NotificationEvent)=>{try{const brand=await app.repos.brands.get(event.brandId);if(brand)await dispatcher.dispatch(brand.workspaceId,event)}catch(error){console.error('notification dispatch failed',error)}};
   const runner = new JobRunner(app.repos, options.registry ?? app.registry,undefined,queue,Date.now,dispatcher);
   const activeRegistry=app.registry;
+  const youtubeComments=activeRegistry.get('YOUTUBE','API') as unknown as CommentSource;
   const insightSources:Partial<Record<'FACEBOOK'|'INSTAGRAM'|'TIKTOK'|'YOUTUBE',InsightsSource>>={};
   for(const platform of ['FACEBOOK','INSTAGRAM','TIKTOK','YOUTUBE'] as const){const adapter=activeRegistry.get(platform,'API');if('fetchAccountDaily' in adapter)insightSources[platform]=adapter as unknown as InsightsSource}
   const analyticsQueueConnection=new IORedis(env.REDIS_URL,{maxRetriesPerRequest:null});
@@ -87,6 +90,8 @@ export async function startWorker(options: WorkerOptions): Promise<{close(): Pro
   const tokenTimer=setInterval(()=>{void refreshTokens().catch(error=>console.error('Platform token refresh failed',error))},60*60_000);
   const snapshotTimer=setInterval(()=>{void scheduleBrandSnapshots(app.repos,analyticsQueue).catch(error=>console.error('Analytics scheduler failed',error))},60*60_000);
   const reportScheduleTimer=setInterval(()=>{void scheduleWeeklyReports(app.repos,reportQueue).catch(error=>console.error('Weekly report scheduler failed',error))},60*60_000);
+  const commentPollTimer=setInterval(()=>{void pollComments(app.repos,{YOUTUBE:youtubeComments}).catch(error=>console.error('YouTube comment poll failed',error))},COMMENT_POLL_INTERVAL_MS);
+  void pollComments(app.repos,{YOUTUBE:youtubeComments}).catch(error=>console.error('YouTube comment poll failed',error));
   void refreshTokens().catch(error=>console.error('Platform token refresh failed',error));
   let closed = false;
   const close = async () => {
@@ -96,6 +101,7 @@ export async function startWorker(options: WorkerOptions): Promise<{close(): Pro
     clearInterval(tokenTimer);
     clearInterval(snapshotTimer);
     clearInterval(reportScheduleTimer);
+    clearInterval(commentPollTimer);
     process.off('SIGTERM', onSigterm);
     await worker.close();
     await analyticsWorker.close();

@@ -6,6 +6,8 @@ import {PublishInputBuilder} from '../publishing/publish-input.builder.ts';
 import {MetricsSyncService} from '../analytics/metrics-sync.service.ts';
 import {runPendingMetaComments} from '../engagement/ingest-comment.job.ts';
 import type {MemoryStore} from '../../../../packages/shared/src/store.ts';
+import {pollComments,COMMENT_POLL_INTERVAL_MS} from '../engagement/poll-comments.job.ts';
+import type {CommentSource} from '../../../../packages/platform-contracts/src/comments.ts';
 
 export function metricsCaptureKey(now = Date.now()) {
   const date = new Date(now);
@@ -19,16 +21,20 @@ export class LocalWorkerRuntime {
   private readonly builder: PublishInputBuilder;
   private readonly metrics: MetricsSyncService;
   private readonly store:MemoryStore|undefined;
+  private readonly commentSources:{YOUTUBE?:CommentSource};
+  private lastCommentPollAt=0;
   constructor(repos: Repositories, registry: PublisherRegistry, media: MediaService,store?:MemoryStore) {
     this.repos = repos;
     this.runner = new JobRunner(repos, registry);
     this.builder = new PublishInputBuilder(repos, media);
     this.metrics = new MetricsSyncService(repos, registry);
     this.store=store;
+    const youtube=registry.get('YOUTUBE','API');this.commentSources='listSince' in youtube&&'reply' in youtube?{YOUTUBE:youtube as unknown as CommentSource}:{};
   }
 
   async tick(now = Date.now()) {
     if(this.store)await runPendingMetaComments(this.store,this.repos);
+    if(now-this.lastCommentPollAt>=COMMENT_POLL_INTERVAL_MS){this.lastCommentPollAt=now;await pollComments(this.repos,this.commentSources,now)}
     const due = await this.repos.publishJobs.findDue(now, 20);
     let count = 0;
     for (const job of due) {

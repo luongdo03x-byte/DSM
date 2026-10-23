@@ -20,6 +20,8 @@ import type {MetaDataDeletionService} from '../modules/integrations/meta-data-de
 import {id} from '../../../../packages/shared/src/ids.ts';
 import {ReliabilityService} from '../modules/analytics/reliability.service.ts';
 import {verifySignature,parseMetaWebhook,type MetaCommentEvent} from '../integrations/meta/meta-webhook.ts';
+import {EngagementService} from '../modules/engagement/engagement.service.ts';
+import type {Platform,SocialComment} from '../../../../packages/shared/src/domain.ts';
 
 export interface LocalRequest {
   method: string;
@@ -54,6 +56,7 @@ type Dependencies={
   integrations?:IntegrationsService;
   dataDeletion?:MetaDataDeletionService;
   metaWebhook?:{appSecret:string;verifyToken:string;enqueue:(event:MetaCommentEvent)=>Promise<void>};
+  engagement?:EngagementService;
   webAppBaseUrl?:string;
   testMode?:boolean;
 };
@@ -146,6 +149,25 @@ export class LocalApiRuntime {
 
       const userId=await this.authenticate(req);
       let m:RegExpExecArray|null;
+
+      if((m=route(req.path,/^\/brands\/([^/]+)\/comments$/))&&method==='GET'){
+        const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
+        const status=req.query?.status?.split(',').filter(Boolean) as SocialComment['status'][]|undefined;
+        if(status?.some(value=>!['NEW','READ','REPLIED','HIDDEN','DELETED'].includes(value)))throw new Error('INVALID_COMMENT_STATUS');
+        const platform=req.query?.platform as Platform|undefined;
+        if(platform&&!['FACEBOOK','INSTAGRAM','THREADS','TIKTOK','YOUTUBE'].includes(platform))throw new Error('INVALID_PLATFORM');
+        const limit=req.query?.limit===undefined?undefined:Number(req.query.limit);
+        if(limit!==undefined&&(!Number.isInteger(limit)||limit<1||limit>100))throw new Error('INVALID_LIMIT');
+        const filter={...(status?.length?{status}:{}),...(platform?{platform}:{}),...(req.query?.cursor?{cursor:req.query.cursor}:{}),...(limit!==undefined?{limit}:{})};
+        return{status:200,body:await (this.d.engagement??new EngagementService(this.d.repos,{})).list(brandId,filter)};
+      }
+      if((m=route(req.path,/^\/brands\/([^/]+)\/comments\/([^/]+)\/(reply|hide|unhide|read)$/))&&method==='POST'){
+        const brandId=decodeURIComponent(m[1]!),commentId=decodeURIComponent(m[2]!),action=m[3];await this.authorize(userId,brandId);
+        const service=this.d.engagement??new EngagementService(this.d.repos,{});
+        if(action==='reply')return{status:200,body:await service.reply(brandId,commentId,String(asObject(req.body).text??''),userId)};
+        if(action==='hide'||action==='unhide')return{status:200,body:await service.hide(brandId,commentId,action==='hide',userId)};
+        return{status:200,body:await service.read(brandId,commentId)};
+      }
 
       if(this.d.testMode&&(m=route(req.path,/^\/__test\/brands\/([^/]+)\/growth-seed$/))&&method==='POST'){
         const brandId=decodeURIComponent(m[1]!);await this.authorize(userId,brandId);
@@ -426,8 +448,8 @@ export class LocalApiRuntime {
     if(['UNAUTHORIZED','INVALID_CREDENTIALS','INVALID_REFRESH','NODE_AUTH','INVALID_REGISTRATION','STALE_SIGNATURE','REPLAY','BAD_SIGNATURE'].includes(message))return{status:401,body:{error:message}};
     if(message==='FORBIDDEN')return{status:403,body:{error:message}};
     if(['OAUTH_PENDING_CONSUMED','OAUTH_STATE_REPLAY'].includes(message))return{status:409,body:{error:message}};
-    if(['BRAND_NOT_FOUND','PRODUCT_NOT_FOUND','CONTENT_NOT_FOUND','ACCOUNT_NOT_FOUND','BATCH_NOT_FOUND','JOB_NOT_FOUND','LINK_NOT_FOUND','BIO_PAGE_NOT_FOUND','BIO_LINK_NOT_FOUND','BINDING_NOT_FOUND','NOTIFICATION_CHANNEL_NOT_FOUND'].includes(message))return{status:404,body:{error:'NOT_FOUND'}};
-    if(['CONFLICT','BIO_SLUG_TAKEN','RETRY_NOT_ALLOWED','IDEMPOTENCY_CONFLICT','JOB_NOT_RESCHEDULABLE'].includes(message))return{status:409,body:{error:message}};
+    if(['BRAND_NOT_FOUND','PRODUCT_NOT_FOUND','CONTENT_NOT_FOUND','ACCOUNT_NOT_FOUND','COMMENT_NOT_FOUND','BATCH_NOT_FOUND','JOB_NOT_FOUND','LINK_NOT_FOUND','BIO_PAGE_NOT_FOUND','BIO_LINK_NOT_FOUND','BINDING_NOT_FOUND','NOTIFICATION_CHANNEL_NOT_FOUND'].includes(message))return{status:404,body:{error:'NOT_FOUND'}};
+    if(['CONFLICT','BIO_SLUG_TAKEN','RETRY_NOT_ALLOWED','IDEMPOTENCY_CONFLICT','JOB_NOT_RESCHEDULABLE','NOT_SUPPORTED','COMMENT_GONE','ACCOUNT_NOT_CONNECTED'].includes(message))return{status:409,body:{error:message}};
     if(['SCHEDULE_TOO_SOON','SCHEDULE_TOO_FAR'].includes(message))return{status:400,body:{error:message}};
     if(message.startsWith('INVALID_')||message.endsWith('_INVALID')||message.includes('UNSUPPORTED')||message==='TEXT_MEDIA_INVALID')return{status:400,body:{error:message}};
     return{status:500,body:{error:'INTERNAL_ERROR'}};

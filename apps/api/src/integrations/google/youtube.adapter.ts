@@ -9,10 +9,12 @@ import type {QuotaManager} from '../../../../../packages/shared/src/quota.ts';
 import {queryProgress,sendChunks,startResumable,type ResumableSession} from './resumable-upload.ts';
 import type {AccountMetricPoint,ProfileFacts,InsightsSource} from '../../../../../packages/platform-contracts/src/insights.ts';
 import {insightsError,metricNumber,present,brandDay,withCurrentFollowers} from '../insights-helpers.ts';
+import type {CommentSource} from '../../../../../packages/platform-contracts/src/comments.ts';
+import type {SocialComment} from '../../../../../packages/shared/src/domain.ts';
 
 type Deps={baseUrl:string;http:HttpClient;tokens:(id:string)=>Promise<string>;refreshAccessToken?:(id:string)=>Promise<string>;storage:ObjectStorage;audited:boolean;quota?:QuotaManager;dailyUploadLimit?:number;refresh?:(account:SocialAccount)=>Promise<TokenRefreshResult>};
 type Settings={categoryId?:string;tags?:string[];privacyStatus?:'public'|'unlisted'|'private';playlistId?:string;madeForKids?:boolean};
-export class YouTubeAdapter implements PlatformAdapter,InsightsSource{
+export class YouTubeAdapter implements PlatformAdapter,InsightsSource,CommentSource{
   readonly platform='YOUTUBE' as const;
   private readonly deps:Deps;
   constructor(deps:Deps){this.deps=deps}
@@ -72,5 +74,48 @@ export class YouTubeAdapter implements PlatformAdapter,InsightsSource{
   async fetchPostMetrics(account:SocialAccount,platformPostId:string):Promise<PostMetricsData>{
     const url=`${this.deps.baseUrl}/youtube/v3/videos?part=statistics&id=${encodeURIComponent(platformPostId)}`;
     try{const response=await this.requestWithRefresh<{items?:Array<{statistics?:{viewCount?:string;likeCount?:string;commentCount?:string}}>}>(account.id,token=>({url,headers:{authorization:`Bearer ${token}`}}));if(response.status===401||response.status===403)throw new PublishError({type:'AUTH_ERROR',code:'INSIGHTS_PERMISSION_MISSING',message:'Cần cấp quyền YouTube',retryable:false});const raw=response.data.items?.[0]?.statistics??{};return{...(metricNumber(raw.viewCount)!==null?{views:Number(raw.viewCount)}:{}),...(metricNumber(raw.likeCount)!==null?{likes:Number(raw.likeCount)}:{}),...(metricNumber(raw.commentCount)!==null?{comments:Number(raw.commentCount)}:{}),raw}}catch(error){insightsError(error)}
+  }
+  async listSince(account:SocialAccount,since:number):Promise<Omit<SocialComment,'id'|'brandId'|'status'>[]>{
+    const channelId=account.platformAccountId;if(!channelId)throw new Error('YOUTUBE_CHANNEL_ID_REQUIRED');
+    const rows:Omit<SocialComment,'id'|'brandId'|'status'>[]=[];
+    const map=(comment:{id:string;snippet?:{authorChannelId?:{value?:string};authorDisplayName?:string;textOriginal?:string;textDisplay?:string;publishedAt?:string;parentId?:string}},videoId:string)=>{
+      const snippet=comment.snippet??{},createdAt=Date.parse(snippet.publishedAt??'');
+      if(!comment.id||!Number.isFinite(createdAt)||createdAt<since)return;
+      rows.push({socialAccountId:account.id,platform:'YOUTUBE',platformCommentId:comment.id,platformPostId:videoId,
+        ...(snippet.parentId?{parentCommentId:snippet.parentId}:{}),authorId:snippet.authorChannelId?.value??'',authorName:snippet.authorDisplayName??'',
+        isFromPage:snippet.authorChannelId?.value===channelId,text:snippet.textOriginal??snippet.textDisplay??'',createdAt});
+    };
+    let pageToken:string|undefined;
+    do{
+      const url=new URL(`${this.deps.baseUrl}/youtube/v3/commentThreads`);
+      for(const [key,value] of Object.entries({part:'snippet',allThreadsRelatedToChannelId:channelId,maxResults:'100',order:'time',textFormat:'plainText'}))url.searchParams.set(key,value);
+      if(pageToken)url.searchParams.set('pageToken',pageToken);
+      const response=await this.requestWithRefresh<{items?:Array<{id:string;snippet?:{videoId?:string;totalReplyCount?:number;topLevelComment?:{id:string;snippet?:{authorChannelId?:{value?:string};authorDisplayName?:string;textOriginal?:string;textDisplay?:string;publishedAt?:string}}}}>;nextPageToken?:string}>(account.id,token=>({url:url.toString(),headers:{authorization:`Bearer ${token}`}}));
+      if(response.status>=400)throw new PublishError({type:response.status===401||response.status===403?'AUTH_ERROR':'PLATFORM_ERROR',code:`HTTP_${response.status}`,message:'Cannot read YouTube comments',retryable:response.status>=500});
+      for(const item of response.data.items??[]){
+        const top=item.snippet?.topLevelComment,videoId=item.snippet?.videoId??'';
+        if(!top||!videoId)continue;
+        map(top,videoId);
+        if(!item.snippet?.totalReplyCount)continue;
+        let replyPage:string|undefined;
+        do{
+          const repliesUrl=new URL(`${this.deps.baseUrl}/youtube/v3/comments`);
+          for(const [key,value] of Object.entries({part:'snippet',parentId:top.id,maxResults:'100',textFormat:'plainText'}))repliesUrl.searchParams.set(key,value);
+          if(replyPage)repliesUrl.searchParams.set('pageToken',replyPage);
+          const replies=await this.requestWithRefresh<{items?:Array<{id:string;snippet?:{authorChannelId?:{value?:string};authorDisplayName?:string;textOriginal?:string;textDisplay?:string;publishedAt?:string;parentId?:string}}>;nextPageToken?:string}>(account.id,token=>({url:repliesUrl.toString(),headers:{authorization:`Bearer ${token}`}}));
+          if(replies.status>=400)throw new PublishError({type:'PLATFORM_ERROR',code:`HTTP_${replies.status}`,message:'Cannot read YouTube replies',retryable:replies.status>=500});
+          for(const reply of replies.data.items??[])map({...reply,snippet:{...reply.snippet,parentId:reply.snippet?.parentId??top.id}},videoId);
+          replyPage=replies.data.nextPageToken;
+        }while(replyPage);
+      }
+      pageToken=response.data.nextPageToken;
+    }while(pageToken);
+    return rows;
+  }
+  async reply(account:SocialAccount,platformCommentId:string,text:string):Promise<{platformCommentId:string}>{
+    const url=`${this.deps.baseUrl}/youtube/v3/comments?part=snippet`;
+    const response=await this.requestWithRefresh<{id?:string}>(account.id,token=>({url,method:'POST',headers:{authorization:`Bearer ${token}`},body:{snippet:{parentId:platformCommentId,textOriginal:text}}}));
+    if(response.status>=400)throw new PublishError({type:response.status===401||response.status===403?'AUTH_ERROR':'PLATFORM_ERROR',code:`HTTP_${response.status}`,message:'Cannot reply to YouTube comment',retryable:response.status>=500});
+    return{platformCommentId:response.data.id??''};
   }
 }

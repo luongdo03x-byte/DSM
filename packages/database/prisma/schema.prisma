@@ -168,6 +168,7 @@ model SocialAccount {
   channelSnapshots   ChannelSnapshot[]
   channelGoal        ChannelGoal?
   socialComments     SocialComment[]
+  commentsPolledAt   BigInt?
 
   @@index([brandId, platform])
 }

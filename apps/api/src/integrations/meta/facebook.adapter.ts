@@ -6,9 +6,11 @@ import {MEDIA_RULES} from '../../../../../packages/shared/src/media-rules.ts';
 import {MetaGraphClient} from './meta-http.client.ts';
 import type {AccountMetricPoint,ProfileFacts,InsightsSource} from '../../../../../packages/platform-contracts/src/insights.ts';
 import {insightsError,metaDaily,present,metricNumber,brandDay,nextDay,withCurrentFollowers} from '../insights-helpers.ts';
+import type {CommentSource} from '../../../../../packages/platform-contracts/src/comments.ts';
+import type {SocialComment} from '../../../../../packages/shared/src/domain.ts';
 
 type Deps={graph:MetaGraphClient;tokens:(socialAccountId:string)=>Promise<string>;refresh?:(account:SocialAccount)=>Promise<TokenRefreshResult>};
-export class FacebookAdapter implements PlatformAdapter,InsightsSource {
+export class FacebookAdapter implements PlatformAdapter,InsightsSource,CommentSource {
   readonly platform='FACEBOOK' as const;
   private readonly graph:MetaGraphClient;private readonly tokens:Deps['tokens'];private readonly refresh:Deps['refresh'];
   constructor(deps:Deps){this.graph=deps.graph;this.tokens=deps.tokens;this.refresh=deps.refresh}
@@ -93,5 +95,13 @@ export class FacebookAdapter implements PlatformAdapter,InsightsSource {
   async fetchPostMetrics(account:SocialAccount,platformPostId:string):Promise<PostMetricsData>{
     const token=await this.tokens(account.id);
     try{const base=await this.fetchMetrics(platformPostId,{socialAccountId:account.id});const data=await this.graph.get<{data?:Array<{name:string;values?:Array<{value?:number}>}>}>(`/${platformPostId}/insights`,token,{metric:'post_total_media_view_unique'});const views=metricNumber(data.data?.find(x=>x.name==='post_total_media_view_unique')?.values?.[0]?.value);return{...base,...(views===null?{}:{views}),raw:{...base.raw,insights:data}}}catch(error){insightsError(error)}
+  }
+  async listSince(_account:SocialAccount,_since:number):Promise<Omit<SocialComment,'id'|'brandId'|'status'>[]>{return[]}
+  async reply(account:SocialAccount,platformCommentId:string,text:string):Promise<{platformCommentId:string}>{
+    const token=await this.tokens(account.id),result=await this.graph.post<{id:string}>(`/${platformCommentId}/comments`,token,{message:text});
+    return{platformCommentId:result.id};
+  }
+  async hide(account:SocialAccount,platformCommentId:string,hidden:boolean):Promise<void>{
+    const token=await this.tokens(account.id);await this.graph.post(`/${platformCommentId}`,token,{is_hidden:hidden});
   }
 }

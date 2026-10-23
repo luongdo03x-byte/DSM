@@ -23,7 +23,7 @@ const fields = {
   campaigns: ['id', 'brandId', 'productId', 'name', 'description', 'status', 'startAt', 'endAt', 'contentIds'],
   authSessions: ['id', 'userId', 'refreshTokenHash', 'expiresAt', 'revokedAt'],
   audit: ['id', 'workspaceId', 'userId', 'action', 'entityType', 'entityId', 'metadata', 'createdAt'],
-  socialAccounts: ['id', 'brandId', 'platform', 'username', 'displayName', 'platformAccountId', 'publishMode', 'status', 'browserProfileId'],
+  socialAccounts: ['id', 'brandId', 'platform', 'username', 'displayName', 'platformAccountId', 'publishMode', 'status', 'browserProfileId', 'commentsPolledAt'],
   socialComments: ['id', 'brandId', 'socialAccountId', 'platform', 'platformCommentId', 'platformPostId', 'publishedPostId', 'parentCommentId', 'authorId', 'authorName', 'isFromPage', 'text', 'createdAt', 'status', 'privateReplySentAt'],
   commentActions: ['id', 'commentId', 'kind', 'text', 'ruleId', 'userId', 'status', 'errorCode', 'createdAt'],
   credentials: ['id', 'socialAccountId', 'provider', 'ciphertext', 'iv', 'authTag', 'refreshCiphertext', 'expiresAt', 'scopes', 'providerUserId'],
@@ -46,7 +46,7 @@ const fields = {
   clickEvents: ['id', 'trackedLinkId', 'timestamp', 'referrer', 'userAgent', 'country', 'deviceType'],
 } as const;
 
-const epochFields = new Set(['expiresAt', 'revokedAt', 'createdAt', 'privateReplySentAt', 'lastSeenAt', 'scheduledAt', 'publishAt', 'processingStartedAt', 'startedAt', 'finishedAt', 'publishedAt', 'capturedAt', 'timestamp', 'consumedAt', 'sizeBytes', 'views', 'likes', 'comments', 'shares', 'saves', 'clicks','followers','reach','engagements','profileViews','watchTimeMinutes','posts']);
+const epochFields = new Set(['expiresAt', 'revokedAt', 'createdAt', 'privateReplySentAt', 'commentsPolledAt', 'lastSeenAt', 'scheduledAt', 'publishAt', 'processingStartedAt', 'startedAt', 'finishedAt', 'publishedAt', 'capturedAt', 'timestamp', 'consumedAt', 'sizeBytes', 'views', 'likes', 'comments', 'shares', 'saves', 'clicks','followers','reach','engagements','profileViews','watchTimeMinutes','posts']);
 
 export function toDomain(table: DomainTable, row: RecordValue): RecordValue {
   const result: RecordValue = {};

@@ -7,7 +7,7 @@ import type {SocialAccount} from '../../../../../packages/shared/src/domain.ts';
 import {CredentialCryptoService} from '../../modules/accounts/credential-crypto.service.ts';
 import type {GoogleConfig} from './google.config.ts';
 
-export const GOOGLE_SCOPES=['https://www.googleapis.com/auth/youtube.upload','https://www.googleapis.com/auth/youtube.readonly','https://www.googleapis.com/auth/yt-analytics.readonly'];
+export const GOOGLE_SCOPES=['https://www.googleapis.com/auth/youtube.upload','https://www.googleapis.com/auth/youtube.readonly','https://www.googleapis.com/auth/yt-analytics.readonly','https://www.googleapis.com/auth/youtube.force-ssl'];
 export class GoogleOAuthConnector implements OAuthConnector{
   readonly provider='GOOGLE' as const;
   private readonly http:HttpClient;private readonly config:GoogleConfig;

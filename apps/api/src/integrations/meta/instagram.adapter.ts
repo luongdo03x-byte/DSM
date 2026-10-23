@@ -7,10 +7,12 @@ import {MetaGraphClient} from './meta-http.client.ts';
 import type {QuotaManager} from '../../../../../packages/shared/src/quota.ts';
 import type {AccountMetricPoint,ProfileFacts,InsightsSource} from '../../../../../packages/platform-contracts/src/insights.ts';
 import {insightsError,metaDaily,present,metricNumber,brandDay,nextDay,withCurrentFollowers} from '../insights-helpers.ts';
+import type {CommentSource} from '../../../../../packages/platform-contracts/src/comments.ts';
+import type {SocialComment} from '../../../../../packages/shared/src/domain.ts';
 
 export const IG_CONTAINER_TIMEOUT_MS=10*60_000;
 type Deps={graph:MetaGraphClient;tokens:(socialAccountId:string)=>Promise<string>;accountIds:(socialAccountId:string)=>Promise<string>;quota?:QuotaManager;refresh?:(account:SocialAccount)=>Promise<TokenRefreshResult>};
-export class InstagramAdapter implements PlatformAdapter,InsightsSource {
+export class InstagramAdapter implements PlatformAdapter,InsightsSource,CommentSource {
   readonly platform='INSTAGRAM' as const;
   private readonly graph:MetaGraphClient;private readonly tokens:Deps['tokens'];private readonly accountIds:Deps['accountIds'];private readonly refresh:Deps['refresh'];private readonly quota:Deps['quota'];
   constructor(deps:Deps){this.graph=deps.graph;this.tokens=deps.tokens;this.accountIds=deps.accountIds;this.refresh=deps.refresh;this.quota=deps.quota}
@@ -74,4 +76,12 @@ export class InstagramAdapter implements PlatformAdapter,InsightsSource {
     try{const raw=await this.graph.get<{profile_picture_url?:string;biography?:string;website?:string}>(`/${igId}`,token,{fields:'profile_picture_url,biography,website'});return{hasAvatar:present(raw.profile_picture_url),hasBio:present(raw.biography),hasLink:present(raw.website)}}catch(error){insightsError(error)}
   }
   async fetchPostMetrics(account:SocialAccount,platformPostId:string):Promise<PostMetricsData>{try{return await this.fetchMetrics(platformPostId,{socialAccountId:account.id})}catch(error){insightsError(error)}}
+  async listSince(_account:SocialAccount,_since:number):Promise<Omit<SocialComment,'id'|'brandId'|'status'>[]>{return[]}
+  async reply(account:SocialAccount,platformCommentId:string,text:string):Promise<{platformCommentId:string}>{
+    const token=await this.tokens(account.id),result=await this.graph.post<{id:string}>(`/${platformCommentId}/replies`,token,{message:text});
+    return{platformCommentId:result.id};
+  }
+  async hide(account:SocialAccount,platformCommentId:string,hidden:boolean):Promise<void>{
+    const token=await this.tokens(account.id);await this.graph.post(`/${platformCommentId}`,token,{hide:hidden});
+  }
 }
