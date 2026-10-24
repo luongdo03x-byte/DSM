@@ -14,7 +14,7 @@ export function AiPanel({brandId,platform,saveDraft,onApply}:{brandId:string;pla
     try{
       const contentId=await saveDraft();
       if(!contentId){setError('Hãy nhập tiêu đề và lưu nội dung hợp lệ trước khi tạo gợi ý.');return}
-      const result=await browserApi.request<{suggestions:Suggestion[]}>(`/brands/${brandId}/ai/captions`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({contentId,platforms:[platform],n:3})});
+      const result=await browserApi.request<{suggestions:Suggestion[]}>(`/brands/${brandId}/ai/captions`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({contentId,platforms:[platform],variantsPerPlatform:3})});
       setSuggestions(result.suggestions.filter(item=>item.platform===platform));
     }catch{setError('Không thể tạo gợi ý AI. Hãy kiểm tra cấu hình AI hoặc thử lại sau.')}
     finally{setBusy(false)}

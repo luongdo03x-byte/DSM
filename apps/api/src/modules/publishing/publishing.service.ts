@@ -27,7 +27,14 @@ export class PublishingService {
     const jobs=(await this.repos.publishJobs.findInRange(brandId,from,to)).filter(job=>(job.publishAt??job.scheduledAt)<to);
     const published=await Promise.all(jobs.map(job=>this.calendarEntry(job)));
     const planned:CalendarEntry[]=[];
+    const allJobs=await this.repos.publishJobs.findBy({brandId});
+    const activePlans=new Set<string>();
+    for(const job of allJobs){
+      const batch=await this.repos.publishBatches.get(job.batchId);
+      if(batch)activePlans.add(`${batch.contentItemId}|${job.socialAccountId}`);
+    }
     for(const content of (await this.repos.contents.findBy({brandId})).filter(row=>row.status==='DRAFT'&&row.plannedAt!==undefined&&row.plannedAt>=from&&row.plannedAt<to&&row.plannedSocialAccountId)){
+      if(activePlans.has(`${content.id}|${content.plannedSocialAccountId}`))continue;
       const account=await this.repos.socialAccounts.get(content.plannedSocialAccountId!);
       if(!account||account.brandId!==brandId)continue;
       const variant=(await this.repos.variants.findBy({contentItemId:content.id,platform:account.platform}))[0];

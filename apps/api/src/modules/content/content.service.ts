@@ -7,7 +7,7 @@ import type {AuditService} from '../audit/audit.service.ts';
 
 const platforms: Platform[] = ['FACEBOOK', 'INSTAGRAM', 'THREADS', 'TIKTOK', 'YOUTUBE'];
 type CreateContent = {type: ContentType; title: string; productId?: string; hook?: string; body?: string; cta?: string; masterAssetId?: string; mediaAssetIds?: string[]};
-type UpdateVariant = {caption?: string; body?: string; hashtags?: string[]; cta?: string; assetId?: string; status?: 'DRAFT' | 'READY';tiktokSettings?:NonNullable<ContentVariant['tiktokSettings']>;youtube?:NonNullable<ContentVariant['youtube']>};
+type UpdateVariant = {caption?: string; hook?:string; body?: string; hashtags?: string[]; cta?: string; assetId?: string; status?: 'DRAFT' | 'READY';tiktokSettings?:NonNullable<ContentVariant['tiktokSettings']>;youtube?:NonNullable<ContentVariant['youtube']>};
 
 export class ContentService {
   private readonly repos: Repositories;

@@ -33,9 +33,13 @@ export class ContentPlanService{
     const performance=byPillar(await Promise.all(posts.filter(post=>post.publishedAt>=Date.now()-90*DAY).map(async post=>{const content=contentById.get(variantById.get(post.contentVariantId)?.contentItemId??'');const metrics=await this.repos.postMetrics.findBy({publishedPostId:post.id});const latest=metrics.sort((a,b)=>b.capturedAt-a.capturedAt)[0];return{...(content?.pillarId?{pillarId:content.pillarId}:{}),views:latest?.views??null,engagements:latest?.likes!==undefined&&latest?.comments!==undefined?latest.likes+latest.comments+(latest.shares??0):null}})));
     const prompt=JSON.stringify({task:'Đề xuất kế hoạch 30 ngày tiếng Việt. Trả ý tưởng theo từng kênh, pillar và mục tiêu; không tạo bài đăng.',startDate,days:30,accounts:accounts.map((account,index)=>({id:account!.id,platform:account!.platform,targetPosts:counts[account!.id]})),pillars:pillars.map(pillar=>({id:pillar.id,name:pillar.name,description:pillar.description})),events,performance});
     const {data}=await this.ai.run('PLAN_30D',brandId,PlanSchema,prompt,{stream:true});
-    const jobs=await this.repos.publishJobs.findBy({brandId}),occupied=new Set<string>();
-    for(const job of jobs.filter(job=>!['CANCELLED','FAILED'].includes(job.status)))occupied.add(`${job.socialAccountId}|${localDay(job.publishAt??job.scheduledAt,brand.timezone)}`);
-    for(const content of contents)if(content.plannedAt&&content.plannedSocialAccountId&&content.status!=='ARCHIVED')occupied.add(`${content.plannedSocialAccountId}|${localDay(content.plannedAt,brand.timezone)}`);
+    const jobs=await this.repos.publishJobs.findBy({brandId}),occupied=new Set<string>(),scheduledPlans=new Set<string>();
+    for(const job of jobs.filter(job=>!['CANCELLED','FAILED'].includes(job.status))){
+      occupied.add(`${job.socialAccountId}|${localDay(job.publishAt??job.scheduledAt,brand.timezone)}`);
+      const batch=await this.repos.publishBatches.get(job.batchId);
+      if(batch)scheduledPlans.add(`${batch.contentItemId}|${job.socialAccountId}`);
+    }
+    for(const content of contents)if(content.plannedAt&&content.plannedSocialAccountId&&content.status!=='ARCHIVED'&&!scheduledPlans.has(`${content.id}|${content.plannedSocialAccountId}`))occupied.add(`${content.plannedSocialAccountId}|${localDay(content.plannedAt,brand.timezone)}`);
     const validPillars=new Set(pillars.map(pillar=>pillar.id)),validAccounts=new Set(accountIds),created:ContentItem[]=[],skipped:{date:string;socialAccountId:string;reason:'ALREADY_SCHEDULED'}[]=[],issues:{code:string;message:string}[]=[];
     const used=new Map<string,number>();
     for(const item of data.items.sort((a,b)=>a.date.localeCompare(b.date)||a.socialAccountId.localeCompare(b.socialAccountId))){

@@ -118,3 +118,9 @@ pnpm verify kiểm tra phép tính và luồng dữ liệu source/capturedAt b�
 Status: NOT_VERIFIED — cần đăng ít nhất 50 bài thật gồm ảnh, album và video trong 28 ngày; tỉ lệ đăng thành công phải đạt ít nhất 98% sau khi loại lỗi người dùng. Chưa có kết quả vận hành thật hoặc bằng chứng kiểm tra cổng này.
 
 Endpoint `/brands/:brandId/analytics/reliability?days=28` tính `published / (published + failedPlatform)` từ dữ liệu job và bài đã xuất bản. Bài còn chờ, lỗi xác thực và lỗi kiểm tra nội dung không nằm trong mẫu số. Giá trị `null` hiển thị là `—` khi chưa có kết quả.
+
+## AI assistant beta quality (SP10)
+
+Status: BLOCKED_EXTERNAL — chưa có 20 bài gốc thật đã bỏ dữ liệu cá nhân và chưa có lượt chạy Claude có phí được chủ repo duyệt.
+
+`pnpm verify` kiểm tra caption theo nền tảng, metadata YouTube, bản nháp kế hoạch, thư viện hook, phụ đề và luồng Composer bằng dữ liệu giả. Bộ mẫu trong repo chỉ dùng để kiểm tra kỹ thuật, không đủ làm bằng chứng đạt ngưỡng chất lượng 16/20 bài. Quy trình đánh giá thủ công nằm trong [AI evaluation runbook](../runbooks/ai-evaluation.md).

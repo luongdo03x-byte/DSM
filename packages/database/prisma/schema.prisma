@@ -405,6 +405,7 @@ model ContentVariant {
   socialAccountId String?
   platform        Platform
   caption         String?
+  hook            String?
   body            String?
   hashtags        Json?
   cta             String?

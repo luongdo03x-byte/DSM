@@ -52,6 +52,28 @@ test('ngày sale 11/11 được gắn tên sự kiện cho bản nháp',async()=
   assert.equal(calendar[0]?.status,'DRAFT');
 });
 
+test('bản nháp kế hoạch không lặp lại trên lịch sau khi tạo job xuất bản',async()=>{
+  const {service,repos}=await setup([item('2026-11-11')]);
+  const content=(await service.generate('b','2026-11-01',['a'])).created[0]!;
+  const variant=(await repos.variants.findBy({contentItemId:content.id}))[0]!;
+  await repos.publishBatches.insert({id:'batch',brandId:'b',contentItemId:content.id,createdBy:'u',createdAt:1});
+  await repos.publishJobs.insert({id:'job',batchId:'batch',brandId:'b',socialAccountId:'a',contentVariantId:variant.id,platform:'INSTAGRAM',strategy:'API',scheduledAt:Date.parse('2026-11-12T04:00:00Z'),status:'QUEUED',attemptCount:0,maxAttempts:3,idempotencyKey:'x'});
+  const from=Date.parse('2026-11-10T00:00:00Z'),to=Date.parse('2026-11-14T00:00:00Z');
+  const calendar=await new PublishingService(repos,new PublisherRegistry(),new StrategyResolver()).listCalendar('b',from,to);
+  assert.deepEqual(calendar.map(row=>row.jobId),['job']);
+});
+
+test('kế hoạch mới có thể dùng lại ngày cũ sau khi bài kế hoạch được dời lịch',async()=>{
+  const {service,repos}=await setup([item('2026-11-11')]);
+  const original=(await service.generate('b','2026-11-01',['a'])).created[0]!;
+  const variant=(await repos.variants.findBy({contentItemId:original.id}))[0]!;
+  await repos.publishBatches.insert({id:'batch',brandId:'b',contentItemId:original.id,createdBy:'u',createdAt:1});
+  await repos.publishJobs.insert({id:'job',batchId:'batch',brandId:'b',socialAccountId:'a',contentVariantId:variant.id,platform:'INSTAGRAM',strategy:'API',scheduledAt:Date.parse('2026-11-12T04:00:00Z'),status:'QUEUED',attemptCount:0,maxAttempts:3,idempotencyKey:'x'});
+  const replacement=await service.generate('b','2026-11-01',['a']);
+  assert.equal(replacement.created.length,1);
+  assert.equal(replacement.skipped.length,0);
+});
+
 test('route kế hoạch tạo bản nháp và route hook yêu cầu đăng nhập',async()=>{
   let accountId='';
   const client={beta:{messages:{create:async()=>{throw new Error('unexpected')},stream:()=>({finalMessage:async()=>({content:[{type:'text',text:JSON.stringify({items:[{...item('2026-11-11'),socialAccountId:accountId}]})}],stop_reason:'end_turn',usage:{input_tokens:2,output_tokens:3}})})}}};

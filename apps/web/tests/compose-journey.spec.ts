@@ -9,6 +9,7 @@ test('AI suggestion edits a draft only after selection and never publishes it',a
   let aiCalls=0,publishCalls=0;
   await page.route('**/brands/local-brand/ai/captions',async route=>{
     aiCalls++;
+    expect(route.request().postDataJSON().variantsPerPlatform).toBe(3);
     await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({suggestions:[1,2,3].map(index=>({platform:'FACEBOOK',hook:`Mở đầu ${index}`,caption:`Gợi ý Facebook ${index}`,hashtags:[],rationale:'Bản thử',issues:[]}))})});
   });
   await page.route('**/brands/local-brand/publish',async route=>{publishCalls++;await route.continue()});
@@ -26,6 +27,11 @@ test('AI suggestion edits a draft only after selection and never publishes it',a
   await expect(page.getByLabel('Chú thích Facebook')).toHaveValue('Gợi ý Facebook 2');
   expect(aiCalls).toBe(1);
   expect(publishCalls).toBe(0);
+  await page.getByRole('button',{name:'Lưu bản nháp'}).click();
+  await expect(page.getByText('Đã lưu bản nháp')).toBeVisible();
+  await page.reload();
+  await page.getByRole('checkbox',{name:/Facebook/}).check();
+  await expect(page.getByLabel('Chú thích Facebook')).toHaveValue('Gợi ý Facebook 2');
   await expect(page.getByRole('button',{name:'Đăng ngay'})).toBeVisible();
 });
 

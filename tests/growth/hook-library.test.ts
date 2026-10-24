@@ -18,3 +18,16 @@ test('thư viện hook chỉ lấy top 10% bài theo lượt xem 90 ngày',async
   assert.deepEqual(hooks.map(value=>value.hook),['Hook 20','Hook 19']);
   assert.deepEqual(hooks.map(value=>value.views),[2000,1900]);
 });
+
+test('bài nhiều lượt xem không có hook vẫn chiếm vị trí trong top 10%',async()=>{
+  const repos=new MemoryRepositories(new MemoryStore());
+  const now=Date.parse('2026-11-30T00:00:00Z');
+  for(let index=1;index<=20;index++){
+    const contentId=`content-${index}`,variantId=`variant-${index}`,postId=`post-${index}`;
+    await repos.contents.insert({id:contentId,brandId:'b',type:'VIDEO',title:`Bài ${index}`,...(index<20?{hook:`Hook ${index}`}:{}) ,status:'READY'});
+    await repos.variants.insert({id:variantId,contentItemId:contentId,platform:'YOUTUBE',hashtags:[],status:'READY'});
+    await repos.publishedPosts.insert({id:postId,brandId:'b',publishJobId:`job-${index}`,socialAccountId:'a',contentVariantId:variantId,platform:'YOUTUBE',platformPostId:`remote-${index}`,publishedAt:now-86_400_000});
+    await repos.postMetrics.append({id:`metric-${index}`,publishedPostId:postId,capturedAt:now,captureKey:'latest',views:index*100});
+  }
+  assert.deepEqual((await new HookLibrary(repos,()=>now).top('b')).map(row=>row.hook),['Hook 19']);
+});

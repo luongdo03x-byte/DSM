@@ -56,7 +56,7 @@ export function ComposePage({brandId,contentId:initialContentId}:{brandId:string
       for(const field of ['type','title','body','hook','cta'] as const)dispatch({type:'setField',field,value:(item[field]??(field==='type'?'TEXT':'')) as never});
       item.mediaAssetIds.forEach((id,index)=>{originalOrder.current[id]=index+1});dispatch({type:'setMedia',mediaAssetIds:item.mediaAssetIds});
       const variants=await browserApi.request<ContentVariant[]>(`${path(brandId,initialContentId)}/variants`);
-      if(mounted){for(const variant of variants)dispatch({type:'editVariant',platform:variant.platform,patch:{variantId:variant.id,caption:variant.caption??'',hashtags:variant.hashtags,...(variant.title?{title:variant.title}:{}),...(variant.format?{format:variant.format}:{}),...(variant.skippedReason?{skippedReason:variant.skippedReason}:{}),...(variant.tiktokSettings?{tiktokSettings:variant.tiktokSettings}:{}),...(variant.youtube?{youtube:variant.youtube}:{})}});setTimeout(()=>dispatch({type:'markSaved'}),0)}
+      if(mounted){for(const variant of variants)dispatch({type:'editVariant',platform:variant.platform,patch:{variantId:variant.id,caption:variant.caption??'',hook:variant.hook??'',hashtags:variant.hashtags,...(variant.title?{title:variant.title}:{}),...(variant.format?{format:variant.format}:{}),...(variant.skippedReason?{skippedReason:variant.skippedReason}:{}),...(variant.tiktokSettings?{tiktokSettings:variant.tiktokSettings}:{}),...(variant.youtube?{youtube:variant.youtube}:{})}});setTimeout(()=>dispatch({type:'markSaved'}),0)}
     }
   }).catch(()=>{if(mounted)setError('Không thể tải dữ liệu Composer.')});return()=>{mounted=false}},[brandId,initialContentId]);
 
@@ -77,14 +77,13 @@ export function ComposePage({brandId,contentId:initialContentId}:{brandId:string
       const id=contentIdRef.current;
       if(id){await browserApi.request(path(brandId,id),{method:'PATCH',...json,body:JSON.stringify(payload)});if(current.type!=='TEXT')await browserApi.request(`${path(brandId,id)}/media`,{method:'PUT',...json,body:JSON.stringify({mediaAssetIds:current.mediaAssetIds})});savedId=id}
       else{const created=await browserApi.request<ContentItem>(`/brands/${brandId}/content`,{method:'POST',...json,body:JSON.stringify(payload)});contentIdRef.current=created.id;savedId=created.id;window.history.replaceState(null,'',`/app/brands/${brandId}/compose/${created.id}`)}
-      const tiktokSettings=current.variants.TIKTOK?.tiktokSettings;
-      if(savedId&&tiktokSettings&&Object.keys(tiktokSettings).length){
+      if(savedId&&Object.keys(current.variants).length){
         const rows=await browserApi.request<ContentVariant[]>(`${path(brandId,savedId)}/variants/copy`,{method:'POST'});
-        const tiktok=rows.find(row=>row.platform==='TIKTOK');
-        if(tiktok)await browserApi.request(`${path(brandId,savedId)}/variants/${tiktok.id}`,{method:'PATCH',...json,body:JSON.stringify({tiktokSettings})});
+        for(const [platform,draft] of Object.entries(current.variants)){
+          const row=rows.find(value=>value.platform===platform);if(!row)continue;
+          await browserApi.request(`${path(brandId,savedId)}/variants/${row.id}`,{method:'PATCH',...json,body:JSON.stringify({caption:draft.caption,hook:draft.hook??'',hashtags:draft.hashtags,...(platform==='TIKTOK'&&draft.tiktokSettings?{tiktokSettings:draft.tiktokSettings}:{}),...(platform==='YOUTUBE'&&draft.youtube?{youtube:draft.youtube}:{})})});
+        }
       }
-      const youtube=current.variants.YOUTUBE?.youtube;
-      if(savedId&&youtube&&Object.keys(youtube).length){const rows=await browserApi.request<ContentVariant[]>(`${path(brandId,savedId)}/variants/copy`,{method:'POST'});const row=rows.find(value=>value.platform==='YOUTUBE');if(row)await browserApi.request(`${path(brandId,savedId)}/variants/${row.id}`,{method:'PATCH',...json,body:JSON.stringify({youtube})})}
       dispatch({type:'markSaved',snapshot:current});setSaveLabel('Đã lưu bản nháp');
     });
     try{await saveQueue.current;return savedId??contentIdRef.current}catch{setSaveLabel('Chưa lưu được bản nháp');setError('Không thể lưu bản nháp. Vui lòng thử lại.');return undefined}
